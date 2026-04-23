@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Write(projects/**)",
+      "Write(knowledge_base/**)",
+      "Edit(projects/**)",
+      "Edit(knowledge_base/**)"
+    ]
+  }
+}
