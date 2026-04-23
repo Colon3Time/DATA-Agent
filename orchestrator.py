@@ -31,7 +31,7 @@ if "--mode" in sys.argv:
         MODE = sys.argv[idx + 1]
 
 if MODE == "light":
-    OLLAMA_MODEL = "llama3.2:1b"
+    OLLAMA_MODEL = "llama3:latest"
     ANNA_SYSTEM  = (BASE_DIR / "anna_short.md").read_text(encoding="utf-8")
 else:
     OLLAMA_MODEL = "llama3:latest"
@@ -40,9 +40,9 @@ else:
 
 # ── LLM Callers ───────────────────────────────────────────────────────────────
 
-def call_ollama(system_prompt: str, user_message: str, label: str = "") -> str:
+def call_ollama(system_prompt: str, user_message: str, label: str = "", silent: bool = False) -> str:
     """Fresh Ollama call — ไม่มี history ทุกครั้ง"""
-    if label:
+    if label and not silent:
         print(f"\n[{label}] ", end="", flush=True)
     try:
         response = requests.post(
@@ -63,6 +63,11 @@ def call_ollama(system_prompt: str, user_message: str, label: str = "") -> str:
         return "[ERROR] Ollama ไม่ได้รันอยู่"
     except requests.exceptions.Timeout:
         return "[ERROR] Ollama timeout"
+    except requests.exceptions.HTTPError as e:
+        status = e.response.status_code if e.response is not None else "?"
+        if status == 404:
+            return f"[ERROR] Model '{OLLAMA_MODEL}' ไม่พบใน Ollama — สั่ง: ollama pull {OLLAMA_MODEL}"
+        return f"[ERROR] Ollama HTTP {status}"
 
     full = []
     for line in response.iter_lines():
@@ -70,11 +75,13 @@ def call_ollama(system_prompt: str, user_message: str, label: str = "") -> str:
             continue
         chunk = json.loads(line)
         token = chunk.get("message", {}).get("content", "")
-        print(token, end="", flush=True)
+        if not silent:
+            print(token, end="", flush=True)
         full.append(token)
         if chunk.get("done"):
             break
-    print()
+    if not silent:
+        print()
     return "".join(full)
 
 
@@ -215,11 +222,11 @@ def run_pipeline(user_input: str):
     3. Anna สรุปผลสุดท้าย → จบ
     """
 
-    # Step 1: Anna ตัดสินใจ (fresh session)
+    # Step 1: Anna ตัดสินใจ (fresh session) — silent เพื่อป้องกัน double print
     anna_kb = load_kb("anna")
     anna_system = ANNA_SYSTEM + (f"\n\n---\n## Anna KB\n{anna_kb[:500]}" if anna_kb else "")
     print(f"\n{'═'*55}")
-    anna_response = call_ollama(anna_system, user_input, label="ANNA")
+    anna_response = call_ollama(anna_system, user_input, silent=True)
     log_raw("User", user_input)
     log_raw("Anna", anna_response)
 
@@ -262,13 +269,11 @@ def run_pipeline(user_input: str):
 
         print(f"\n[ANNA] ✓ {agent} เสร็จ ({i+1}/{len(dispatches)})")
 
-    # Step 3: Anna สรุปผลสุดท้าย (fresh session — อ่านจากไฟล์)
+    # Step 3: แสดงผลสุดท้าย (โดยไม่ต้องเรียก LLM ซ้ำ)
     if completed:
         print(f"\n{'═'*55}")
-        # อ่านแค่ผลของ agent สุดท้าย ไม่อ่านทั้งหมด
         last_output = pipeline_read(completed[-1])
-        summary_msg = f"ทีมทำงานเสร็จแล้ว {len(completed)} agent: {', '.join(completed)}\n\nผลสุดท้าย:\n{last_output}\n\nสรุปให้ผู้ใช้สั้นๆ"
-        call_ollama(anna_system, summary_msg, label="ANNA สรุป")
+        print(f"\n[สรุปผล]:\n{last_output}")
 
 
 # ── Logging ───────────────────────────────────────────────────────────────────
