@@ -322,6 +322,9 @@ def run_pipeline(user_input: str):
         last_output = pipeline_read(completed[-1])
         print(f"\n[สรุปผล]:\n{last_output}")
 
+        # บันทึก handoff ทุกครั้งที่ pipeline จบ
+        save_handoff(user_input, completed, dispatches)
+
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -333,6 +336,60 @@ def log_raw(role: str, content: str):
         fp.write(f"[{ts}] {role}: {content[:300]}\n")
 
 
+# ── Handoff ───────────────────────────────────────────────────────────────────
+
+def save_handoff(user_input: str, completed: list[str], dispatches: list[dict]):
+    """บันทึก handoff.md หลัง pipeline จบ — ใช้ resume session ครั้งต่อไป"""
+    LOGS_DIR.mkdir(exist_ok=True)
+    ts   = datetime.now().strftime("%Y-%m-%d %H:%M")
+    date = datetime.now().strftime("%Y-%m-%d")
+
+    # สรุป agent ที่ทำเสร็จพร้อม output สั้นๆ
+    agent_summary = ""
+    for name in completed:
+        output = pipeline_read(name)
+        preview = output[:300].replace("\n", " ")
+        agent_summary += f"- **{name}**: {preview}...\n"
+
+    # หา agent ที่ยังไม่ได้ทำ (ถ้า pipeline ไม่ครบ)
+    all_agents = ["scout","dana","eddie","max","finn","mo","iris","vera","quinn","rex"]
+    done_set   = set(completed)
+    pending    = [a for a in all_agents if a not in done_set]
+    pending_str = ", ".join(pending) if pending else "ครบทุกขั้นตอนแล้ว"
+
+    content = f"""# Handoff — {ts}
+
+## คำสั่งล่าสุดจาก User
+{user_input}
+
+## Agent ที่ทำเสร็จแล้ว
+{agent_summary}
+## ยังไม่ได้ทำ
+{pending_str}
+
+## ไฟล์ที่เกี่ยวข้อง
+- Pipeline outputs: `DATA-Agent/pipeline/`
+- Logs วันนี้: `DATA-Agent/logs/{date}_raw.md`
+- Knowledge base: `DATA-Agent/knowledge_base/`
+
+## วิธี Resume
+เปิด orchestrator.py แล้วพิมพ์ path ของไฟล์นี้:
+`{LOGS_DIR}/handoff.md`
+Anna จะอ่านและทำงานต่อได้ทันที
+"""
+    f = LOGS_DIR / "handoff.md"
+    f.write_text(content, encoding="utf-8")
+    print(f"\n[HANDOFF] บันทึกแล้ว → {f}")
+
+
+def load_handoff(path: str) -> str | None:
+    """โหลด .md file เป็น context — ถ้า path ไม่มีให้ return None"""
+    p = Path(path)
+    if not p.exists() or p.suffix != ".md":
+        return None
+    return p.read_text(encoding="utf-8")
+
+
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 HELP_TEXT = """
@@ -342,6 +399,7 @@ HELP_TEXT = """
   @<agent> <task>  → ส่งตรงไป agent (Ollama)
   @<agent>! <task> → ส่งตรงไป agent (Claude discover)
   kb <agent>       → ดู knowledge_base
+  <path>.md        → โหลด handoff file เพื่อ resume งานจาก session ที่แล้ว
   exit             → ออก
 """
 
@@ -386,6 +444,16 @@ def main():
         if user_input.lower() == "help":
             print(HELP_TEXT)
             continue
+
+        # โหลด .md file เป็น context — resume session จาก handoff
+        if user_input.strip().endswith(".md"):
+            ctx = load_handoff(user_input.strip())
+            if ctx:
+                print(f"[RESUME] โหลดไฟล์สำเร็จ — Anna กำลังอ่าน context...")
+                user_input = f"[Session Resume — อ่านไฟล์นี้แล้วบอกว่าจะทำอะไรต่อ]\n\n{ctx}"
+            else:
+                print(f"[ERROR] ไม่พบไฟล์ {user_input}")
+                continue
 
         if user_input.lower().startswith("kb "):
             name = user_input[3:].strip()
