@@ -109,6 +109,7 @@ Scout ส่ง feedback ไปยัง Anna เมื่อ:
 - ไม่พบ dataset ที่เหมาะสม → เสนอทางเลือก (web scraping, synthetic data, API)
 - Dataset มี license จำกัด → **หยุดรอ confirm จากผู้ใช้ก่อนเสมอ**
 - Dataset มีปัญหาคุณภาพสูง → แจ้ง Dana ล่วงหน้าพร้อมรายละเอียด
+- **ติดปัญหาที่เกินความสามารถ** → เขียน `NEED_CLAUDE: [อธิบายปัญหา]` ไว้ใน report (Anna จะขออนุญาต user ก่อนปรึกษา Claude)
 
 ---
 

@@ -186,6 +186,19 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "", discover: bool =
     else:
         result = call_ollama(system, message, label=f"{agent_name.upper()} execute")
 
+        # ตรวจสอบว่า agent ต้องการ Claude
+        need = parse_need_claude(result)
+        if need:
+            print(f"\n[{agent_name.upper()}] ติดปัญหา: {need}")
+            perm = input(f"อนุญาตให้ปรึกษา Claude เพื่อช่วย {agent_name}? (y/n): ").strip().lower()
+            if perm == "y":
+                claude_q  = f"{agent_name} ติดปัญหา: {need}\nงาน: {task}"
+                claude_ans = call_claude(system, claude_q, label=f"{agent_name.upper()} → CLAUDE")
+                save_kb(agent_name, f"ปัญหา: {need}\nClaude แนะนำ:\n{claude_ans}")
+                print(f"\n[{agent_name.upper()}] กำลังรันใหม่ด้วย guidance จาก Claude...")
+                guided_msg = message + f"\n\n[Claude แนะนำ]:\n{claude_ans[:600]}"
+                result = call_ollama(system, guided_msg, label=f"{agent_name.upper()} execute(guided)")
+
     # เขียนผลลงไฟล์เพื่อส่งต่อ
     pipeline_write(agent_name, result)
     log_raw(f"{agent_name}({'CLAUDE' if discover else 'OLLAMA'})", result)
@@ -194,8 +207,10 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "", discover: bool =
 
 # ── Dispatch Parser ───────────────────────────────────────────────────────────
 
-DISPATCH_RE = re.compile(r'<DISPATCH>(.*?)</DISPATCH>', re.DOTALL)
-ASK_USER_RE = re.compile(r'<ASK_USER>(.*?)</ASK_USER>', re.DOTALL)
+DISPATCH_RE   = re.compile(r'<DISPATCH>(.*?)</DISPATCH>', re.DOTALL)
+ASK_USER_RE   = re.compile(r'<ASK_USER>(.*?)</ASK_USER>', re.DOTALL)
+ASK_CLAUDE_RE = re.compile(r'<ASK_CLAUDE>(.*?)</ASK_CLAUDE>', re.DOTALL)
+NEED_CLAUDE_RE = re.compile(r'NEED_CLAUDE:\s*(.+)', re.IGNORECASE)
 
 
 def parse_dispatches(text: str) -> list[dict]:
@@ -213,9 +228,20 @@ def parse_ask_user(text: str) -> str | None:
     return m.group(1).strip() if m else None
 
 
+def parse_ask_claude(text: str) -> str | None:
+    m = ASK_CLAUDE_RE.search(text)
+    return m.group(1).strip() if m else None
+
+
+def parse_need_claude(text: str) -> str | None:
+    m = NEED_CLAUDE_RE.search(text)
+    return m.group(1).strip() if m else None
+
+
 def strip_tags(text: str) -> str:
     text = DISPATCH_RE.sub("", text)
     text = ASK_USER_RE.sub("", text)
+    text = ASK_CLAUDE_RE.sub("", text)
     return text.strip()
 
 
@@ -245,6 +271,20 @@ def run_pipeline(user_input: str):
         if confirm != "y":
             print("[ANNA] รับทราบ หยุดการทำงาน")
             return
+
+    # ตรวจสอบ ASK_CLAUDE — Anna ต้องการปรึกษา Claude ก่อนวางแผน
+    claude_q = parse_ask_claude(anna_response)
+    if claude_q:
+        print(f"\n[ANNA] ต้องการปรึกษา Claude เรื่อง:\n  {claude_q}")
+        perm = input("อนุญาตไหมคะ? (y/n): ").strip().lower()
+        if perm == "y":
+            print(f"\n{'─'*55}")
+            claude_ans = call_claude(ANNA_SYSTEM, claude_q, label="ANNA → CLAUDE")
+            save_kb("anna", f"คำถาม: {claude_q}\nClaude แนะนำ:\n{claude_ans}")
+            print(f"\n[ANNA] ได้รับ guidance แล้ว กำลังวางแผนใหม่...")
+            guided_system  = anna_system + f"\n\n---\n## Claude Guidance\n{claude_ans[:800]}"
+            anna_response  = call_ollama(guided_system, user_input, silent=True)
+            log_raw("Anna(guided)", anna_response)
 
     dispatches = parse_dispatches(anna_response)
     clean_response = strip_tags(anna_response)
