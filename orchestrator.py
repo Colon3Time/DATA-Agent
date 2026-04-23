@@ -14,6 +14,13 @@ from datetime import datetime
 
 import anthropic
 
+# โหลด .env ถ้ามี (ไม่บังคับ — ถ้าไม่มี python-dotenv ก็ยังทำงานได้)
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).parent / ".env")
+except ImportError:
+    pass
+
 # ── Config ────────────────────────────────────────────────────────────────────
 OLLAMA_URL   = "http://localhost:11434/api/chat"
 CLAUDE_MODEL = "claude-sonnet-4-6"
