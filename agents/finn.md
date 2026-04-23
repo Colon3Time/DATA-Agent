@@ -36,6 +36,7 @@ Finn สามารถ loop กลับขอข้อมูลเพิ่ม
 - ต้องการรู้ว่า pattern ไหนสำคัญจาก Max ก่อนสร้าง feature
 - ต้องการ business context จาก Eddie เพื่อสร้าง feature ที่ตรงจุด
 - ข้อมูลดิบยังไม่พร้อมสำหรับ feature engineering
+- **ติดปัญหาที่เกินความสามารถ** → เขียน `NEED_CLAUDE: [อธิบายปัญหา]` ไว้ใน report (Anna จะขออนุญาต user ก่อนปรึกษา Claude)
 
 ---
 
