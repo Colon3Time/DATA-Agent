@@ -7,12 +7,12 @@ DataScienceOS Orchestrator — File-Based Pipeline
 import os
 import re
 import json
-import requests
 import sys
 from pathlib import Path
 from datetime import datetime
 
 import anthropic
+import google.generativeai as genai
 
 # โหลด .env ถ้ามี (ไม่บังคับ — ถ้าไม่มี python-dotenv ก็ยังทำงานได้)
 try:
@@ -22,7 +22,7 @@ except ImportError:
     pass
 
 # ── Config ────────────────────────────────────────────────────────────────────
-OLLAMA_URL   = "http://localhost:11434/api/chat"
+GEMINI_MODEL = "gemini-2.0-flash"
 CLAUDE_MODEL = "claude-sonnet-4-6"
 
 BASE_DIR      = Path(__file__).parent
@@ -38,58 +38,38 @@ if "--mode" in sys.argv:
         MODE = sys.argv[idx + 1]
 
 if MODE == "light":
-    OLLAMA_MODEL = "llama3:latest"
-    ANNA_SYSTEM  = (BASE_DIR / "anna_short.md").read_text(encoding="utf-8")
+    ANNA_SYSTEM = (BASE_DIR / "anna_short.md").read_text(encoding="utf-8")
 else:
-    OLLAMA_MODEL = "llama3:latest"
-    ANNA_SYSTEM  = (BASE_DIR / "CLAUDE.md").read_text(encoding="utf-8")
+    ANNA_SYSTEM = (BASE_DIR / "CLAUDE.md").read_text(encoding="utf-8")
 
 
 # ── LLM Callers ───────────────────────────────────────────────────────────────
 
-def call_ollama(system_prompt: str, user_message: str, label: str = "", silent: bool = False) -> str:
-    """Fresh Ollama call — ไม่มี history ทุกครั้ง"""
+def call_gemini(system_prompt: str, user_message: str, label: str = "", silent: bool = False) -> str:
+    """Fresh Gemini call — ไม่มี history ทุกครั้ง"""
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        return "[ERROR] ไม่พบ GEMINI_API_KEY — เพิ่มใน .env ก่อนนะคะ"
     if label and not silent:
         print(f"\n[{label}] ", end="", flush=True)
     try:
-        response = requests.post(
-            OLLAMA_URL,
-            json={
-                "model": OLLAMA_MODEL,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user",   "content": user_message},
-                ],
-                "stream": True,
-            },
-            stream=True,
-            timeout=180,
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel(
+            model_name=GEMINI_MODEL,
+            system_instruction=system_prompt,
         )
-        response.raise_for_status()
-    except requests.exceptions.ConnectionError:
-        return "[ERROR] Ollama ไม่ได้รันอยู่"
-    except requests.exceptions.Timeout:
-        return "[ERROR] Ollama timeout"
-    except requests.exceptions.HTTPError as e:
-        status = e.response.status_code if e.response is not None else "?"
-        if status == 404:
-            return f"[ERROR] Model '{OLLAMA_MODEL}' ไม่พบใน Ollama — สั่ง: ollama pull {OLLAMA_MODEL}"
-        return f"[ERROR] Ollama HTTP {status}"
-
-    full = []
-    for line in response.iter_lines():
-        if not line:
-            continue
-        chunk = json.loads(line)
-        token = chunk.get("message", {}).get("content", "")
+        response = model.generate_content(user_message, stream=True)
+        full = []
+        for chunk in response:
+            token = chunk.text
+            if not silent:
+                print(token, end="", flush=True)
+            full.append(token)
         if not silent:
-            print(token, end="", flush=True)
-        full.append(token)
-        if chunk.get("done"):
-            break
-    if not silent:
-        print()
-    return "".join(full)
+            print()
+        return "".join(full)
+    except Exception as e:
+        return f"[ERROR] Gemini: {e}"
 
 
 def call_claude(system_prompt: str, user_message: str, label: str = "") -> str:
@@ -184,7 +164,7 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "", discover: bool =
         result = call_claude(system, task, label=f"{agent_name.upper()} discover")
         save_kb(agent_name, f"Task: {task}\nDiscovery:\n{result}")
     else:
-        result = call_ollama(system, message, label=f"{agent_name.upper()} execute")
+        result = call_gemini(system, message, label=f"{agent_name.upper()} execute")
 
         # ตรวจสอบว่า agent ต้องการ Claude
         need = parse_need_claude(result)
@@ -197,11 +177,11 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "", discover: bool =
                 save_kb(agent_name, f"ปัญหา: {need}\nClaude แนะนำ:\n{claude_ans}")
                 print(f"\n[{agent_name.upper()}] กำลังรันใหม่ด้วย guidance จาก Claude...")
                 guided_msg = message + f"\n\n[Claude แนะนำ]:\n{claude_ans[:600]}"
-                result = call_ollama(system, guided_msg, label=f"{agent_name.upper()} execute(guided)")
+                result = call_gemini(system, guided_msg, label=f"{agent_name.upper()} execute(guided)")
 
     # เขียนผลลงไฟล์เพื่อส่งต่อ
     pipeline_write(agent_name, result)
-    log_raw(f"{agent_name}({'CLAUDE' if discover else 'OLLAMA'})", result)
+    log_raw(f"{agent_name}({'CLAUDE' if discover else 'GEMINI'})", result)
     return result
 
 
@@ -259,7 +239,7 @@ def run_pipeline(user_input: str):
     anna_kb = load_kb("anna")
     anna_system = ANNA_SYSTEM + (f"\n\n---\n## Anna KB\n{anna_kb[:500]}" if anna_kb else "")
     print(f"\n{'═'*55}")
-    anna_response = call_ollama(anna_system, user_input, silent=True)
+    anna_response = call_gemini(anna_system, user_input, silent=True)
     log_raw("User", user_input)
     log_raw("Anna", anna_response)
 
@@ -283,7 +263,7 @@ def run_pipeline(user_input: str):
             save_kb("anna", f"คำถาม: {claude_q}\nClaude แนะนำ:\n{claude_ans}")
             print(f"\n[ANNA] ได้รับ guidance แล้ว กำลังวางแผนใหม่...")
             guided_system  = anna_system + f"\n\n---\n## Claude Guidance\n{claude_ans[:800]}"
-            anna_response  = call_ollama(guided_system, user_input, silent=True)
+            anna_response  = call_gemini(guided_system, user_input, silent=True)
             log_raw("Anna(guided)", anna_response)
 
     dispatches = parse_dispatches(anna_response)
@@ -413,21 +393,19 @@ def anna_discover(user_input: str):
 
 
 def main():
+    mode_label = "LIGHT" if MODE == "light" else "FULL"
+    gemini_ok  = bool(os.environ.get("GEMINI_API_KEY"))
+    claude_ok  = bool(os.environ.get("ANTHROPIC_API_KEY"))
+
     print("=" * 55)
-    print("  DataScienceOS  |  D:\\DataScienceOS")
-    mode_label = "LIGHT (Surface)" if MODE == "light" else "FULL (คอม)"
-    print(f"  Mode   : {mode_label}")
-    print(f"  Ollama : {OLLAMA_MODEL}  |  Claude: {CLAUDE_MODEL}")
+    print(f"  DataScienceOS | Mode: {mode_label}")
+    print(f"  Gemini : {GEMINI_MODEL}  {'✓' if gemini_ok else '✗'}")
+    print(f"  Claude : {'✓' if claude_ok else '✗'}")
     print("  แต่ละ agent = fresh session ไม่มี context สะสม")
     print("=" * 55)
 
-    try:
-        requests.get("http://localhost:11434", timeout=3)
-        print("  Ollama : ✓ พร้อมใช้งาน")
-    except requests.exceptions.ConnectionError:
-        print("  Ollama : ✗ ไม่ได้รัน  →  รัน `ollama serve` ก่อน")
-
-    print("  Claude : ✓" if os.environ.get("ANTHROPIC_API_KEY") else "  Claude : ✗ ไม่พบ API key")
+    if not gemini_ok:
+        print("  ⚠  ไม่พบ GEMINI_API_KEY — เพิ่มใน .env ก่อนนะคะ")
     print()
 
     while True:
