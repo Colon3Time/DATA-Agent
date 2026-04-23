@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.pyc
+pipeline/
+logs/
+projects/
+knowledge_base/
+11111111.txt
