@@ -19,6 +19,18 @@ import anthropic
 
 load_dotenv(Path(__file__).parent / ".env")
 
+# ── Colors ────────────────────────────────────────────────────────────────────
+RST = "\033[0m"
+BLD = "\033[1m"
+DIM = "\033[2m"
+CY  = "\033[96m"   # Bright Cyan   — UI / borders
+GR  = "\033[92m"   # Bright Green  — success / ✓
+YL  = "\033[93m"   # Bright Yellow — Anna / separators
+RD  = "\033[91m"   # Bright Red    — errors / ✗
+BL  = "\033[94m"   # Bright Blue   — DeepSeek
+MG  = "\033[95m"   # Bright Magenta — Claude
+WH  = "\033[97m"   # Bright White
+
 # ── Config ────────────────────────────────────────────────────────────────────
 DEEPSEEK_URL   = "https://api.deepseek.com/chat/completions"
 DEEPSEEK_MODEL = "deepseek-chat"
@@ -40,7 +52,7 @@ if "--mode" in sys.argv:
 ANNA_SYSTEM = (BASE_DIR / ("anna_short.md" if MODE == "light" else "CLAUDE.md")).read_text(encoding="utf-8")
 
 anna_history:   list      = []
-active_project: Path|None = None  # project ที่กำลังทำงานอยู่
+active_project: Path|None = None
 
 
 # ── LLM Callers ───────────────────────────────────────────────────────────────
@@ -49,9 +61,11 @@ def call_deepseek(system_prompt: str, user_message: str, label: str = "", histor
     """DeepSeek API — streaming, OpenAI-compatible"""
     api_key = os.environ.get("DEEPSEEK_API_KEY")
     if not api_key:
+        print(f"{RD}  ✗ DEEPSEEK_API_KEY not found in .env{RST}")
         return "[ERROR] DEEPSEEK_API_KEY not found in .env"
     if label:
-        print(f"\n[{label}] ", end="", flush=True)
+        bar = "─" * max(0, 46 - len(label))
+        print(f"\n{BL}┌─ {BLD}{label}{RST}{BL} {bar}┐{RST}")
     messages = [{"role": "system", "content": system_prompt}]
     if history:
         messages.extend(history)
@@ -65,8 +79,10 @@ def call_deepseek(system_prompt: str, user_message: str, label: str = "", histor
         )
         response.raise_for_status()
     except requests.exceptions.ConnectionError:
+        print(f"{RD}  ✗ DeepSeek connection failed{RST}")
         return "[ERROR] DeepSeek connection failed"
     except requests.exceptions.Timeout:
+        print(f"{RD}  ✗ DeepSeek timeout{RST}")
         return "[ERROR] DeepSeek timeout"
 
     full = []
@@ -91,8 +107,11 @@ def call_deepseek(system_prompt: str, user_message: str, label: str = "", histor
 def call_claude(system_prompt: str, user_message: str, label: str = "") -> str:
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
+        print(f"{RD}  ✗ ANTHROPIC_API_KEY not found{RST}")
         return "[ERROR] ANTHROPIC_API_KEY not found"
-    print(f"\n{'*'*55}\n  [CLAUDE] {label}\n{'*'*55}")
+    print(f"\n{MG}{'━'*55}{RST}")
+    print(f"{MG}  ✦ CLAUDE  {BLD}{label}{RST}")
+    print(f"{MG}{'━'*55}{RST}")
     client = anthropic.Anthropic(api_key=api_key)
     with client.messages.stream(
         model=CLAUDE_MODEL, max_tokens=4096,
@@ -124,12 +143,10 @@ def save_kb(agent_name: str, content: str):
 # ── Pipeline (PATH-BASED) ─────────────────────────────────────────────────────
 
 def pipeline_write(agent_name: str, file_path: str):
-    """บันทึก PATH ของ output file — ไม่ส่ง content เลย"""
     PIPELINE_DIR.mkdir(exist_ok=True)
     (PIPELINE_DIR / f"{agent_name}_path.txt").write_text(str(file_path), encoding="utf-8")
 
 def pipeline_read(agent_name: str) -> str:
-    """คืน PATH ของ output file — agent เปิดไฟล์เองตาม path"""
     f = PIPELINE_DIR / f"{agent_name}_path.txt"
     return f.read_text(encoding="utf-8").strip() if f.exists() else ""
 
@@ -142,24 +159,18 @@ def pipeline_clear():
 # ── Script Runner ─────────────────────────────────────────────────────────────
 
 def find_agent_script(agent_name: str, project_dir: Path|None) -> Path|None:
-    """หา .py script ของ agent จาก project output folder"""
     if not project_dir:
         return None
     agent_dir = project_dir / "output" / agent_name
     if agent_dir.exists():
         scripts = sorted(agent_dir.glob("*.py"), key=lambda x: x.stat().st_mtime)
         if scripts:
-            return scripts[-1]  # ใช้ไฟล์ล่าสุด
+            return scripts[-1]
     return None
 
 def run_script(script_path: Path, input_path: str, output_dir: Path) -> str:
-    """
-    รัน Python script จริงด้วย subprocess
-    ส่ง --input และ --output-dir เป็น argument
-    คืน path ของ output ที่สร้าง (CSV ถ้ามี, ไม่งั้นใช้ output_dir)
-    """
     output_dir.mkdir(parents=True, exist_ok=True)
-    print(f"\n[SCRIPT] {script_path.name}  input={input_path or 'none'}")
+    print(f"\n{CY}  ▶ SCRIPT{RST}  {BLD}{script_path.name}{RST}  {DIM}← {input_path or 'no input'}{RST}")
 
     result = subprocess.run(
         [sys.executable, str(script_path),
@@ -168,11 +179,12 @@ def run_script(script_path: Path, input_path: str, output_dir: Path) -> str:
         capture_output=True, text=True, encoding="utf-8", timeout=300,
     )
     if result.stdout:
-        print(result.stdout[-2000:])  # แสดงแค่ 2000 ตัวอักษรล่าสุด
+        print(result.stdout[-2000:])
     if result.returncode != 0:
-        print(f"[SCRIPT ERROR]\n{result.stderr[:500]}")
+        print(f"{RD}  ╔══ SCRIPT ERROR ══╗{RST}")
+        print(f"{RD}{result.stderr[:500]}{RST}")
+        print(f"{RD}  ╚{'═'*18}╝{RST}")
 
-    # หา output CSV ล่าสุดที่ script สร้าง
     csvs = sorted(output_dir.glob("*.csv"), key=lambda x: x.stat().st_mtime, reverse=True)
     if csvs:
         return str(csvs[0])
@@ -191,7 +203,6 @@ def get_system_prompt(agent_name: str) -> str:
 
 
 def read_report_summary(output_dir: Path, agent_name: str, max_chars: int = 800) -> str:
-    """อ่าน .md report ล่าสุดจาก output dir คืน content สำหรับใส่ใน log และ Anna context"""
     if not output_dir or not output_dir.exists():
         return ""
     reports = sorted(output_dir.glob("*.md"), key=lambda x: x.stat().st_mtime, reverse=True)
@@ -209,12 +220,13 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
     Priority 1: ถ้ามี Python script → รัน script จริง (ผลถูกต้อง 100%)
     Priority 2: ถ้าไม่มี → DeepSeek LLM สร้าง report + บันทึก code เป็น .py
     """
-    print(f"\n{'─'*55}")
+    bar = "─" * max(0, 48 - len(agent_name))
+    print(f"\n{CY}┌─ {BLD}{agent_name.upper()}{RST}{CY} {bar}┐{RST}")
 
     input_path = pipeline_read(prev_agent) if prev_agent else ""
     output_dir = (project_dir / "output" / agent_name) if project_dir else None
 
-    # ── Priority 1: รัน script จริง ──────────────────────────────
+    # ── Priority 1: script จริง ───────────────────────────────
     script = find_agent_script(agent_name, project_dir)
     if script and output_dir and not discover:
         output_path = run_script(script, input_path, output_dir)
@@ -224,13 +236,12 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
         if report_summary:
             action_msg += f"\n{report_summary}"
         log_raw(agent_name, action_msg, task=task, output=output_path)
-        print(f"[{agent_name.upper()}] Script done → {output_path}")
+        print(f"{GR}  ✓ {BLD}{agent_name.upper()}{RST}{GR} done{RST}  {DIM}→ {output_path}{RST}")
         return output_path
 
-    # ── Priority 2: LLM ───────────────────────────────────────────
+    # ── Priority 2: LLM ───────────────────────────────────────
     system = get_system_prompt(agent_name)
 
-    # บอก LLM ว่า input/output path คืออะไร
     path_lines = []
     if input_path:
         path_lines.append(f"Input file path : {input_path}")
@@ -248,27 +259,24 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
     else:
         result = call_deepseek(system, message, label=f"{agent_name.upper()} execute")
 
-    # บันทึก output ของ LLM
     if output_dir:
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # บันทึก report
         report_path = output_dir / f"{agent_name}_report.md"
         report_path.write_text(result, encoding="utf-8")
 
-        # Extract Python code blocks → บันทึกเป็น .py
         code_blocks = re.findall(r'```python\n(.*?)```', result, re.DOTALL)
         if code_blocks:
             py_path = output_dir / f"{agent_name}_script.py"
             py_path.write_text("\n\n".join(code_blocks), encoding="utf-8")
-            print(f"[{agent_name.upper()}] Saved script → {py_path}")
+            print(f"{GR}  ✓ {BLD}{agent_name.upper()}{RST}{GR} script saved{RST}  {DIM}→ {py_path}{RST}")
             pipeline_write(agent_name, str(py_path))
             log_raw(agent_name, "สร้าง report และ script สำเร็จ (DeepSeek)", task=task, output=str(py_path))
             return str(py_path)
 
         pipeline_write(agent_name, str(report_path))
         log_raw(agent_name, "สร้าง report สำเร็จ (DeepSeek)", task=task, output=str(report_path))
-        print(f"[{agent_name.upper()}] Saved report → {report_path}")
+        print(f"{GR}  ✓ {BLD}{agent_name.upper()}{RST}{GR} report saved{RST}  {DIM}→ {report_path}{RST}")
         return str(report_path)
 
     log_raw(agent_name, result[:200], task=task)
@@ -297,13 +305,11 @@ def parse_ask_user(text: str) -> str|None:
 # ── Project Detection ─────────────────────────────────────────────────────────
 
 def detect_project(text: str) -> Path|None:
-    """หา project dir จาก text ของ Anna"""
     m = re.search(r'projects[/\\]([\w\-]+)', text)
     if m:
         p = PROJECTS_DIR / m.group(1)
         if p.exists():
             return p
-    # ใช้ project ล่าสุดถ้าหาไม่เจอ
     if PROJECTS_DIR.exists():
         projects = sorted([p for p in PROJECTS_DIR.iterdir() if p.is_dir()])
         if projects:
@@ -327,7 +333,7 @@ def run_pipeline(user_input: str):
         + (f"\n\n---\n## Available Projects\n{projects_list}" if projects_list else "")
     )
 
-    print(f"\n{'═'*55}")
+    print(f"\n{YL}{'═'*55}{RST}")
     anna_response = call_deepseek(anna_system, user_input, label="ANNA", history=anna_history)
     anna_history.append({"role": "user",      "content": user_input})
     anna_history.append({"role": "assistant", "content": anna_response})
@@ -336,22 +342,24 @@ def run_pipeline(user_input: str):
 
     ask = parse_ask_user(anna_response)
     if ask:
-        print(f"\n[ANNA] {ask}")
-        if input("You (y/n): ").strip().lower() != "y":
-            print("[ANNA] Understood. Stopping.")
+        print(f"\n{YL}┌─ ANNA ─────────────────────────────────────────────┐{RST}")
+        print(f"{YL}│{RST}  {ask}")
+        print(f"{YL}└────────────────────────────────────────────────────┘{RST}")
+        ans = input(f"  {BLD}คุณ (y/n):{RST} ").strip().lower()
+        if ans != "y":
+            print(f"\n{YL}  ANNA:{RST} เข้าใจแล้วค่ะ หยุดการทำงาน")
             return
 
     dispatches = parse_dispatches(anna_response)
     if not dispatches:
         return
 
-    # Detect active project ถ้ายังไม่ได้ set
     if active_project is None:
         active_project = detect_project(anna_response)
 
     pipeline_clear()
     proj_name = active_project.name if active_project else "unknown"
-    print(f"\n[ANNA] Pipeline: {len(dispatches)} agent(s) | Project: {proj_name}")
+    print(f"\n{CY}  ⟳ Pipeline:{RST} {BLD}{len(dispatches)} agent(s){RST}  {DIM}│ project: {proj_name}{RST}")
 
     prev_agent = ""
     completed  = []
@@ -367,26 +375,22 @@ def run_pipeline(user_input: str):
                   project_dir=active_project, discover=discover)
         completed.append(agent)
         prev_agent = agent
-        print(f"\n[ANNA] ✓ {agent} ({i+1}/{len(dispatches)})")
+        print(f"\n{GR}  ✓ {BLD}{agent}{RST}{GR} เสร็จแล้ว  ({i+1}/{len(dispatches)}){RST}")
 
-    # Anna summary — รวม report content จริงให้ Anna อ่านได้
     if completed:
-        print(f"\n{'═'*55}")
+        print(f"\n{YL}{'═'*55}{RST}")
         last_path = pipeline_read(completed[-1])
 
-        # รวบรวม report content จากทุก agent ที่เสร็จ
         report_sections = []
         for agent in completed:
             out = pipeline_read(agent)
             if not out:
                 continue
             p = Path(out)
-            # ถ้า output เป็น .md อ่านตรง
             if p.suffix == ".md" and p.exists():
                 content = p.read_text(encoding="utf-8")[:800]
                 report_sections.append(f"=== {agent.upper()} REPORT ===\n{content}")
             else:
-                # ถ้าเป็น .csv หรือ script ให้หา .md ใน output dir เดียวกัน
                 search_dir = p.parent if p.suffix in (".csv", ".py") else p
                 summary = read_report_summary(search_dir, agent)
                 if summary:
@@ -411,13 +415,11 @@ def log_raw(role: str, content: str, task: str = "", output: str = ""):
     ts   = datetime.now().strftime("%H:%M")
     date = datetime.now().strftime("%Y-%m-%d")
 
-    # สร้าง log line ตาม format ใน CLAUDE.md
     if role.lower() == "user":
         line = f"[{ts}] User: {content[:300]}\n"
     elif role.lower() in ("anna", "anna summary"):
         line = f"[{ts}] Agent: Anna | Action: {content[:200]}\n"
     else:
-        # agent log: Agent: {ชื่อ} | Task: {งาน} | Action: {สิ่งที่ทำ} | Output: {ไฟล์}
         parts = [f"[{ts}] Agent: {role}"]
         if task:
             parts.append(f"Task: {task[:100]}")
@@ -426,12 +428,10 @@ def log_raw(role: str, content: str, task: str = "", output: str = ""):
             parts.append(f"Output: {output}")
         line = " | ".join(parts) + "\n"
 
-    # เขียน global log
     LOGS_DIR.mkdir(exist_ok=True)
     with open(LOGS_DIR / f"{date}_raw.md", "a", encoding="utf-8") as fp:
         fp.write(line)
 
-    # เขียน project log (ถ้ามี active project)
     if active_project:
         proj_log_dir = active_project / "logs"
         proj_log_dir.mkdir(exist_ok=True)
@@ -441,16 +441,18 @@ def log_raw(role: str, content: str, task: str = "", output: str = ""):
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
-HELP_TEXT = """
-คำสั่ง:
-  <ข้อความ>          → Anna รับ แล้ว pipeline อัตโนมัติ
-  !! <ข้อความ>       → Anna ใช้ Claude discover
-  @<agent> <task>    → ส่งตรงไป agent (Ollama)
-  @<agent>! <task>   → ส่งตรงไป agent (Claude discover)
-  project <name>     → set active project
-  kb <agent>         → ดู knowledge_base
-  exit               → ออก
-"""
+def print_help():
+    print(f"""
+{CY}┌─ คำสั่ง ──────────────────────────────────────────────┐{RST}
+{CY}│{RST}  {BLD}{WH}<ข้อความ>{RST}            {YL}»{RST} Anna รับ แล้ว pipeline อัตโนมัติ
+{CY}│{RST}  {BLD}{WH}!! <ข้อความ>{RST}          {YL}»{RST} {MG}Claude{RST} discover mode
+{CY}│{RST}  {BLD}{WH}@<agent> <task>{RST}       {YL}»{RST} dispatch ตรงไป agent ({BL}DeepSeek{RST})
+{CY}│{RST}  {BLD}{WH}@<agent>! <task>{RST}      {YL}»{RST} dispatch ตรงไป agent ({MG}Claude{RST})
+{CY}│{RST}  {BLD}{WH}project <name>{RST}        {YL}»{RST} set active project
+{CY}│{RST}  {BLD}{WH}kb <agent>{RST}            {YL}»{RST} ดู knowledge base ของ agent
+{CY}│{RST}  {BLD}{WH}end session{RST}           {YL}»{RST} ล้าง history / เริ่ม session ใหม่
+{CY}│{RST}  {BLD}{WH}exit{RST}                  {YL}»{RST} ออกจากระบบ
+{CY}└──────────────────────────────────────────────────────┘{RST}""")
 
 
 def anna_discover(user_input: str):
@@ -463,51 +465,78 @@ def anna_discover(user_input: str):
 def main():
     global active_project
     sys.stdout.reconfigure(encoding="utf-8")
-    header_lines = [
-        f"DataScienceOS  —  Anna (CEO)",
+
+    ds_ok = bool(os.environ.get("DEEPSEEK_API_KEY"))
+    cl_ok = bool(os.environ.get("ANTHROPIC_API_KEY"))
+
+    # ── Header ────────────────────────────────────────────────
+    plain = [
+        "DataScienceOS  —  Anna (CEO)",
         f"DeepSeek: {DEEPSEEK_MODEL}  |  Claude: {CLAUDE_MODEL}",
         f"PATH-BASED pipeline v2  |  mode: {MODE}  |  auto-fix: ON",
-        f"Type help for commands",
+        "Type  help  for commands",
     ]
-    w = max(len(l) for l in header_lines) + 4
-    print("┌" + "─" * w + "┐")
-    for l in header_lines:
-        print("│  " + l.ljust(w - 2) + "  │")
-    print("└" + "─" * w + "┘")
-    print()
-    print("  DeepSeek:", "✓" if os.environ.get("DEEPSEEK_API_KEY") else "✗ ไม่พบ DEEPSEEK_API_KEY",
-          "   Claude:", "✓" if os.environ.get("ANTHROPIC_API_KEY") else "✗ ไม่พบ API key")
+    w = max(len(l) for l in plain) + 4   # inner padding 2+2
+
+    def box_row(plain_text: str, colored_text: str) -> str:
+        pad = " " * (w - 2 - len(plain_text))
+        return f"{CY}│{RST}  {colored_text}{pad}  {CY}│{RST}"
+
+    print(f"{CY}┌{'─'*w}┐{RST}")
+    print(box_row(plain[0],
+        f"{BLD}{WH}DataScienceOS{RST}  {DIM}—{RST}  {BLD}{YL}Anna (CEO){RST}"))
+    print(box_row(plain[1],
+        f"{BL}DeepSeek:{RST} {BLD}{DEEPSEEK_MODEL}{RST}  {DIM}|{RST}  {MG}Claude:{RST} {BLD}{CLAUDE_MODEL}{RST}"))
+    print(box_row(plain[2],
+        f"{DIM}PATH-BASED pipeline v2{RST}  {DIM}|{RST}  mode: {BLD}{MODE}{RST}  {DIM}|{RST}  auto-fix: {GR}{BLD}ON{RST}"))
+    print(box_row(plain[3],
+        f"Type  {BLD}{WH}help{RST}  for commands"))
+    print(f"{CY}└{'─'*w}┘{RST}")
     print()
 
+    ds_str = f"{GR}✓{RST}" if ds_ok else f"{RD}✗ ไม่พบ key{RST}"
+    cl_str = f"{GR}✓{RST}" if cl_ok else f"{RD}✗ ไม่พบ key{RST}"
+    print(f"  {BL}{BLD}DeepSeek:{RST} {ds_str}    {MG}{BLD}Claude:{RST} {cl_str}")
+    print()
+
+    # ── Main loop ─────────────────────────────────────────────
     while True:
         try:
-            user_input = input("คุณ: ").strip()
+            user_input = input(f"{BLD}{WH}คุณ:{RST} ").strip()
         except (KeyboardInterrupt, EOFError):
-            print("\nออกจากระบบ")
+            print(f"\n{YL}  ลาก่อนค่ะ{RST}")
             break
 
         if not user_input:
             continue
         if user_input.lower() in ("exit", "quit"):
+            print(f"{YL}  ลาก่อนค่ะ{RST}")
             break
         if user_input.lower() == "end session":
             anna_history.clear()
             active_project = None
-            print("[ANNA] Session ended.")
+            print(f"{YL}  ANNA:{RST} เริ่ม session ใหม่แล้วค่ะ")
             continue
         if user_input.lower() == "help":
-            print(HELP_TEXT)
+            print_help()
             continue
         if user_input.lower().startswith("project "):
             name = user_input[8:].strip()
             p = PROJECTS_DIR / name
             active_project = p if p.exists() else None
-            print(f"[ANNA] Active project: {active_project or 'not found'}")
+            status = f"{GR}{active_project}{RST}" if active_project else f"{RD}ไม่พบ project นี้{RST}"
+            print(f"{YL}  ANNA:{RST} Active project → {status}")
             continue
         if user_input.lower().startswith("kb "):
             name = user_input[3:].strip()
             kb = load_kb(name)
-            print(kb if kb else f"[{name}] ยังไม่มี KB")
+            if kb:
+                bar = "─" * max(0, 44 - len(name))
+                print(f"\n{CY}┌─ KB: {BLD}{name}{RST}{CY} {bar}┐{RST}")
+                print(kb)
+                print(f"{CY}└{'─'*50}┘{RST}")
+            else:
+                print(f"{YL}  [{name}]{RST} ยังไม่มี Knowledge Base")
             continue
         if user_input.startswith("!!"):
             anna_discover(user_input[2:].strip())
@@ -517,7 +546,7 @@ def main():
             agent_part = parts[0].lower()
             task       = parts[1] if len(parts) > 1 else ""
             if not task:
-                print(f"ใช้งาน: @{agent_part} <task>")
+                print(f"{RD}  ใช้งาน:{RST} @{agent_part} <task>")
                 continue
             discover   = agent_part.endswith("!")
             agent_name = agent_part.rstrip("!")
