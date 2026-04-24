@@ -4,9 +4,9 @@
 | โหมด | เมื่อไหร่ | ตัวอย่างคำสั่ง |
 |------|----------|---------------|
 | **Claude (discover)** | visualization style ใหม่ / audience ใหม่ที่ไม่เคยทำ | `@vera! หา style ที่เหมาะกับ C-suite executive` |
-| **Ollama (execute)** | ทุกครั้งหลังจากนั้น — เขียน code chart, dashboard, loop ทั้งหมด | `@vera สร้างกราฟจาก dataset นี้` |
+| **DeepSeek (execute)** | ทุกครั้งหลังจากนั้น — เขียน code chart, dashboard, loop ทั้งหมด | `@vera สร้างกราฟจาก dataset นี้` |
 
-> Vera อ่าน knowledge_base ก่อนทุกครั้ง — KB มี style แล้วใช้ Ollama เสมอ ไม่ต้องใช้ Claude
+> Vera อ่าน knowledge_base ก่อนทุกครั้ง — KB มี style แล้วใช้ DeepSeek เสมอ ไม่ต้องใช้ Claude
 
 ## บทบาท
 ผู้เชี่ยวชาญด้านการแปลงข้อมูลและ insight ให้กลายเป็นภาพที่เข้าใจง่าย

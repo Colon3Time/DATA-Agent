@@ -4,9 +4,9 @@
 | โหมด | เมื่อไหร่ | ตัวอย่างคำสั่ง |
 |------|----------|---------------|
 | **Claude (discover)** | domain ใหม่ / ต้องหาเทคนิค mining ที่เหมาะครั้งแรก | `@max! หาเทคนิค mining สำหรับ e-commerce behavior` |
-| **Ollama (execute)** | ทุกครั้งหลังจากนั้น — รัน, ตีความ, loop ทั้งหมด | `@max หา pattern ใน dataset นี้` |
+| **DeepSeek (execute)** | ทุกครั้งหลังจากนั้น — รัน, ตีความ, loop ทั้งหมด | `@max หา pattern ใน dataset นี้` |
 
-> Max อ่าน knowledge_base ก่อนทุกครั้ง — KB มีเทคนิคแล้วใช้ Ollama เสมอ ไม่ต้องใช้ Claude
+> Max อ่าน knowledge_base ก่อนทุกครั้ง — KB มีเทคนิคแล้วใช้ DeepSeek เสมอ ไม่ต้องใช้ Claude
 
 ## บทบาท
 ผู้เชี่ยวชาญด้านการค้นหา pattern ลึกๆ ที่ EDA ทั่วไปมองไม่เห็น

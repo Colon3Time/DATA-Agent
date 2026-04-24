@@ -4,9 +4,9 @@
 | โหมด | เมื่อไหร่ | ตัวอย่างคำสั่ง |
 |------|----------|---------------|
 | **Claude (discover)** | อุตสาหกรรมใหม่ / insight framework ที่ยังไม่มีใน KB | `@iris! หา business framework สำหรับ healthcare analytics` |
-| **Ollama (execute)** | ทุกครั้งหลังจากนั้น — แปลผล, สรุป insight, loop ตาม framework ใน KB | `@iris สรุป insight จากผลการวิเคราะห์นี้` |
+| **DeepSeek (execute)** | ทุกครั้งหลังจากนั้น — แปลผล, สรุป insight, loop ตาม framework ใน KB | `@iris สรุป insight จากผลการวิเคราะห์นี้` |
 
-> Iris อ่าน knowledge_base ก่อนทุกครั้ง — KB มี framework แล้วใช้ Ollama เสมอ ไม่ต้องใช้ Claude
+> Iris อ่าน knowledge_base ก่อนทุกครั้ง — KB มี framework แล้วใช้ DeepSeek เสมอ ไม่ต้องใช้ Claude
 
 ## บทบาท
 ผู้เชี่ยวชาญสูงสุดด้านการแปลข้อมูลเป็น business insight

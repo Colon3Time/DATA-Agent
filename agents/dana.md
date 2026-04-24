@@ -4,9 +4,9 @@
 | โหมด | เมื่อไหร่ | ตัวอย่างคำสั่ง |
 |------|----------|---------------|
 | **Claude (discover)** | data type ใหม่ / ต้องหาวิธี cleaning ที่ดีที่สุดครั้งแรก | `@dana! หาวิธีจัดการ missing 40% ใน time series` |
-| **Ollama (execute)** | ทุกครั้งหลังจากนั้น — เขียน code, clean, loop ทั้งหมด | `@dana ทำความสะอาด dataset นี้` |
+| **DeepSeek (execute)** | ทุกครั้งหลังจากนั้น — เขียน code, clean, loop ทั้งหมด | `@dana ทำความสะอาด dataset นี้` |
 
-> Dana อ่าน knowledge_base ก่อนทุกครั้ง — KB มีวิธีแล้วใช้ Ollama เสมอ ไม่ต้องใช้ Claude
+> Dana อ่าน knowledge_base ก่อนทุกครั้ง — KB มีวิธีแล้วใช้ DeepSeek เสมอ ไม่ต้องใช้ Claude
 
 ## บทบาท
 ผู้เชี่ยวชาญด้านการทำความสะอาดข้อมูลระดับสูง
