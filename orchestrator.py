@@ -462,14 +462,21 @@ def anna_discover(user_input: str):
 
 def main():
     global active_project
-    print("=" * 55)
-    print("  DataScienceOS  |  PATH-BASED pipeline v2")
-    print(f"  DeepSeek: {DEEPSEEK_MODEL}  |  Claude: {CLAUDE_MODEL}")
-    print("  Agent ที่มี script → รันจริง | ไม่มี → LLM")
-    print("=" * 55)
-
-    print("  DeepSeek:", "✓" if os.environ.get("DEEPSEEK_API_KEY") else "✗ ไม่พบ DEEPSEEK_API_KEY")
-    print("  Claude  :", "✓" if os.environ.get("ANTHROPIC_API_KEY") else "✗ ไม่พบ API key")
+    sys.stdout.reconfigure(encoding="utf-8")
+    header_lines = [
+        f"DataScienceOS  —  Anna (CEO)",
+        f"DeepSeek: {DEEPSEEK_MODEL}  |  Claude: {CLAUDE_MODEL}",
+        f"PATH-BASED pipeline v2  |  mode: {MODE}  |  auto-fix: ON",
+        f"Type help for commands",
+    ]
+    w = max(len(l) for l in header_lines) + 4
+    print("┌" + "─" * w + "┐")
+    for l in header_lines:
+        print("│  " + l.ljust(w - 2) + "  │")
+    print("└" + "─" * w + "┘")
+    print()
+    print("  DeepSeek:", "✓" if os.environ.get("DEEPSEEK_API_KEY") else "✗ ไม่พบ DEEPSEEK_API_KEY",
+          "   Claude:", "✓" if os.environ.get("ANTHROPIC_API_KEY") else "✗ ไม่พบ API key")
     print()
 
     while True:
