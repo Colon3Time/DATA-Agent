@@ -1,119 +1,120 @@
-# Eddie — EDA & Business Analysis Report
-Date: 2026-04-23  
-Input: `input/thailand_employment_worldbank_2000_2024.csv` (cleaned by Dana)
+============================================================
+EDDIE v2 — EXTENDED EDA REPORT
+Input: projects\2026-04-23_thailand_employment\output\dana\dana_clean.csv
+============================================================
 
----
+## 1. DESCRIPTIVE STATISTICS
 
-## 1. Descriptive Statistics
+Indicator                                  Min  Min Year        Max  Max Year       Mean       2024
+----------------------------------------------------------------------------------------------------
+Unemployment (%)                          0.25      2013       2.60      2001       1.09       0.78
+LFP (%)                                  66.94      2019      73.55      2001      70.55      67.13
+Agriculture (%)                          28.99      2024      44.42      2000      36.61      28.99
+Industry (%)                             18.48      2000      23.73      2016      21.25      22.25
+Services (%)                             37.10      2000      48.76      2024      42.14      48.76
+Vulnerable (%)                           47.74      2019      59.55      2000      52.44      48.14
+GDP/capita (USD)                       1889.93      2001    7605.70      2019    5022.56    7346.62
+Youth Unemp (%)                           1.23      2013       7.87      2001       4.50       4.66
 
-| Indicator | Min | Max | Mean | 2024 |
-|-----------|-----|-----|------|------|
-| Unemployment Rate (%) | 0.25 (2013) | 2.60 (2001) | 1.04 | 0.78 |
-| Labor Force Participation (%) | 66.94 (2021) | 73.55 (2001) | 70.88 | 67.13 |
-| Labor Force Total (M) | 35.0 (2000) | 41.3 (2023) | 39.0 | 41.0 |
-| Employment Agriculture (%) | 28.99 (2024) | 44.42 (2000) | 37.22 | 28.99 |
-| Employment Industry (%) | 18.48 (2000) | 23.73 (2016) | 21.04 | 22.25 |
-| Employment Services (%) | 37.10 (2000) | 48.76 (2024) | 41.74 | 48.76 |
-| Vulnerable Employment (%) | 47.74 (2019) | 59.55 (2000) | 52.60 | 48.14 |
-| Self-Employment (%) | 50.28 (2019) | 62.31 (2000) | 56.25 | 50.83 |
-| Youth Unemployment (%) | 1.23 (2013) | 7.87 (2001) | 4.46 | 4.66 |
-| GDP per Capita (USD) | 1,890 (2001) | 7,606 (2019) | 4,819 | 7,347 |
 
----
+## 2. YEAR-OVER-YEAR CHANGES
 
-## 2. Trend Analysis
+Year     Unemp     LFP    Agri    Svcs    Vuln       GDP   Youth
+-----------------------------------------------------------------
+2001    +0.211  +0.070   -1.60   +1.27   -2.31      -116  +1.054
+2002    -0.780  -0.283   -0.55   -0.21   +0.09      +200  -2.114
+2003    -0.280  -0.255   -0.82   +0.72   -0.65      +258  -0.568
+2004    -0.030  +0.003   -0.59   +0.29   -3.10      +294  -0.593
+2005    -0.160  +0.020   -0.44   +0.22   +0.10      +226  +0.214
+2006    -0.130  -0.556   -0.49   +0.23   +0.14      +464  +0.033
+2007    -0.040  +0.391   -0.54   +0.26   +1.62      +587  -0.294
+2008    +0.000  +0.004   -0.40   +0.41   -0.77      +391  +0.326
+2009    +0.310  -0.042   -0.23   +0.38   -1.61      -174  +0.855
+2010    -0.868  -1.178   -0.52   +0.44   -0.35      +838  -3.131
+2011    +0.038  +1.569   +2.77   -1.56   +2.67      +400  +0.349
+2012    -0.080  -0.401   +1.13   -1.52   +0.59      +352  -0.189
+2013    -0.331  -2.855   -2.84   +1.41   -1.11      +293  -1.527
+2014    +0.327  -0.176   -5.81   +3.51   -5.18      -217  +1.882
+2015    +0.021  -0.525   -1.16   +1.00   -0.95      -112  -0.019
+2016    +0.091  -0.954   -1.10   +1.10   -0.62      +145  +0.620
+2017    +0.142  -0.790   +0.30   +0.52   -0.21      +580  +0.659
+2018    -0.065  +0.273   +0.67   -0.62   +0.88      +687  -0.362
+2019    -0.049  -0.858   -0.71   +0.67   -1.04      +506  +0.179
+2020    +0.383  +0.081   -0.10   +0.39   +0.35      -620  +1.009
+2021    +0.116  -0.069   +0.51   -0.18   +2.28       +72  +0.659
+2022    -0.275  +0.228   -1.48   +1.51   -0.64      -148  -0.650
+2023    -0.207  +0.634   -0.20   +0.52   -0.01      +286  -0.717
+2024    +0.048  -0.685   -1.23   +0.90   -1.58      +152  +0.169
 
-### 2.1 อัตราว่างงาน — แนวโน้มลดลงระยะยาว (Structural Decline)
-```
-2000: 2.39% → 2010: 0.62% → 2019: 0.72% → 2024: 0.78%
-```
-- ลดลงมากจาก post-Asian Crisis (2001: 2.6%)
-- สองจุด spike: 2009 (GFC) และ 2020-21 (COVID)
-- ปัจจุบันต่ำมากเป็นประวัติการณ์ (~0.78%) แต่ไม่ได้สะท้อน "คุณภาพ" การจ้างงาน
 
-### 2.2 Structural Shift — เกษตร → บริการ (Megatrend)
-```
-ภาคเกษตร:    44.4% (2000) → 28.99% (2024)  ลด 15.4 pp
-ภาคอุตสาหกรรม: 18.5% (2000) → 22.25% (2024)  เพิ่ม 3.8 pp
-ภาคบริการ:   37.1% (2000) → 48.76% (2024)  เพิ่ม 11.7 pp
-```
-- ไทยกำลังเปลี่ยนผ่านเป็น **service economy**
-- ปี 2024 ภาคบริการกินสัดส่วนเกือบ 50% แล้ว
+## 3. PERIOD COMPARISON
 
-### 2.3 Labor Force Participation — ลดลงต่อเนื่อง (Demographic Concern)
-```
-2001: 73.55% → 2013: 69.97% → 2021: 66.95% → 2024: 67.13%
-```
-- ลดลงถึง 6.4 percentage points ใน 24 ปี
-- สาเหตุหลัก: สังคมผู้สูงอายุ (Aging Society) + คนเรียนหนังสือนานขึ้น
-- เริ่มทรงตัวในช่วง 2020–2024 (66.9%–67.8%)
+### Era 1: Developing (2000-2007)
+  Unemployment (%)              : avg=1.70, min=1.18, max=2.60
+  LFP (%)                       : avg=73.09, min=72.48, max=73.55
+  Agriculture (%)               : avg=41.45, min=39.39, max=44.42
+  Industry (%)                  : avg=19.73, min=18.48, max=20.72
+  Services (%)                  : avg=38.82, min=37.10, max=39.88
+  Vulnerable (%)                : avg=55.91, min=53.58, max=59.55
+  GDP/capita (USD)              : avg=2636.54, min=1889.93, max=3918.53
+  Youth Unemp (%)               : avg=5.55, min=4.55, max=7.87
 
-### 2.4 Vulnerable Employment — สูงอยู่ แต่ดีขึ้น
-```
-2000: 59.6% → 2010: 52.7% → 2019: 47.7% → 2024: 48.1%
-```
-- **ยังสูงมาก** — เกือบครึ่งหนึ่งของแรงงานไทยอยู่ในงานที่ไม่มีความมั่นคง
-- COVID ทำให้กระเด้งขึ้น (2021: 50.4%) แล้วค่อยลงใหม่
-- ลดลงช้ากว่า GDP growth → ปัญหาเชิงโครงสร้างที่ยังไม่แก้
+### Era 2: Transitioning (2008-2016)
+  Unemployment (%)              : avg=0.74, min=0.25, max=1.49
+  LFP (%)                       : avg=71.20, min=68.31, max=73.23
+  Agriculture (%)               : avg=37.28, min=31.23, max=42.14
+  Industry (%)                  : avg=21.49, min=19.44, max=23.73
+  Services (%)                  : avg=41.23, min=38.03, max=45.05
+  Vulnerable (%)                : avg=52.57, min=48.11, max=55.97
+  GDP/capita (USD)              : avg=5317.70, min=4135.44, max=6018.08
+  Youth Unemp (%)               : avg=3.34, min=1.23, max=5.73
 
-### 2.5 GDP per Capita — เติบโตต่อเนื่อง ยกเว้น 2 จุดวิกฤต
-```
-2000: $2,006 → 2010: $4,974 → 2019: $7,606 → 2024: $7,347
-```
-- เติบโตเฉลี่ย ~5.5% ต่อปี (2000–2019)
-- COVID ฉุด GDP ลง และยังไม่กลับสู่ระดับก่อน COVID อย่างสมบูรณ์
+### Era 3: Maturing Service Economy (2017-2024)
+  Unemployment (%)              : avg=0.88, min=0.72, max=1.22
+  LFP (%)                       : avg=67.29, min=66.94, max=67.81
+  Agriculture (%)               : avg=31.02, min=28.99, max=32.20
+  Industry (%)                  : avg=22.49, min=21.92, max=22.90
+  Services (%)                  : avg=46.49, min=44.95, max=48.76
+  Vulnerable (%)                : avg=48.81, min=47.74, max=50.37
+  GDP/capita (USD)              : avg=7076.56, min=6413.09, max=7605.70
+  Youth Unemp (%)               : avg=4.75, min=4.01, max=5.86
 
----
 
-## 3. Correlation Analysis
+## 4. CRISIS IMPACT COMPARISON
 
-### Matrix เชิงทิศทาง (Direction + Strength)
+Crisis            GDP Drop  Unemp Spike   Recovery
+-------------------------------------------------------
+Asian Crisis          -116       +0.211        2yr
+GFC                   -174       +0.310        2yr
+COVID                 -548       +0.499 >4yr (not yet)
 
-| Indicator A | Indicator B | Direction | Strength |
-|-------------|-------------|-----------|----------|
-| GDP per capita | Unemployment rate | ➘ Negative | Strong (~-0.65) |
-| GDP per capita | Agriculture employment | ➘ Negative | Very Strong (~-0.95) |
-| GDP per capita | Services employment | ➚ Positive | Very Strong (~+0.96) |
-| GDP per capita | Vulnerable employment | ➘ Negative | Strong (~-0.88) |
-| GDP per capita | Self-employment | ➘ Negative | Strong (~-0.87) |
-| GDP per capita | Labor force participation | ➘ Negative | Moderate (~-0.78) |
-| Agriculture emp | Services emp | ➘ Negative | Very Strong (~-0.97) |
-| Unemployment | Youth unemployment | ➚ Positive | Very Strong (~+0.93) |
-| Vulnerable emp | Self-employment | ➚ Positive | Very Strong (~+0.97) |
 
-### ค้นพบสำคัญจาก Correlation:
-1. **GDP ↑ → Agriculture ↓ + Services ↑** (ชัดเจนที่สุด) — classic economic development pattern
-2. **GDP ↑ → Vulnerable employment ↓** แต่ความสัมพันธ์ไม่สมบูรณ์ — GDP โตเร็วกว่าการลด vulnerable employment
-3. **Youth unemployment ติดตาม total unemployment ใกล้ชิด** — ไม่มี youth-specific crisis แยกออกมา
-4. **Labor force participation ลดทั้งที่ GDP สูงขึ้น** — สัญญาณ demographic aging ไม่ใช่ discouraged workers
+## 5. SECTOR TRANSITION VELOCITY (pp/year)
 
----
+2000-2007: Agri -5.03pp (-0.719/yr) | Industry +2.24pp (+0.320/yr) | Services +2.78pp (+0.397/yr)
+2008-2016: Agri -7.76pp (-0.970/yr) | Industry +3.01pp (+0.376/yr) | Services +4.76pp (+0.595/yr)
+2017-2024: Agri -2.54pp (-0.363/yr) | Industry -0.65pp (-0.093/yr) | Services +3.19pp (+0.456/yr)
 
-## 4. Key Business Insights
 
-### 🔴 ความเสี่ยงสูง
-1. **Aging Workforce**: Labor force participation ลดลงต่อเนื่อง 24 ปี — ในอนาคต 10–15 ปีแรงงานจะขาดแคลนรุนแรง
-2. **Vulnerable Employment 48%**: เกือบครึ่งหนึ่งของแรงงาน 41 ล้านคน (~20 ล้านคน) ทำงานในสภาวะไม่มั่นคง — ความเสี่ยงทางสังคมสูงมาก
+## 6. TREND EXTRAPOLATION 2025-2030 (Linear 2017-2024)
 
-### 🟡 โอกาสและความเปลี่ยนแปลง
-3. **Services Sector Boom**: ภาคบริการโตต่อเนื่อง 37% → 49% — โอกาสสำหรับ Digital Services, Tourism, Healthcare
-4. **Agricultural Shift**: แรงงานออกจากภาคเกษตรอีก ~29% ที่เหลือ — ถ้าไม่มี upskilling จะกลายเป็น vulnerable employment ต่อ
+Unemployment (%)              : +0.003/yr -> 2025=0.90, 2027=0.91, 2030=0.92
+LFP (%)                       : -0.024/yr -> 2025=67.19, 2027=67.14, 2030=67.06
+Agriculture (%)               : -0.362/yr -> 2025=29.39, 2027=28.67, 2030=27.58
+Industry (%)                  : -0.137/yr -> 2025=21.88, 2027=21.60, 2030=21.19
+Services (%)                  : +0.498/yr -> 2025=48.73, 2027=49.73, 2030=51.23
+Vulnerable (%)                : +0.174/yr -> 2025=49.59, 2027=49.94, 2030=50.46
+GDP/capita (USD)              : +59.450/yr -> 2025=7344.09, 2027=7462.99, 2030=7641.34
+Youth Unemp (%)               : +0.097/yr -> 2025=5.18, 2027=5.38, 2030=5.67
 
-### 🟢 จุดแข็ง
-5. **Unemployment ต่ำมาก**: 0.78% ต่ำกว่าค่าเฉลี่ย ASEAN — economic stability ดี
-6. **GDP per capita ฟื้นตัว**: 2024 ($7,347) แตะใกล้ระดับก่อน COVID อีกครั้ง
 
----
+## 7. CURRENT POSITION SCORECARD (2024 vs Historical)
 
-## 5. Anomalies Noted
-- **2013**: Unemployment 0.249% — ต่ำผิดปกติ อาจเป็น methodology ของ ILO ที่เปลี่ยน
-- **2013-2014**: Agriculture employment ลด 5.8 pp ใน 1 ปี (39.3% → 33.5%) — น่าสงสัยว่า reclassification
-
----
-
-## Self-Improvement Report
-วิธีที่ใช้ครั้งนี้: Descriptive stats + directional correlation + trend analysis (manual from structured data)
-เหตุผลที่เลือก: Dataset ขนาดเล็ก ไม่จำเป็นต้องใช้ statistical library
-วิธีใหม่ที่พบ: ควรเพิ่ม period-split analysis (pre-COVID vs post-COVID) เพื่อดู structural break
-จะนำไปใช้ครั้งหน้า: ใช่
-Knowledge Base: อัพเดต
+  Unemployment (%)              : 0.78 | pct_rank=44th | MID
+  LFP (%)                       : 67.13 | pct_rank=16th | WORST
+  Agriculture (%)               : 28.99 | pct_rank=4th | BEST
+  Industry (%)                  : 22.25 | pct_rank=68th | MID
+  Services (%)                  : 48.76 | pct_rank=100th | BEST
+  Vulnerable (%)                : 48.14 | pct_rank=20th | BEST
+  GDP/capita (USD)              : 7346.62 | pct_rank=96th | BEST
+  Youth Unemp (%)               : 4.66 | pct_rank=56th | MID
