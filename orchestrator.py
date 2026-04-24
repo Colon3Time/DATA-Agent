@@ -115,17 +115,31 @@ def call_claude(system_prompt: str, user_message: str, label: str = "") -> str:
     print(f"{MG}  ✦ CLAUDE  {BLD}{label}{RST}")
     print(f"{MG}{'━'*55}{RST}")
     client = anthropic.Anthropic(api_key=api_key)
-    with client.messages.stream(
-        model=CLAUDE_MODEL, max_tokens=4096,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_message}],
-    ) as stream:
-        full = []
-        for text in stream.text_stream:
-            print(text, end="", flush=True)
-            full.append(text)
-    print()
-    return "".join(full)
+    try:
+        with client.messages.stream(
+            model=CLAUDE_MODEL, max_tokens=4096,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_message}],
+        ) as stream:
+            full = []
+            for text in stream.text_stream:
+                print(text, end="", flush=True)
+                full.append(text)
+        print()
+        return "".join(full)
+    except anthropic.BadRequestError as e:
+        msg = str(e)
+        if "credit balance is too low" in msg:
+            print(f"\n{RD}  ✗ CLAUDE:{RST} {YL}Credit หมดแล้ว — เติม credit ที่ console.anthropic.com{RST}")
+            return "[ERROR] Claude credit หมด"
+        print(f"\n{RD}  ✗ CLAUDE BadRequest: {e}{RST}")
+        return f"[ERROR] {e}"
+    except anthropic.APIStatusError as e:
+        print(f"\n{RD}  ✗ CLAUDE API error {e.status_code}: {e.message}{RST}")
+        return f"[ERROR] Claude API {e.status_code}"
+    except Exception as e:
+        print(f"\n{RD}  ✗ CLAUDE unexpected: {e}{RST}")
+        return f"[ERROR] {e}"
 
 
 # ── Knowledge Base ────────────────────────────────────────────────────────────
