@@ -10,20 +10,12 @@ import json
 import sys
 from pathlib import Path
 from datetime import datetime
+import subprocess
 
-import anthropic
-from google import genai
-from google.genai import types
-
-# โหลด .env ถ้ามี (ไม่บังคับ — ถ้าไม่มี python-dotenv ก็ยังทำงานได้)
-try:
-    from dotenv import load_dotenv
-    load_dotenv(Path(__file__).parent / ".env")
-except ImportError:
-    pass
+sys.stdout.reconfigure(encoding="utf-8")
+sys.stderr.reconfigure(encoding="utf-8")
 
 # -- Config --------------------------------------------------------------------
-GEMINI_MODEL = "gemini-2.0-flash"
 CLAUDE_MODEL = "claude-sonnet-4-6"
 MAX_RETRY    = 2
 
@@ -45,33 +37,31 @@ else:
     ANNA_SYSTEM = (BASE_DIR / "CLAUDE.md").read_text(encoding="utf-8")
 
 
-# -- LLM Callers ---------------------------------------------------------------
+# -- LLM Caller ----------------------------------------------------------------
 
-def call_gemini(system_prompt: str, user_message: str, label: str = "", silent: bool = False) -> str:
-    """Execute call — ใช้ Claude แทน Gemini (Gemini quota หมด)"""
-    return call_claude(system_prompt, user_message, label=label if not silent else "")
+def call_claude(system_prompt: str, user_message: str, label: str = "", silent: bool = False) -> str:
+    """ใช้ claude CLI (Pro subscription) — fresh session ทุกครั้ง"""
+    if label and not silent:
+        print(f"\n[{label}] ", end="", flush=True)
+    try:
+        result = subprocess.run(
+            ["claude", "-p", "", "--system-prompt", system_prompt, "--output-format", "text"],
+            input=user_message,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=120,
+        )
+        output = result.stdout.strip()
+        if not silent:
+            print(output)
+        return output if output else f"[ERROR] CLI: {result.stderr[:200]}"
+    except Exception as e:
+        return f"[ERROR] CLI: {e}"
 
 
-def call_claude(system_prompt: str, user_message: str, label: str = "") -> str:
-    """Fresh Claude call — discover only"""
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        return "[ERROR] ไม่พบ ANTHROPIC_API_KEY"
-    if label:
-        print(f"\n[{label} → CLAUDE] ", end="", flush=True)
-    client = anthropic.Anthropic(api_key=api_key)
-    with client.messages.stream(
-        model=CLAUDE_MODEL,
-        max_tokens=4096,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_message}],
-    ) as stream:
-        full = []
-        for text in stream.text_stream:
-            print(text, end="", flush=True)
-            full.append(text)
-    print()
-    return "".join(full)
+# call_gemini = alias เพื่อ backward compat กับ run_agent
+call_gemini = call_claude
 
 
 # -- Knowledge Base ------------------------------------------------------------
@@ -428,8 +418,8 @@ HELP_TEXT = """
 คำสั่ง:
   <ข้อความ>        → Anna รับ แล้ว pipeline อัตโนมัติ (แต่ละ agent fresh session)
   !! <ข้อความ>     → Anna ใช้ Claude discover
-  @<agent> <task>  → ส่งตรงไป agent (Ollama)
-  @<agent>! <task> → ส่งตรงไป agent (Claude discover)
+  @<agent> <task>  → ส่งตรงไป agent
+  @<agent>! <task> → ส่งตรงไป agent (discover mode)
   kb <agent>       → ดู knowledge_base
   <path>.md        → โหลด handoff file เพื่อ resume งานจาก session ที่แล้ว
   exit             → ออก
@@ -446,18 +436,12 @@ def anna_discover(user_input: str):
 
 def main():
     mode_label = "LIGHT" if MODE == "light" else "FULL"
-    gemini_ok  = bool(os.environ.get("GEMINI_API_KEY"))
-    claude_ok  = bool(os.environ.get("ANTHROPIC_API_KEY"))
 
     print("=" * 55)
     print(f"  DataScienceOS | Mode: {mode_label}")
-    print(f"  Gemini : {GEMINI_MODEL}  {'OK' if gemini_ok else 'NO'}")
-    print(f"  Claude : {'OK' if claude_ok else 'NO'}")
-    print("  แต่ละ agent = fresh session ไม่มี context สะสม")
+    print(f"  Engine: Claude CLI (Pro subscription)")
+    print(f"  แต่ละ agent = fresh session ไม่มี context สะสม")
     print("=" * 55)
-
-    if not gemini_ok:
-        print("  !  ไม่พบ GEMINI_API_KEY — เพิ่มใน .env ก่อนนะคะ")
     print()
 
     while True:
