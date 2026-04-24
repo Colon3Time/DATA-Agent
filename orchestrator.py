@@ -49,7 +49,7 @@ if "--mode" in sys.argv:
     if idx + 1 < len(sys.argv):
         MODE = sys.argv[idx + 1]
 
-ANNA_SYSTEM = (BASE_DIR / ("anna_short.md" if MODE == "light" else "CLAUDE.md")).read_text(encoding="utf-8")
+ANNA_SYSTEM = (BASE_DIR / "CLAUDE.md").read_text(encoding="utf-8")
 
 anna_history:   list      = []
 active_project: Path|None = None
