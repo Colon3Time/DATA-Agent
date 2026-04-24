@@ -190,11 +190,24 @@ def get_system_prompt(agent_name: str) -> str:
     return base
 
 
+def read_report_summary(output_dir: Path, agent_name: str, max_chars: int = 800) -> str:
+    """อ่าน .md report ล่าสุดจาก output dir คืน content สำหรับใส่ใน log และ Anna context"""
+    if not output_dir or not output_dir.exists():
+        return ""
+    reports = sorted(output_dir.glob("*.md"), key=lambda x: x.stat().st_mtime, reverse=True)
+    if not reports:
+        return ""
+    try:
+        return reports[0].read_text(encoding="utf-8")[:max_chars]
+    except Exception:
+        return ""
+
+
 def run_agent(agent_name: str, task: str, prev_agent: str = "",
               project_dir: Path|None = None, discover: bool = False) -> str:
     """
     Priority 1: ถ้ามี Python script → รัน script จริง (ผลถูกต้อง 100%)
-    Priority 2: ถ้าไม่มี → Ollama LLM สร้าง report + บันทึก code เป็น .py
+    Priority 2: ถ้าไม่มี → DeepSeek LLM สร้าง report + บันทึก code เป็น .py
     """
     print(f"\n{'─'*55}")
 
@@ -206,7 +219,11 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
     if script and output_dir and not discover:
         output_path = run_script(script, input_path, output_dir)
         pipeline_write(agent_name, output_path)
-        log_raw(f"{agent_name}(SCRIPT)", f"in={input_path} out={output_path}")
+        report_summary = read_report_summary(output_dir, agent_name)
+        action_msg = f"รัน script {script.name} สำเร็จ"
+        if report_summary:
+            action_msg += f"\n{report_summary}"
+        log_raw(agent_name, action_msg, task=task, output=output_path)
         print(f"[{agent_name.upper()}] Script done → {output_path}")
         return output_path
 
@@ -246,15 +263,15 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
             py_path.write_text("\n\n".join(code_blocks), encoding="utf-8")
             print(f"[{agent_name.upper()}] Saved script → {py_path}")
             pipeline_write(agent_name, str(py_path))
-            log_raw(f"{agent_name}(LLM)", f"report={report_path} script={py_path}")
+            log_raw(agent_name, "สร้าง report และ script สำเร็จ (DeepSeek)", task=task, output=str(py_path))
             return str(py_path)
 
         pipeline_write(agent_name, str(report_path))
-        log_raw(f"{agent_name}(LLM)", f"report={report_path}")
+        log_raw(agent_name, "สร้าง report สำเร็จ (DeepSeek)", task=task, output=str(report_path))
         print(f"[{agent_name.upper()}] Saved report → {report_path}")
         return str(report_path)
 
-    log_raw(f"{agent_name}(LLM)", result[:300])
+    log_raw(agent_name, result[:200], task=task)
     return result
 
 
@@ -315,7 +332,7 @@ def run_pipeline(user_input: str):
     anna_history.append({"role": "user",      "content": user_input})
     anna_history.append({"role": "assistant", "content": anna_response})
     log_raw("User", user_input)
-    log_raw("Anna", anna_response)
+    log_raw("Anna", anna_response, task="รับคำสั่งจาก User และวางแผน dispatch")
 
     ask = parse_ask_user(anna_response)
     if ask:
@@ -352,14 +369,35 @@ def run_pipeline(user_input: str):
         prev_agent = agent
         print(f"\n[ANNA] ✓ {agent} ({i+1}/{len(dispatches)})")
 
-    # Anna summary — FIX: ไม่ append user_input ซ้ำ
+    # Anna summary — รวม report content จริงให้ Anna อ่านได้
     if completed:
         print(f"\n{'═'*55}")
         last_path = pipeline_read(completed[-1])
+
+        # รวบรวม report content จากทุก agent ที่เสร็จ
+        report_sections = []
+        for agent in completed:
+            out = pipeline_read(agent)
+            if not out:
+                continue
+            p = Path(out)
+            # ถ้า output เป็น .md อ่านตรง
+            if p.suffix == ".md" and p.exists():
+                content = p.read_text(encoding="utf-8")[:800]
+                report_sections.append(f"=== {agent.upper()} REPORT ===\n{content}")
+            else:
+                # ถ้าเป็น .csv หรือ script ให้หา .md ใน output dir เดียวกัน
+                search_dir = p.parent if p.suffix in (".csv", ".py") else p
+                summary = read_report_summary(search_dir, agent)
+                if summary:
+                    report_sections.append(f"=== {agent.upper()} REPORT ===\n{summary}")
+
+        reports_block = "\n\n".join(report_sections)
         summary_msg = (
             f"Team completed: {', '.join(completed)}\n"
             f"Final output: {last_path}\n\n"
-            f"Summarize results for the user."
+            + (f"--- Agent Reports ---\n{reports_block}\n\n" if reports_block else "")
+            + "สรุปผลลัพธ์ให้ผู้ใช้เป็นภาษาไทย โดยอ้างอิงตัวเลขและข้อมูลจาก report ด้านบนจริงๆ"
         )
         summary = call_deepseek(anna_system, summary_msg, label="ANNA summary", history=anna_history)
         anna_history.append({"role": "user",      "content": summary_msg})
@@ -368,12 +406,37 @@ def run_pipeline(user_input: str):
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
-def log_raw(role: str, content: str):
+def log_raw(role: str, content: str, task: str = "", output: str = ""):
+    """เขียน log ทั้ง global logs/ และ project logs/ พร้อมกัน"""
+    ts   = datetime.now().strftime("%H:%M")
+    date = datetime.now().strftime("%Y-%m-%d")
+
+    # สร้าง log line ตาม format ใน CLAUDE.md
+    if role.lower() == "user":
+        line = f"[{ts}] User: {content[:300]}\n"
+    elif role.lower() in ("anna", "anna summary"):
+        line = f"[{ts}] Agent: Anna | Action: {content[:200]}\n"
+    else:
+        # agent log: Agent: {ชื่อ} | Task: {งาน} | Action: {สิ่งที่ทำ} | Output: {ไฟล์}
+        parts = [f"[{ts}] Agent: {role}"]
+        if task:
+            parts.append(f"Task: {task[:100]}")
+        parts.append(f"Action: {content[:200]}")
+        if output:
+            parts.append(f"Output: {output}")
+        line = " | ".join(parts) + "\n"
+
+    # เขียน global log
     LOGS_DIR.mkdir(exist_ok=True)
-    f = LOGS_DIR / f"{datetime.now().strftime('%Y-%m-%d')}_raw.md"
-    ts = datetime.now().strftime("%H:%M")
-    with open(f, "a", encoding="utf-8") as fp:
-        fp.write(f"[{ts}] {role}: {content[:300]}\n")
+    with open(LOGS_DIR / f"{date}_raw.md", "a", encoding="utf-8") as fp:
+        fp.write(line)
+
+    # เขียน project log (ถ้ามี active project)
+    if active_project:
+        proj_log_dir = active_project / "logs"
+        proj_log_dir.mkdir(exist_ok=True)
+        with open(proj_log_dir / f"{date}_raw.md", "a", encoding="utf-8") as fp:
+            fp.write(line)
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────

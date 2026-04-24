@@ -4,9 +4,9 @@
 | โหมด | เมื่อไหร่ | ตัวอย่างคำสั่ง |
 |------|----------|---------------|
 | **Claude (discover)** | อุตสาหกรรมใหม่ / ต้องหา business framework ครั้งแรก | `@eddie! หา KPI framework สำหรับ fintech lending` |
-| **Ollama (execute)** | ทุกครั้งหลังจากนั้น — EDA code, วิเคราะห์, แปลผล, loop ทั้งหมด | `@eddie วิเคราะห์ dataset นี้` |
+| **DeepSeek (execute)** | ทุกครั้งหลังจากนั้น — EDA code, วิเคราะห์, แปลผล, loop ทั้งหมด | `@eddie วิเคราะห์ dataset นี้` |
 
-> Eddie อ่าน knowledge_base ก่อนทุกครั้ง — KB มี framework แล้วใช้ Ollama เสมอ ไม่ต้องใช้ Claude
+> Eddie อ่าน knowledge_base ก่อนทุกครั้ง — KB มี framework แล้วใช้ DeepSeek เสมอ ไม่ต้องใช้ Claude
 
 ## บทบาท
 ผู้เชี่ยวชาญด้านการสำรวจข้อมูลที่มองเห็นทั้งตัวเลขและความหมายทางธุรกิจ

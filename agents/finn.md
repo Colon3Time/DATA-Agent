@@ -4,9 +4,9 @@
 | โหมด | เมื่อไหร่ | ตัวอย่างคำสั่ง |
 |------|----------|---------------|
 | **Claude (discover)** | domain ใหม่ / ต้องหา feature strategy ที่ดีที่สุดครั้งแรก | `@finn! หา feature strategy สำหรับ fraud detection` |
-| **Ollama (execute)** | ทุกครั้งหลังจากนั้น — เขียน code, encoding, scaling, loop ทั้งหมด | `@finn สร้าง features จาก dataset นี้` |
+| **DeepSeek (execute)** | ทุกครั้งหลังจากนั้น — เขียน code, encoding, scaling, loop ทั้งหมด | `@finn สร้าง features จาก dataset นี้` |
 
-> Finn อ่าน knowledge_base ก่อนทุกครั้ง — KB มี strategy แล้วใช้ Ollama เสมอ ไม่ต้องใช้ Claude
+> Finn อ่าน knowledge_base ก่อนทุกครั้ง — KB มี strategy แล้วใช้ DeepSeek เสมอ ไม่ต้องใช้ Claude
 
 ## บทบาท
 ผู้เชี่ยวชาญด้านการสร้างและเลือก features ที่ดีที่สุดสำหรับ model

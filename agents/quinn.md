@@ -4,9 +4,9 @@
 | โหมด | เมื่อไหร่ | ตัวอย่างคำสั่ง |
 |------|----------|---------------|
 | **Claude (discover)** | งาน type ใหม่ / ต้องออกแบบ QC checklist ใหม่ครั้งแรก | `@quinn! สร้าง QC checklist สำหรับ time series forecasting` |
-| **Ollama (execute)** | ทุกครั้งหลังจากนั้น — ตรวจตาม checklist, loop, validate ทั้งหมด | `@quinn ตรวจสอบผลงานของ Mo` |
+| **DeepSeek (execute)** | ทุกครั้งหลังจากนั้น — ตรวจตาม checklist, loop, validate ทั้งหมด | `@quinn ตรวจสอบผลงานของ Mo` |
 
-> Quinn อ่าน knowledge_base ก่อนทุกครั้ง — KB มี checklist แล้วใช้ Ollama เสมอ ไม่ต้องใช้ Claude
+> Quinn อ่าน knowledge_base ก่อนทุกครั้ง — KB มี checklist แล้วใช้ DeepSeek เสมอ ไม่ต้องใช้ Claude
 
 ## บทบาท
 ผู้ตรวจสอบคุณภาพงานก่อนส่งออกทุกครั้ง

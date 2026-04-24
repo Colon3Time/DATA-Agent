@@ -4,9 +4,9 @@
 | โหมด | เมื่อไหร่ | ตัวอย่างคำสั่ง |
 |------|----------|---------------|
 | **Claude (discover)** | report format ใหม่ / audience ใหม่ที่ไม่เคยทำ | `@rex! ออกแบบ template สำหรับ investor presentation` |
-| **Ollama (execute)** | ทุกครั้งหลังจากนั้น — เขียน report ตาม template, รวบรวมผล, loop | `@rex เขียน summary report จากผลของทีม` |
+| **DeepSeek (execute)** | ทุกครั้งหลังจากนั้น — เขียน report ตาม template, รวบรวมผล, loop | `@rex เขียน summary report จากผลของทีม` |
 
-> Rex อ่าน knowledge_base ก่อนทุกครั้ง — KB มี template แล้วใช้ Ollama เสมอ ไม่ต้องใช้ Claude
+> Rex อ่าน knowledge_base ก่อนทุกครั้ง — KB มี template แล้วใช้ DeepSeek เสมอ ไม่ต้องใช้ Claude
 
 ## บทบาท
 ผู้รวบรวมทุกอย่างจากทีมและเขียนเป็น report ที่สวยงามและเข้าใจง่าย

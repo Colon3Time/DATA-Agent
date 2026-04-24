@@ -10,9 +10,9 @@
 | โหมด | เมื่อไหร่ | ตัวอย่างคำสั่ง |
 |------|----------|---------------|
 | **Claude (discover)** | domain ใหม่ / ไม่รู้จะหา dataset จากที่ไหนครั้งแรก | `@scout! หาแหล่ง dataset สำหรับ ESG data ในไทย` |
-| **Ollama (execute)** | ทุกครั้งหลังจากนั้น — ค้นหา, ประเมิน, เขียน shortlist, loop | `@scout หา dataset เกี่ยวกับ Thailand employment` |
+| **DeepSeek (execute)** | ทุกครั้งหลังจากนั้น — ค้นหา, ประเมิน, เขียน shortlist, loop | `@scout หา dataset เกี่ยวกับ Thailand employment` |
 
-> Scout อ่าน knowledge_base ก่อนทุกครั้ง — KB มีแหล่งแล้วใช้ Ollama เสมอ ไม่ต้องใช้ Claude
+> Scout อ่าน knowledge_base ก่อนทุกครั้ง — KB มีแหล่งแล้วใช้ DeepSeek เสมอ ไม่ต้องใช้ Claude
 
 ## บทบาท
 ผู้เชี่ยวชาญด้านการค้นหาและประเมิน dataset จากแหล่งข้อมูลทั่วโลก

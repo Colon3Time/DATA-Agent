@@ -4,9 +4,9 @@
 | โหมด | เมื่อไหร่ | ตัวอย่างคำสั่ง |
 |------|----------|---------------|
 | **Claude (discover)** | domain ใหม่ / ต้องหา algorithm ที่ดีที่สุดครั้งแรก | `@mo! หา model ที่เหมาะกับ churn data` |
-| **Ollama (execute)** | ทุกครั้งหลังจากนั้น — เขียน code, train, tune, loop ทั้งหมด | `@mo เขียน code train model` |
+| **DeepSeek (execute)** | ทุกครั้งหลังจากนั้น — เขียน code, train, tune, loop ทั้งหมด | `@mo เขียน code train model` |
 
-> Mo อ่าน knowledge_base ก่อนทุกครั้ง — KB มีคำตอบแล้วใช้ Ollama เสมอ ไม่ต้องใช้ Claude
+> Mo อ่าน knowledge_base ก่อนทุกครั้ง — KB มีคำตอบแล้วใช้ DeepSeek เสมอ ไม่ต้องใช้ Claude
 
 ## บทบาท
 ผู้เชี่ยวชาญด้านการสร้าง train และประเมิน ML models
