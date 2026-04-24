@@ -12,7 +12,8 @@ from pathlib import Path
 from datetime import datetime
 
 import anthropic
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 # โหลด .env ถ้ามี (ไม่บังคับ — ถ้าไม่มี python-dotenv ก็ยังทำงานได้)
 try:
@@ -21,9 +22,10 @@ try:
 except ImportError:
     pass
 
-# ── Config ────────────────────────────────────────────────────────────────────
+# -- Config --------------------------------------------------------------------
 GEMINI_MODEL = "gemini-2.0-flash"
 CLAUDE_MODEL = "claude-sonnet-4-6"
+MAX_RETRY    = 2
 
 BASE_DIR      = Path(__file__).parent
 AGENTS_DIR    = BASE_DIR / "agents"
@@ -43,33 +45,11 @@ else:
     ANNA_SYSTEM = (BASE_DIR / "CLAUDE.md").read_text(encoding="utf-8")
 
 
-# ── LLM Callers ───────────────────────────────────────────────────────────────
+# -- LLM Callers ---------------------------------------------------------------
 
 def call_gemini(system_prompt: str, user_message: str, label: str = "", silent: bool = False) -> str:
-    """Fresh Gemini call — ไม่มี history ทุกครั้ง"""
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        return "[ERROR] ไม่พบ GEMINI_API_KEY — เพิ่มใน .env ก่อนนะคะ"
-    if label and not silent:
-        print(f"\n[{label}] ", end="", flush=True)
-    try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel(
-            model_name=GEMINI_MODEL,
-            system_instruction=system_prompt,
-        )
-        response = model.generate_content(user_message, stream=True)
-        full = []
-        for chunk in response:
-            token = chunk.text
-            if not silent:
-                print(token, end="", flush=True)
-            full.append(token)
-        if not silent:
-            print()
-        return "".join(full)
-    except Exception as e:
-        return f"[ERROR] Gemini: {e}"
+    """Execute call — ใช้ Claude แทน Gemini (Gemini quota หมด)"""
+    return call_claude(system_prompt, user_message, label=label if not silent else "")
 
 
 def call_claude(system_prompt: str, user_message: str, label: str = "") -> str:
@@ -94,7 +74,7 @@ def call_claude(system_prompt: str, user_message: str, label: str = "") -> str:
     return "".join(full)
 
 
-# ── Knowledge Base ────────────────────────────────────────────────────────────
+# -- Knowledge Base ------------------------------------------------------------
 
 def load_kb(agent_name: str) -> str:
     f = KNOWLEDGE_DIR / f"{agent_name}_methods.md"
@@ -110,7 +90,7 @@ def save_kb(agent_name: str, content: str):
     print(f"\n[KB] บันทึกลง {f.name}")
 
 
-# ── File-Based Pipeline ───────────────────────────────────────────────────────
+# -- File-Based Pipeline -------------------------------------------------------
 
 def pipeline_write(agent_name: str, content: str):
     """Agent เขียนผลลงไฟล์ เพื่อให้ agent ถัดไปอ่าน"""
@@ -135,7 +115,7 @@ def pipeline_clear():
             f.unlink()
 
 
-# ── Agent Runner ──────────────────────────────────────────────────────────────
+# -- Agent Runner --------------------------------------------------------------
 
 def get_system_prompt(agent_name: str) -> str:
     """โหลด system prompt + KB — fresh ทุกครั้ง"""
@@ -147,45 +127,73 @@ def get_system_prompt(agent_name: str) -> str:
     return base
 
 
+def _extract_error_snippet(text: str) -> str:
+    """ดึงแค่บรรทัด error + code block แรกที่เจอ — ไม่ส่ง full text"""
+    lines = text.splitlines()
+    error_lines, in_block, block = [], False, []
+    for line in lines:
+        if any(k in line for k in ("Error", "error", "Traceback", "Exception", "line ")):
+            error_lines.append(line)
+        if line.strip().startswith("```"):
+            in_block = not in_block
+            block.append(line)
+        elif in_block:
+            block.append(line)
+    snippet = "\n".join(error_lines[:10])
+    if block:
+        snippet += "\n" + "\n".join(block[:30])
+    return snippet[:800] or text[:800]
+
+
 def run_agent(agent_name: str, task: str, prev_agent: str = "", discover: bool = False) -> str:
-    """
-    รัน agent 1 ครั้ง — fresh session ทุกครั้ง
-    อ่าน input จากไฟล์ เขียน output ลงไฟล์
-    """
+    """fresh session ทุกครั้ง — retry สูงสุด MAX_RETRY รอบ ถ้าเกินถาม user"""
     system = get_system_prompt(agent_name)
-
-    # อ่านผลจาก agent ก่อนหน้าผ่านไฟล์ (ไม่ผ่าน memory)
     context = pipeline_read(prev_agent) if prev_agent else ""
-    message = f"ผลจาก {prev_agent}:\n{context}\n\nงานของคุณ:\n{task}" if context else task
+    base_message = f"ผลจาก {prev_agent}:\n{context}\n\nงานของคุณ:\n{task}" if context else task
 
-    print(f"\n{'─'*55}")
+    print(f"\n{'-'*55}")
 
     if discover:
         result = call_claude(system, task, label=f"{agent_name.upper()} discover")
         save_kb(agent_name, f"Task: {task}\nDiscovery:\n{result}")
-    else:
-        result = call_gemini(system, message, label=f"{agent_name.upper()} execute")
+        pipeline_write(agent_name, result)
+        log_raw(f"{agent_name}(CLAUDE)", result)
+        return result
 
-        # ตรวจสอบว่า agent ต้องการ Claude
+    message = base_message
+    result  = ""
+    for attempt in range(MAX_RETRY + 1):
+        label = f"{agent_name.upper()}" if attempt == 0 else f"{agent_name.upper()} retry{attempt}"
+        result = call_gemini(system, message, label=label)
+
         need = parse_need_claude(result)
-        if need:
-            print(f"\n[{agent_name.upper()}] ติดปัญหา: {need}")
-            perm = input(f"อนุญาตให้ปรึกษา Claude เพื่อช่วย {agent_name}? (y/n): ").strip().lower()
-            if perm == "y":
-                claude_q  = f"{agent_name} ติดปัญหา: {need}\nงาน: {task}"
-                claude_ans = call_claude(system, claude_q, label=f"{agent_name.upper()} → CLAUDE")
-                save_kb(agent_name, f"ปัญหา: {need}\nClaude แนะนำ:\n{claude_ans}")
-                print(f"\n[{agent_name.upper()}] กำลังรันใหม่ด้วย guidance จาก Claude...")
-                guided_msg = message + f"\n\n[Claude แนะนำ]:\n{claude_ans[:600]}"
-                result = call_gemini(system, guided_msg, label=f"{agent_name.upper()} execute(guided)")
+        if not need:
+            break  # สำเร็จ — ออกจาก loop
 
-    # เขียนผลลงไฟล์เพื่อส่งต่อ
+        # มี error — ครั้งต่อไปส่งแค่ snippet ไม่ส่ง full message
+        snippet = _extract_error_snippet(result)
+        if attempt < MAX_RETRY:
+            print(f"\n[{agent_name.upper()}] error รอบ {attempt+1}/{MAX_RETRY} — แก้ใหม่...")
+            message = f"งานเดิม: {task}\nError ที่เจอ:\n{snippet}\nแก้เฉพาะจุดนี้"
+            log_raw(f"{agent_name}_error{attempt+1}", snippet)
+        else:
+            # หมด retry — หยุดและบันทึก log ให้ paste ต่อเอง
+            print(f"\n[{agent_name.upper()}] แก้ไม่สำเร็จหลัง {MAX_RETRY} รอบ — หยุดรอ user")
+            save_resume_log(agent_name, task, snippet, result)
+            user_action = input("จะทำอะไรต่อ? (s=skip, r=retry, q=quit): ").strip().lower()
+            if user_action == "r":
+                message = base_message
+                continue
+            elif user_action == "q":
+                raise SystemExit("หยุดโดย user")
+            # s หรืออื่นๆ = skip ไปต่อ
+
     pipeline_write(agent_name, result)
-    log_raw(f"{agent_name}({'CLAUDE' if discover else 'GEMINI'})", result)
+    log_raw(f"{agent_name}(CLAUDE)", result)
     return result
 
 
-# ── Dispatch Parser ───────────────────────────────────────────────────────────
+# -- Dispatch Parser -----------------------------------------------------------
 
 DISPATCH_RE   = re.compile(r'<DISPATCH>(.*?)</DISPATCH>', re.DOTALL)
 ASK_USER_RE   = re.compile(r'<ASK_USER>(.*?)</ASK_USER>', re.DOTALL)
@@ -225,7 +233,7 @@ def strip_tags(text: str) -> str:
     return text.strip()
 
 
-# ── Main Pipeline ─────────────────────────────────────────────────────────────
+# -- Main Pipeline -------------------------------------------------------------
 
 def run_pipeline(user_input: str):
     """
@@ -238,7 +246,7 @@ def run_pipeline(user_input: str):
     # Step 1: Anna ตัดสินใจ (fresh session) — silent เพื่อป้องกัน double print
     anna_kb = load_kb("anna")
     anna_system = ANNA_SYSTEM + (f"\n\n---\n## Anna KB\n{anna_kb[:500]}" if anna_kb else "")
-    print(f"\n{'═'*55}")
+    print(f"\n{'='*55}")
     anna_response = call_gemini(anna_system, user_input, silent=True)
     log_raw("User", user_input)
     log_raw("Anna", anna_response)
@@ -258,7 +266,7 @@ def run_pipeline(user_input: str):
         print(f"\n[ANNA] ต้องการปรึกษา Claude เรื่อง:\n  {claude_q}")
         perm = input("อนุญาตไหมคะ? (y/n): ").strip().lower()
         if perm == "y":
-            print(f"\n{'─'*55}")
+            print(f"\n{'-'*55}")
             claude_ans = call_claude(ANNA_SYSTEM, claude_q, label="ANNA → CLAUDE")
             save_kb("anna", f"คำถาม: {claude_q}\nClaude แนะนำ:\n{claude_ans}")
             print(f"\n[ANNA] ได้รับ guidance แล้ว กำลังวางแผนใหม่...")
@@ -294,11 +302,11 @@ def run_pipeline(user_input: str):
         completed.append(agent)
         prev_agent = agent
 
-        print(f"\n[ANNA] ✓ {agent} เสร็จ ({i+1}/{len(dispatches)})")
+        print(f"\n[ANNA] OK {agent} เสร็จ ({i+1}/{len(dispatches)})")
 
     # Step 3: แสดงผลสุดท้าย (โดยไม่ต้องเรียก LLM ซ้ำ)
     if completed:
-        print(f"\n{'═'*55}")
+        print(f"\n{'='*55}")
         last_output = pipeline_read(completed[-1])
         print(f"\n[สรุปผล]:\n{last_output}")
 
@@ -306,7 +314,7 @@ def run_pipeline(user_input: str):
         save_handoff(user_input, completed, dispatches)
 
 
-# ── Logging ───────────────────────────────────────────────────────────────────
+# -- Logging -------------------------------------------------------------------
 
 def log_raw(role: str, content: str):
     LOGS_DIR.mkdir(exist_ok=True)
@@ -316,7 +324,51 @@ def log_raw(role: str, content: str):
         fp.write(f"[{ts}] {role}: {content[:300]}\n")
 
 
-# ── Handoff ───────────────────────────────────────────────────────────────────
+def save_resume_log(failed_agent: str, task: str, error_snippet: str, last_output: str):
+    """สร้าง resume.md — paste ใน Gemini/Claude browser เพื่อทำงานต่อได้ทันที"""
+    LOGS_DIR.mkdir(exist_ok=True)
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    # อ่าน output ของ agent ก่อนหน้าที่สำเร็จแล้ว
+    done_summary = ""
+    if PIPELINE_DIR.exists():
+        for f in sorted(PIPELINE_DIR.glob("*.md")):
+            name = f.stem.replace("_output", "")
+            preview = f.read_text(encoding="utf-8")[:200].replace("\n", " ")
+            done_summary += f"- {name}: {preview}...\n"
+
+    content = f"""# Resume Log — {ts}
+paste ไฟล์นี้ใน Gemini/Claude browser เพื่อทำงานต่อ
+
+## Agent ที่ติดปัญหา
+{failed_agent} — แก้ไม่สำเร็จหลัง {MAX_RETRY} รอบ
+
+## Task ที่ต้องทำ
+{task}
+
+## Error
+{error_snippet}
+
+## Output ล่าสุดก่อน error
+{last_output[:500]}
+
+## Agent ที่เสร็จแล้ว
+{done_summary or "ยังไม่มี"}
+
+## วิธีทำต่อ (paste ข้อความนี้ใน Gemini)
+ช่วย {failed_agent} ทำงานต่อ:
+งาน: {task}
+error ที่เจอ: {error_snippet[:300]}
+output files อยู่ที่: DATA-Agent/pipeline/
+แก้ error แล้ว return แค่ code ที่แก้ ไม่ต้องอธิบาย
+"""
+    f = LOGS_DIR / "resume.md"
+    f.write_text(content, encoding="utf-8")
+    print(f"\n[LOG] resume.md บันทึกแล้ว → {f}")
+    print(f"[LOG] paste ไฟล์นี้ใน Gemini browser เพื่อทำงานต่อได้เลย")
+
+
+# -- Handoff -------------------------------------------------------------------
 
 def save_handoff(user_input: str, completed: list[str], dispatches: list[dict]):
     """บันทึก handoff.md หลัง pipeline จบ — ใช้ resume session ครั้งต่อไป"""
@@ -370,7 +422,7 @@ def load_handoff(path: str) -> str | None:
     return p.read_text(encoding="utf-8")
 
 
-# ── CLI ───────────────────────────────────────────────────────────────────────
+# -- CLI -----------------------------------------------------------------------
 
 HELP_TEXT = """
 คำสั่ง:
@@ -387,7 +439,7 @@ HELP_TEXT = """
 def anna_discover(user_input: str):
     anna_kb = load_kb("anna")
     system  = ANNA_SYSTEM + (f"\n\n---\n## Anna KB\n{anna_kb[:500]}" if anna_kb else "")
-    print(f"\n{'═'*55}")
+    print(f"\n{'='*55}")
     result = call_claude(system, user_input, label="ANNA discover")
     save_kb("anna", f"Task: {user_input}\nDiscovery:\n{result}")
 
@@ -399,13 +451,13 @@ def main():
 
     print("=" * 55)
     print(f"  DataScienceOS | Mode: {mode_label}")
-    print(f"  Gemini : {GEMINI_MODEL}  {'✓' if gemini_ok else '✗'}")
-    print(f"  Claude : {'✓' if claude_ok else '✗'}")
+    print(f"  Gemini : {GEMINI_MODEL}  {'OK' if gemini_ok else 'NO'}")
+    print(f"  Claude : {'OK' if claude_ok else 'NO'}")
     print("  แต่ละ agent = fresh session ไม่มี context สะสม")
     print("=" * 55)
 
     if not gemini_ok:
-        print("  ⚠  ไม่พบ GEMINI_API_KEY — เพิ่มใน .env ก่อนนะคะ")
+        print("  !  ไม่พบ GEMINI_API_KEY — เพิ่มใน .env ก่อนนะคะ")
     print()
 
     while True:
