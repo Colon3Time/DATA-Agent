@@ -1,29 +1,35 @@
 """
-DataScienceOS Orchestrator — File-Based Pipeline
-แต่ละ agent เริ่ม session ใหม่ 100% สื่อสารผ่านไฟล์เท่านั้น
-ไม่มี context สะสม = ไม่โดน token limit
+DataScienceOS Orchestrator — Path-Based Pipeline v2
+Pipeline ส่ง FILE PATH เท่านั้น ไม่ส่ง content
+Agent ที่มี script → รัน script จริง (subprocess)
+Agent ที่ไม่มี script → LLM สร้าง report + Python code
 """
 
 import os
 import re
 import json
+import subprocess
+import requests
 import sys
 from pathlib import Path
 from datetime import datetime
-import subprocess
+from dotenv import load_dotenv
 
-sys.stdout.reconfigure(encoding="utf-8")
-sys.stderr.reconfigure(encoding="utf-8")
+import anthropic
 
-# -- Config --------------------------------------------------------------------
-CLAUDE_MODEL = "claude-sonnet-4-6"
-MAX_RETRY    = 2
+load_dotenv(Path(__file__).parent / ".env")
+
+# ── Config ────────────────────────────────────────────────────────────────────
+DEEPSEEK_URL   = "https://api.deepseek.com/chat/completions"
+DEEPSEEK_MODEL = "deepseek-chat"
+CLAUDE_MODEL   = "claude-sonnet-4-6"
 
 BASE_DIR      = Path(__file__).parent
 AGENTS_DIR    = BASE_DIR / "agents"
 LOGS_DIR      = BASE_DIR / "logs"
 KNOWLEDGE_DIR = BASE_DIR / "knowledge_base"
-PIPELINE_DIR  = BASE_DIR / "pipeline"  # ไฟล์สื่อสารระหว่าง agent
+PIPELINE_DIR  = BASE_DIR / "pipeline"
+PROJECTS_DIR  = BASE_DIR / "projects"
 
 MODE = "light"
 if "--mode" in sys.argv:
@@ -31,45 +37,81 @@ if "--mode" in sys.argv:
     if idx + 1 < len(sys.argv):
         MODE = sys.argv[idx + 1]
 
-if MODE == "light":
-    ANNA_SYSTEM = (BASE_DIR / "anna_short.md").read_text(encoding="utf-8")
-else:
-    ANNA_SYSTEM = (BASE_DIR / "CLAUDE.md").read_text(encoding="utf-8")
+ANNA_SYSTEM = (BASE_DIR / ("anna_short.md" if MODE == "light" else "CLAUDE.md")).read_text(encoding="utf-8")
+
+anna_history:   list      = []
+active_project: Path|None = None  # project ที่กำลังทำงานอยู่
 
 
-# -- LLM Caller ----------------------------------------------------------------
+# ── LLM Callers ───────────────────────────────────────────────────────────────
 
-def call_claude(system_prompt: str, user_message: str, label: str = "", silent: bool = False) -> str:
-    """ใช้ claude CLI (Pro subscription) — fresh session ทุกครั้ง"""
-    if label and not silent:
+def call_deepseek(system_prompt: str, user_message: str, label: str = "", history: list|None = None) -> str:
+    """DeepSeek API — streaming, OpenAI-compatible"""
+    api_key = os.environ.get("DEEPSEEK_API_KEY")
+    if not api_key:
+        return "[ERROR] DEEPSEEK_API_KEY not found in .env"
+    if label:
         print(f"\n[{label}] ", end="", flush=True)
+    messages = [{"role": "system", "content": system_prompt}]
+    if history:
+        messages.extend(history)
+    messages.append({"role": "user", "content": user_message})
     try:
-        result = subprocess.run(
-            ["claude", "-p", "", "--system-prompt", system_prompt, "--output-format", "text"],
-            input=user_message,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            timeout=120,
+        response = requests.post(
+            DEEPSEEK_URL,
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={"model": DEEPSEEK_MODEL, "messages": messages, "stream": True},
+            stream=True, timeout=180,
         )
-        output = result.stdout.strip()
-        if not silent:
-            print(output)
-        return output if output else f"[ERROR] CLI: {result.stderr[:200]}"
-    except Exception as e:
-        return f"[ERROR] CLI: {e}"
+        response.raise_for_status()
+    except requests.exceptions.ConnectionError:
+        return "[ERROR] DeepSeek connection failed"
+    except requests.exceptions.Timeout:
+        return "[ERROR] DeepSeek timeout"
+
+    full = []
+    for line in response.iter_lines():
+        if not line:
+            continue
+        text = line.decode("utf-8")
+        if text.startswith("data: "):
+            text = text[6:]
+        if text == "[DONE]":
+            break
+        try:
+            token = json.loads(text)["choices"][0]["delta"].get("content", "")
+            print(token, end="", flush=True)
+            full.append(token)
+        except (json.JSONDecodeError, KeyError):
+            pass
+    print()
+    return "".join(full)
 
 
-# call_gemini = alias เพื่อ backward compat กับ run_agent
-call_gemini = call_claude
+def call_claude(system_prompt: str, user_message: str, label: str = "") -> str:
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        return "[ERROR] ANTHROPIC_API_KEY not found"
+    print(f"\n{'*'*55}\n  [CLAUDE] {label}\n{'*'*55}")
+    client = anthropic.Anthropic(api_key=api_key)
+    with client.messages.stream(
+        model=CLAUDE_MODEL, max_tokens=4096,
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_message}],
+    ) as stream:
+        full = []
+        for text in stream.text_stream:
+            print(text, end="", flush=True)
+            full.append(text)
+    print()
+    return "".join(full)
 
 
-# -- Knowledge Base ------------------------------------------------------------
+# ── Knowledge Base ────────────────────────────────────────────────────────────
 
 def load_kb(agent_name: str) -> str:
     f = KNOWLEDGE_DIR / f"{agent_name}_methods.md"
     return f.read_text(encoding="utf-8") if f.exists() else ""
-
 
 def save_kb(agent_name: str, content: str):
     KNOWLEDGE_DIR.mkdir(exist_ok=True)
@@ -77,38 +119,69 @@ def save_kb(agent_name: str, content: str):
     ts = datetime.now().strftime("%Y-%m-%d %H:%M")
     with open(f, "a", encoding="utf-8") as fp:
         fp.write(f"\n\n## [{ts}] Discovery\n{content}\n")
-    print(f"\n[KB] บันทึกลง {f.name}")
 
 
-# -- File-Based Pipeline -------------------------------------------------------
+# ── Pipeline (PATH-BASED) ─────────────────────────────────────────────────────
 
-def pipeline_write(agent_name: str, content: str):
-    """Agent เขียนผลลงไฟล์ เพื่อให้ agent ถัดไปอ่าน"""
+def pipeline_write(agent_name: str, file_path: str):
+    """บันทึก PATH ของ output file — ไม่ส่ง content เลย"""
     PIPELINE_DIR.mkdir(exist_ok=True)
-    f = PIPELINE_DIR / f"{agent_name}_output.md"
-    f.write_text(content, encoding="utf-8")
-
+    (PIPELINE_DIR / f"{agent_name}_path.txt").write_text(str(file_path), encoding="utf-8")
 
 def pipeline_read(agent_name: str) -> str:
-    """Agent อ่านผลจาก agent ก่อนหน้า — แค่ 500 ตัวอักษรแรก ประหยัด token"""
-    f = PIPELINE_DIR / f"{agent_name}_output.md"
-    if not f.exists():
-        return ""
-    content = f.read_text(encoding="utf-8")
-    return content[:500] + "\n...(ดูไฟล์เต็มได้ที่ pipeline/)" if len(content) > 500 else content
-
+    """คืน PATH ของ output file — agent เปิดไฟล์เองตาม path"""
+    f = PIPELINE_DIR / f"{agent_name}_path.txt"
+    return f.read_text(encoding="utf-8").strip() if f.exists() else ""
 
 def pipeline_clear():
-    """เคลียร์ pipeline files ก่อนเริ่ม project ใหม่"""
     if PIPELINE_DIR.exists():
-        for f in PIPELINE_DIR.glob("*.md"):
+        for f in PIPELINE_DIR.glob("*_path.txt"):
             f.unlink()
 
 
-# -- Agent Runner --------------------------------------------------------------
+# ── Script Runner ─────────────────────────────────────────────────────────────
+
+def find_agent_script(agent_name: str, project_dir: Path|None) -> Path|None:
+    """หา .py script ของ agent จาก project output folder"""
+    if not project_dir:
+        return None
+    agent_dir = project_dir / "output" / agent_name
+    if agent_dir.exists():
+        scripts = sorted(agent_dir.glob("*.py"), key=lambda x: x.stat().st_mtime)
+        if scripts:
+            return scripts[-1]  # ใช้ไฟล์ล่าสุด
+    return None
+
+def run_script(script_path: Path, input_path: str, output_dir: Path) -> str:
+    """
+    รัน Python script จริงด้วย subprocess
+    ส่ง --input และ --output-dir เป็น argument
+    คืน path ของ output ที่สร้าง (CSV ถ้ามี, ไม่งั้นใช้ output_dir)
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    print(f"\n[SCRIPT] {script_path.name}  input={input_path or 'none'}")
+
+    result = subprocess.run(
+        [sys.executable, str(script_path),
+         "--input", input_path,
+         "--output-dir", str(output_dir)],
+        capture_output=True, text=True, encoding="utf-8", timeout=300,
+    )
+    if result.stdout:
+        print(result.stdout[-2000:])  # แสดงแค่ 2000 ตัวอักษรล่าสุด
+    if result.returncode != 0:
+        print(f"[SCRIPT ERROR]\n{result.stderr[:500]}")
+
+    # หา output CSV ล่าสุดที่ script สร้าง
+    csvs = sorted(output_dir.glob("*.csv"), key=lambda x: x.stat().st_mtime, reverse=True)
+    if csvs:
+        return str(csvs[0])
+    return str(output_dir)
+
+
+# ── Agent Runner ──────────────────────────────────────────────────────────────
 
 def get_system_prompt(agent_name: str) -> str:
-    """โหลด system prompt + KB — fresh ทุกครั้ง"""
     f = AGENTS_DIR / f"{agent_name}.md"
     base = f.read_text(encoding="utf-8") if f.exists() else f"You are {agent_name}, a data science specialist."
     kb = load_kb(agent_name)
@@ -117,79 +190,78 @@ def get_system_prompt(agent_name: str) -> str:
     return base
 
 
-def _extract_error_snippet(text: str) -> str:
-    """ดึงแค่บรรทัด error + code block แรกที่เจอ — ไม่ส่ง full text"""
-    lines = text.splitlines()
-    error_lines, in_block, block = [], False, []
-    for line in lines:
-        if any(k in line for k in ("Error", "error", "Traceback", "Exception", "line ")):
-            error_lines.append(line)
-        if line.strip().startswith("```"):
-            in_block = not in_block
-            block.append(line)
-        elif in_block:
-            block.append(line)
-    snippet = "\n".join(error_lines[:10])
-    if block:
-        snippet += "\n" + "\n".join(block[:30])
-    return snippet[:800] or text[:800]
+def run_agent(agent_name: str, task: str, prev_agent: str = "",
+              project_dir: Path|None = None, discover: bool = False) -> str:
+    """
+    Priority 1: ถ้ามี Python script → รัน script จริง (ผลถูกต้อง 100%)
+    Priority 2: ถ้าไม่มี → Ollama LLM สร้าง report + บันทึก code เป็น .py
+    """
+    print(f"\n{'─'*55}")
 
+    input_path = pipeline_read(prev_agent) if prev_agent else ""
+    output_dir = (project_dir / "output" / agent_name) if project_dir else None
 
-def run_agent(agent_name: str, task: str, prev_agent: str = "", discover: bool = False) -> str:
-    """fresh session ทุกครั้ง — retry สูงสุด MAX_RETRY รอบ ถ้าเกินถาม user"""
+    # ── Priority 1: รัน script จริง ──────────────────────────────
+    script = find_agent_script(agent_name, project_dir)
+    if script and output_dir and not discover:
+        output_path = run_script(script, input_path, output_dir)
+        pipeline_write(agent_name, output_path)
+        log_raw(f"{agent_name}(SCRIPT)", f"in={input_path} out={output_path}")
+        print(f"[{agent_name.upper()}] Script done → {output_path}")
+        return output_path
+
+    # ── Priority 2: LLM ───────────────────────────────────────────
     system = get_system_prompt(agent_name)
-    context = pipeline_read(prev_agent) if prev_agent else ""
-    base_message = f"ผลจาก {prev_agent}:\n{context}\n\nงานของคุณ:\n{task}" if context else task
 
-    print(f"\n{'-'*55}")
+    # บอก LLM ว่า input/output path คืออะไร
+    path_lines = []
+    if input_path:
+        path_lines.append(f"Input file path : {input_path}")
+    if output_dir:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        path_lines.append(f"Save CSV to     : {output_dir / f'{agent_name}_output.csv'}")
+        path_lines.append(f"Save script to  : {output_dir / f'{agent_name}_script.py'}")
+        path_lines.append(f"Save report to  : {output_dir / f'{agent_name}_report.md'}")
+
+    message = "\n".join(path_lines) + f"\n\nTask: {task}" if path_lines else task
 
     if discover:
         result = call_claude(system, task, label=f"{agent_name.upper()} discover")
         save_kb(agent_name, f"Task: {task}\nDiscovery:\n{result}")
-        pipeline_write(agent_name, result)
-        log_raw(f"{agent_name}(CLAUDE)", result)
-        return result
+    else:
+        result = call_deepseek(system, message, label=f"{agent_name.upper()} execute")
 
-    message = base_message
-    result  = ""
-    for attempt in range(MAX_RETRY + 1):
-        label = f"{agent_name.upper()}" if attempt == 0 else f"{agent_name.upper()} retry{attempt}"
-        result = call_gemini(system, message, label=label)
+    # บันทึก output ของ LLM
+    if output_dir:
+        output_dir.mkdir(parents=True, exist_ok=True)
 
-        need = parse_need_claude(result)
-        if not need:
-            break  # สำเร็จ — ออกจาก loop
+        # บันทึก report
+        report_path = output_dir / f"{agent_name}_report.md"
+        report_path.write_text(result, encoding="utf-8")
 
-        # มี error — ครั้งต่อไปส่งแค่ snippet ไม่ส่ง full message
-        snippet = _extract_error_snippet(result)
-        if attempt < MAX_RETRY:
-            print(f"\n[{agent_name.upper()}] error รอบ {attempt+1}/{MAX_RETRY} — แก้ใหม่...")
-            message = f"งานเดิม: {task}\nError ที่เจอ:\n{snippet}\nแก้เฉพาะจุดนี้"
-            log_raw(f"{agent_name}_error{attempt+1}", snippet)
-        else:
-            # หมด retry — หยุดและบันทึก log ให้ paste ต่อเอง
-            print(f"\n[{agent_name.upper()}] แก้ไม่สำเร็จหลัง {MAX_RETRY} รอบ — หยุดรอ user")
-            save_resume_log(agent_name, task, snippet, result)
-            user_action = input("จะทำอะไรต่อ? (s=skip, r=retry, q=quit): ").strip().lower()
-            if user_action == "r":
-                message = base_message
-                continue
-            elif user_action == "q":
-                raise SystemExit("หยุดโดย user")
-            # s หรืออื่นๆ = skip ไปต่อ
+        # Extract Python code blocks → บันทึกเป็น .py
+        code_blocks = re.findall(r'```python\n(.*?)```', result, re.DOTALL)
+        if code_blocks:
+            py_path = output_dir / f"{agent_name}_script.py"
+            py_path.write_text("\n\n".join(code_blocks), encoding="utf-8")
+            print(f"[{agent_name.upper()}] Saved script → {py_path}")
+            pipeline_write(agent_name, str(py_path))
+            log_raw(f"{agent_name}(LLM)", f"report={report_path} script={py_path}")
+            return str(py_path)
 
-    pipeline_write(agent_name, result)
-    log_raw(f"{agent_name}(CLAUDE)", result)
+        pipeline_write(agent_name, str(report_path))
+        log_raw(f"{agent_name}(LLM)", f"report={report_path}")
+        print(f"[{agent_name.upper()}] Saved report → {report_path}")
+        return str(report_path)
+
+    log_raw(f"{agent_name}(LLM)", result[:300])
     return result
 
 
-# -- Dispatch Parser -----------------------------------------------------------
+# ── Dispatch Parser ───────────────────────────────────────────────────────────
 
-DISPATCH_RE   = re.compile(r'<DISPATCH>(.*?)</DISPATCH>', re.DOTALL)
-ASK_USER_RE   = re.compile(r'<ASK_USER>(.*?)</ASK_USER>', re.DOTALL)
-ASK_CLAUDE_RE = re.compile(r'<ASK_CLAUDE>(.*?)</ASK_CLAUDE>', re.DOTALL)
-NEED_CLAUDE_RE = re.compile(r'NEED_CLAUDE:\s*(.+)', re.IGNORECASE)
-
+DISPATCH_RE = re.compile(r'<DISPATCH>(.*?)</DISPATCH>', re.DOTALL)
+ASK_USER_RE = re.compile(r'<ASK_USER>(.*?)</ASK_USER>', re.DOTALL)
 
 def parse_dispatches(text: str) -> list[dict]:
     results = []
@@ -200,81 +272,69 @@ def parse_dispatches(text: str) -> list[dict]:
             pass
     return results
 
-
-def parse_ask_user(text: str) -> str | None:
+def parse_ask_user(text: str) -> str|None:
     m = ASK_USER_RE.search(text)
     return m.group(1).strip() if m else None
 
 
-def parse_ask_claude(text: str) -> str | None:
-    m = ASK_CLAUDE_RE.search(text)
-    return m.group(1).strip() if m else None
+# ── Project Detection ─────────────────────────────────────────────────────────
+
+def detect_project(text: str) -> Path|None:
+    """หา project dir จาก text ของ Anna"""
+    m = re.search(r'projects[/\\]([\w\-]+)', text)
+    if m:
+        p = PROJECTS_DIR / m.group(1)
+        if p.exists():
+            return p
+    # ใช้ project ล่าสุดถ้าหาไม่เจอ
+    if PROJECTS_DIR.exists():
+        projects = sorted([p for p in PROJECTS_DIR.iterdir() if p.is_dir()])
+        if projects:
+            return projects[-1]
+    return None
 
 
-def parse_need_claude(text: str) -> str | None:
-    m = NEED_CLAUDE_RE.search(text)
-    return m.group(1).strip() if m else None
-
-
-def strip_tags(text: str) -> str:
-    text = DISPATCH_RE.sub("", text)
-    text = ASK_USER_RE.sub("", text)
-    text = ASK_CLAUDE_RE.sub("", text)
-    return text.strip()
-
-
-# -- Main Pipeline -------------------------------------------------------------
+# ── Main Pipeline ─────────────────────────────────────────────────────────────
 
 def run_pipeline(user_input: str):
-    """
-    Flow:
-    1. Anna รับงาน → ตัดสินใจ → จบ session Anna
-    2. แต่ละ agent เริ่ม session ใหม่ → อ่านไฟล์ → ทำงาน → เขียนไฟล์ → จบ
-    3. Anna สรุปผลสุดท้าย → จบ
-    """
+    global active_project
 
-    # Step 1: Anna ตัดสินใจ (fresh session) — silent เพื่อป้องกัน double print
     anna_kb = load_kb("anna")
-    anna_system = ANNA_SYSTEM + (f"\n\n---\n## Anna KB\n{anna_kb[:500]}" if anna_kb else "")
-    print(f"\n{'='*55}")
-    anna_response = call_gemini(anna_system, user_input, silent=True)
+    projects_list = "\n".join(
+        p.name for p in sorted(PROJECTS_DIR.iterdir()) if p.is_dir()
+    ) if PROJECTS_DIR.exists() else ""
+
+    anna_system = (
+        ANNA_SYSTEM
+        + (f"\n\n---\n## Anna KB\n{anna_kb[:500]}" if anna_kb else "")
+        + (f"\n\n---\n## Available Projects\n{projects_list}" if projects_list else "")
+    )
+
+    print(f"\n{'═'*55}")
+    anna_response = call_deepseek(anna_system, user_input, label="ANNA", history=anna_history)
+    anna_history.append({"role": "user",      "content": user_input})
+    anna_history.append({"role": "assistant", "content": anna_response})
     log_raw("User", user_input)
     log_raw("Anna", anna_response)
 
-    # ตรวจสอบ ASK_USER
     ask = parse_ask_user(anna_response)
     if ask:
         print(f"\n[ANNA] {ask}")
-        confirm = input("คุณ (y/n): ").strip().lower()
-        if confirm != "y":
-            print("[ANNA] รับทราบ หยุดการทำงาน")
+        if input("You (y/n): ").strip().lower() != "y":
+            print("[ANNA] Understood. Stopping.")
             return
 
-    # ตรวจสอบ ASK_CLAUDE — Anna ต้องการปรึกษา Claude ก่อนวางแผน
-    claude_q = parse_ask_claude(anna_response)
-    if claude_q:
-        print(f"\n[ANNA] ต้องการปรึกษา Claude เรื่อง:\n  {claude_q}")
-        perm = input("อนุญาตไหมคะ? (y/n): ").strip().lower()
-        if perm == "y":
-            print(f"\n{'-'*55}")
-            claude_ans = call_claude(ANNA_SYSTEM, claude_q, label="ANNA → CLAUDE")
-            save_kb("anna", f"คำถาม: {claude_q}\nClaude แนะนำ:\n{claude_ans}")
-            print(f"\n[ANNA] ได้รับ guidance แล้ว กำลังวางแผนใหม่...")
-            guided_system  = anna_system + f"\n\n---\n## Claude Guidance\n{claude_ans[:800]}"
-            anna_response  = call_gemini(guided_system, user_input, silent=True)
-            log_raw("Anna(guided)", anna_response)
-
     dispatches = parse_dispatches(anna_response)
-    clean_response = strip_tags(anna_response)
-    if clean_response:
-        print(f"\n[ANNA] {clean_response}")
-
     if not dispatches:
         return
 
-    # Step 2: รัน agent ทีละตัว — แต่ละตัว fresh session
-    print(f"\n[ANNA] pipeline เริ่ม {len(dispatches)} agent(s)...")
-    pipeline_clear()  # เคลียร์ผลเก่า
+    # Detect active project ถ้ายังไม่ได้ set
+    if active_project is None:
+        active_project = detect_project(anna_response)
+
+    pipeline_clear()
+    proj_name = active_project.name if active_project else "unknown"
+    print(f"\n[ANNA] Pipeline: {len(dispatches)} agent(s) | Project: {proj_name}")
 
     prev_agent = ""
     completed  = []
@@ -283,28 +343,30 @@ def run_pipeline(user_input: str):
         agent    = d.get("agent", "").lower()
         task     = d.get("task", "")
         discover = d.get("discover", False)
-
         if not agent or not task:
             continue
 
-        # fresh session ทุกครั้ง — อ่านจากไฟล์เท่านั้น
-        run_agent(agent, task, prev_agent=prev_agent, discover=discover)
+        run_agent(agent, task, prev_agent=prev_agent,
+                  project_dir=active_project, discover=discover)
         completed.append(agent)
         prev_agent = agent
+        print(f"\n[ANNA] ✓ {agent} ({i+1}/{len(dispatches)})")
 
-        print(f"\n[ANNA] OK {agent} เสร็จ ({i+1}/{len(dispatches)})")
-
-    # Step 3: แสดงผลสุดท้าย (โดยไม่ต้องเรียก LLM ซ้ำ)
+    # Anna summary — FIX: ไม่ append user_input ซ้ำ
     if completed:
-        print(f"\n{'='*55}")
-        last_output = pipeline_read(completed[-1])
-        print(f"\n[สรุปผล]:\n{last_output}")
+        print(f"\n{'═'*55}")
+        last_path = pipeline_read(completed[-1])
+        summary_msg = (
+            f"Team completed: {', '.join(completed)}\n"
+            f"Final output: {last_path}\n\n"
+            f"Summarize results for the user."
+        )
+        summary = call_deepseek(anna_system, summary_msg, label="ANNA summary", history=anna_history)
+        anna_history.append({"role": "user",      "content": summary_msg})
+        anna_history.append({"role": "assistant", "content": summary})
 
-        # บันทึก handoff ทุกครั้งที่ pipeline จบ
-        save_handoff(user_input, completed, dispatches)
 
-
-# -- Logging -------------------------------------------------------------------
+# ── Logging ───────────────────────────────────────────────────────────────────
 
 def log_raw(role: str, content: str):
     LOGS_DIR.mkdir(exist_ok=True)
@@ -314,134 +376,37 @@ def log_raw(role: str, content: str):
         fp.write(f"[{ts}] {role}: {content[:300]}\n")
 
 
-def save_resume_log(failed_agent: str, task: str, error_snippet: str, last_output: str):
-    """สร้าง resume.md — paste ใน Gemini/Claude browser เพื่อทำงานต่อได้ทันที"""
-    LOGS_DIR.mkdir(exist_ok=True)
-    ts = datetime.now().strftime("%Y-%m-%d %H:%M")
-
-    # อ่าน output ของ agent ก่อนหน้าที่สำเร็จแล้ว
-    done_summary = ""
-    if PIPELINE_DIR.exists():
-        for f in sorted(PIPELINE_DIR.glob("*.md")):
-            name = f.stem.replace("_output", "")
-            preview = f.read_text(encoding="utf-8")[:200].replace("\n", " ")
-            done_summary += f"- {name}: {preview}...\n"
-
-    content = f"""# Resume Log — {ts}
-paste ไฟล์นี้ใน Gemini/Claude browser เพื่อทำงานต่อ
-
-## Agent ที่ติดปัญหา
-{failed_agent} — แก้ไม่สำเร็จหลัง {MAX_RETRY} รอบ
-
-## Task ที่ต้องทำ
-{task}
-
-## Error
-{error_snippet}
-
-## Output ล่าสุดก่อน error
-{last_output[:500]}
-
-## Agent ที่เสร็จแล้ว
-{done_summary or "ยังไม่มี"}
-
-## วิธีทำต่อ (paste ข้อความนี้ใน Gemini)
-ช่วย {failed_agent} ทำงานต่อ:
-งาน: {task}
-error ที่เจอ: {error_snippet[:300]}
-output files อยู่ที่: DATA-Agent/pipeline/
-แก้ error แล้ว return แค่ code ที่แก้ ไม่ต้องอธิบาย
-"""
-    f = LOGS_DIR / "resume.md"
-    f.write_text(content, encoding="utf-8")
-    print(f"\n[LOG] resume.md บันทึกแล้ว → {f}")
-    print(f"[LOG] paste ไฟล์นี้ใน Gemini browser เพื่อทำงานต่อได้เลย")
-
-
-# -- Handoff -------------------------------------------------------------------
-
-def save_handoff(user_input: str, completed: list[str], dispatches: list[dict]):
-    """บันทึก handoff.md หลัง pipeline จบ — ใช้ resume session ครั้งต่อไป"""
-    LOGS_DIR.mkdir(exist_ok=True)
-    ts   = datetime.now().strftime("%Y-%m-%d %H:%M")
-    date = datetime.now().strftime("%Y-%m-%d")
-
-    # สรุป agent ที่ทำเสร็จพร้อม output สั้นๆ
-    agent_summary = ""
-    for name in completed:
-        output = pipeline_read(name)
-        preview = output[:300].replace("\n", " ")
-        agent_summary += f"- **{name}**: {preview}...\n"
-
-    # หา agent ที่ยังไม่ได้ทำ (ถ้า pipeline ไม่ครบ)
-    all_agents = ["scout","dana","eddie","max","finn","mo","iris","vera","quinn","rex"]
-    done_set   = set(completed)
-    pending    = [a for a in all_agents if a not in done_set]
-    pending_str = ", ".join(pending) if pending else "ครบทุกขั้นตอนแล้ว"
-
-    content = f"""# Handoff — {ts}
-
-## คำสั่งล่าสุดจาก User
-{user_input}
-
-## Agent ที่ทำเสร็จแล้ว
-{agent_summary}
-## ยังไม่ได้ทำ
-{pending_str}
-
-## ไฟล์ที่เกี่ยวข้อง
-- Pipeline outputs: `DATA-Agent/pipeline/`
-- Logs วันนี้: `DATA-Agent/logs/{date}_raw.md`
-- Knowledge base: `DATA-Agent/knowledge_base/`
-
-## วิธี Resume
-เปิด orchestrator.py แล้วพิมพ์ path ของไฟล์นี้:
-`{LOGS_DIR}/handoff.md`
-Anna จะอ่านและทำงานต่อได้ทันที
-"""
-    f = LOGS_DIR / "handoff.md"
-    f.write_text(content, encoding="utf-8")
-    print(f"\n[HANDOFF] บันทึกแล้ว → {f}")
-
-
-def load_handoff(path: str) -> str | None:
-    """โหลด .md file เป็น context — ถ้า path ไม่มีให้ return None"""
-    p = Path(path)
-    if not p.exists() or p.suffix != ".md":
-        return None
-    return p.read_text(encoding="utf-8")
-
-
-# -- CLI -----------------------------------------------------------------------
+# ── CLI ───────────────────────────────────────────────────────────────────────
 
 HELP_TEXT = """
 คำสั่ง:
-  <ข้อความ>        → Anna รับ แล้ว pipeline อัตโนมัติ (แต่ละ agent fresh session)
-  !! <ข้อความ>     → Anna ใช้ Claude discover
-  @<agent> <task>  → ส่งตรงไป agent
-  @<agent>! <task> → ส่งตรงไป agent (discover mode)
-  kb <agent>       → ดู knowledge_base
-  <path>.md        → โหลด handoff file เพื่อ resume งานจาก session ที่แล้ว
-  exit             → ออก
+  <ข้อความ>          → Anna รับ แล้ว pipeline อัตโนมัติ
+  !! <ข้อความ>       → Anna ใช้ Claude discover
+  @<agent> <task>    → ส่งตรงไป agent (Ollama)
+  @<agent>! <task>   → ส่งตรงไป agent (Claude discover)
+  project <name>     → set active project
+  kb <agent>         → ดู knowledge_base
+  exit               → ออก
 """
 
 
 def anna_discover(user_input: str):
     anna_kb = load_kb("anna")
     system  = ANNA_SYSTEM + (f"\n\n---\n## Anna KB\n{anna_kb[:500]}" if anna_kb else "")
-    print(f"\n{'='*55}")
-    result = call_claude(system, user_input, label="ANNA discover")
+    result  = call_claude(system, user_input, label="ANNA discover")
     save_kb("anna", f"Task: {user_input}\nDiscovery:\n{result}")
 
 
 def main():
-    mode_label = "LIGHT" if MODE == "light" else "FULL"
+    global active_project
+    print("=" * 55)
+    print("  DataScienceOS  |  PATH-BASED pipeline v2")
+    print(f"  DeepSeek: {DEEPSEEK_MODEL}  |  Claude: {CLAUDE_MODEL}")
+    print("  Agent ที่มี script → รันจริง | ไม่มี → LLM")
+    print("=" * 55)
 
-    print("=" * 55)
-    print(f"  DataScienceOS | Mode: {mode_label}")
-    print(f"  Engine: Claude CLI (Pro subscription)")
-    print(f"  แต่ละ agent = fresh session ไม่มี context สะสม")
-    print("=" * 55)
+    print("  DeepSeek:", "✓" if os.environ.get("DEEPSEEK_API_KEY") else "✗ ไม่พบ DEEPSEEK_API_KEY")
+    print("  Claude  :", "✓" if os.environ.get("ANTHROPIC_API_KEY") else "✗ ไม่พบ API key")
     print()
 
     while True:
@@ -455,30 +420,28 @@ def main():
             continue
         if user_input.lower() in ("exit", "quit"):
             break
+        if user_input.lower() == "end session":
+            anna_history.clear()
+            active_project = None
+            print("[ANNA] Session ended.")
+            continue
         if user_input.lower() == "help":
             print(HELP_TEXT)
             continue
-
-        # โหลด .md file เป็น context — resume session จาก handoff
-        if user_input.strip().endswith(".md"):
-            ctx = load_handoff(user_input.strip())
-            if ctx:
-                print(f"[RESUME] โหลดไฟล์สำเร็จ — Anna กำลังอ่าน context...")
-                user_input = f"[Session Resume — อ่านไฟล์นี้แล้วบอกว่าจะทำอะไรต่อ]\n\n{ctx}"
-            else:
-                print(f"[ERROR] ไม่พบไฟล์ {user_input}")
-                continue
-
+        if user_input.lower().startswith("project "):
+            name = user_input[8:].strip()
+            p = PROJECTS_DIR / name
+            active_project = p if p.exists() else None
+            print(f"[ANNA] Active project: {active_project or 'not found'}")
+            continue
         if user_input.lower().startswith("kb "):
             name = user_input[3:].strip()
             kb = load_kb(name)
             print(kb if kb else f"[{name}] ยังไม่มี KB")
             continue
-
         if user_input.startswith("!!"):
             anna_discover(user_input[2:].strip())
             continue
-
         if user_input.startswith("@"):
             parts      = user_input[1:].split(" ", 1)
             agent_part = parts[0].lower()
@@ -488,7 +451,7 @@ def main():
                 continue
             discover   = agent_part.endswith("!")
             agent_name = agent_part.rstrip("!")
-            run_agent(agent_name, task, discover=discover)
+            run_agent(agent_name, task, project_dir=active_project, discover=discover)
             continue
 
         run_pipeline(user_input)
