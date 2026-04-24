@@ -51,6 +51,8 @@ if "--mode" in sys.argv:
 
 ANNA_SYSTEM = (BASE_DIR / "CLAUDE.md").read_text(encoding="utf-8")
 
+VALID_AGENTS = {"scout", "dana", "eddie", "max", "finn", "mo", "iris", "vera", "quinn", "rex"}
+
 anna_history:   list      = []
 active_project: Path|None = None
 
@@ -292,7 +294,13 @@ def parse_dispatches(text: str) -> list[dict]:
     results = []
     for match in DISPATCH_RE.finditer(text):
         try:
-            results.append(json.loads(match.group(1).strip()))
+            d = json.loads(match.group(1).strip())
+            agent = d.get("agent", "").lower().strip()
+            task  = d.get("task", "").strip()
+            if agent in VALID_AGENTS and task and task not in ("...", ""):
+                results.append(d)
+            elif agent:
+                print(f"{RD}  ✗ dispatch ถูกปฏิเสธ — agent='{agent}' ไม่ถูกต้อง{RST}")
         except json.JSONDecodeError:
             pass
     return results
@@ -317,6 +325,122 @@ def detect_project(text: str) -> Path|None:
     return None
 
 
+# ── Anna Full-Power Action Executor ──────────────────────────────────────────
+
+def execute_anna_actions(response: str) -> str:
+    """
+    Parse และ execute action tags จาก Anna's response จริง ๆ
+    คืน string ของผลลัพธ์ทั้งหมด (ส่งกลับให้ Anna อ่านต่อ)
+    """
+    parts = []
+
+    # READ_FILE
+    for m in re.finditer(r'<READ_FILE\s+path="([^"]+)"\s*/?>', response):
+        fpath = BASE_DIR / m.group(1)
+        print(f"\n{CY}  ▶ READ_FILE{RST}  {DIM}{m.group(1)}{RST}")
+        try:
+            content = fpath.read_text(encoding="utf-8")
+            parts.append(f'[READ_FILE: {m.group(1)}]\n{content[:3000]}')
+        except Exception as e:
+            parts.append(f'[READ_FILE ERROR: {e}]')
+
+    # RUN_SHELL
+    for m in re.finditer(r'<RUN_SHELL>(.*?)</RUN_SHELL>', response, re.DOTALL):
+        cmd = m.group(1).strip()
+        print(f"\n{CY}  ▶ RUN_SHELL{RST}  {DIM}{cmd[:60]}{RST}")
+        try:
+            r = subprocess.run(cmd, shell=True, capture_output=True, text=True,
+                               encoding="utf-8", timeout=60, cwd=str(BASE_DIR))
+            out = (r.stdout + r.stderr)[:1500]
+            parts.append(f'[RUN_SHELL: {cmd[:60]}]\n{out}')
+        except Exception as e:
+            parts.append(f'[RUN_SHELL ERROR: {e}]')
+
+    # WRITE_FILE
+    for m in re.finditer(r'<WRITE_FILE\s+path="([^"]+)">(.*?)</WRITE_FILE>', response, re.DOTALL):
+        fpath = BASE_DIR / m.group(1)
+        print(f"\n{GR}  ▶ WRITE_FILE{RST}  {DIM}{m.group(1)}{RST}")
+        try:
+            fpath.parent.mkdir(parents=True, exist_ok=True)
+            fpath.write_text(m.group(2), encoding="utf-8")
+            parts.append(f'[WRITE_FILE: {m.group(1)}] เขียนสำเร็จ')
+        except Exception as e:
+            parts.append(f'[WRITE_FILE ERROR: {e}]')
+
+    # APPEND_FILE
+    for m in re.finditer(r'<APPEND_FILE\s+path="([^"]+)">(.*?)</APPEND_FILE>', response, re.DOTALL):
+        fpath = BASE_DIR / m.group(1)
+        print(f"\n{GR}  ▶ APPEND_FILE{RST}  {DIM}{m.group(1)}{RST}")
+        try:
+            fpath.parent.mkdir(parents=True, exist_ok=True)
+            with open(fpath, "a", encoding="utf-8") as fp:
+                fp.write(m.group(2))
+            parts.append(f'[APPEND_FILE: {m.group(1)}] เพิ่มสำเร็จ')
+        except Exception as e:
+            parts.append(f'[APPEND_FILE ERROR: {e}]')
+
+    # EDIT_FILE
+    for m in re.finditer(r'<EDIT_FILE\s+path="([^"]+)"><old>(.*?)</old><new>(.*?)</new></EDIT_FILE>', response, re.DOTALL):
+        fpath = BASE_DIR / m.group(1)
+        print(f"\n{GR}  ▶ EDIT_FILE{RST}  {DIM}{m.group(1)}{RST}")
+        try:
+            original = fpath.read_text(encoding="utf-8")
+            fpath.write_text(original.replace(m.group(2), m.group(3), 1), encoding="utf-8")
+            parts.append(f'[EDIT_FILE: {m.group(1)}] แก้ไขสำเร็จ')
+        except Exception as e:
+            parts.append(f'[EDIT_FILE ERROR: {e}]')
+
+    # CREATE_DIR
+    for m in re.finditer(r'<CREATE_DIR\s+path="([^"]+)"\s*/?>', response):
+        dpath = BASE_DIR / m.group(1)
+        print(f"\n{GR}  ▶ CREATE_DIR{RST}  {DIM}{m.group(1)}{RST}")
+        try:
+            dpath.mkdir(parents=True, exist_ok=True)
+            parts.append(f'[CREATE_DIR: {m.group(1)}] สร้างสำเร็จ')
+        except Exception as e:
+            parts.append(f'[CREATE_DIR ERROR: {e}]')
+
+    # DELETE_FILE
+    for m in re.finditer(r'<DELETE_FILE\s+path="([^"]+)"\s*/?>', response):
+        fpath = BASE_DIR / m.group(1)
+        print(f"\n{RD}  ▶ DELETE_FILE{RST}  {DIM}{m.group(1)}{RST}")
+        try:
+            fpath.unlink()
+            parts.append(f'[DELETE_FILE: {m.group(1)}] ลบสำเร็จ')
+        except Exception as e:
+            parts.append(f'[DELETE_FILE ERROR: {e}]')
+
+    # UPDATE_KB
+    for m in re.finditer(r'<UPDATE_KB\s+agent="([^"]+)">(.*?)</UPDATE_KB>', response, re.DOTALL):
+        save_kb(m.group(1), m.group(2).strip())
+        print(f"\n{GR}  ▶ UPDATE_KB{RST}  agent={BLD}{m.group(1)}{RST}")
+        parts.append(f'[UPDATE_KB: {m.group(1)}] อัปเดตสำเร็จ')
+
+    # ASK_DEEPSEEK
+    for m in re.finditer(r'<ASK_DEEPSEEK>(.*?)</ASK_DEEPSEEK>', response, re.DOTALL):
+        q = m.group(1).strip()
+        print(f"\n{BL}  ▶ ASK_DEEPSEEK{RST}")
+        ans = call_deepseek("You are a helpful AI assistant.", q, label="DEEPSEEK direct")
+        parts.append(f'[ASK_DEEPSEEK]\nQ: {q[:200]}\nA: {ans[:1000]}')
+
+    # ASK_CLAUDE
+    for m in re.finditer(r'<ASK_CLAUDE>(.*?)</ASK_CLAUDE>', response, re.DOTALL):
+        q = m.group(1).strip()
+        print(f"\n{MG}  ▶ ASK_CLAUDE{RST}")
+        ans = call_claude("You are a helpful AI assistant.", q, label="CLAUDE direct")
+        parts.append(f'[ASK_CLAUDE]\nQ: {q[:200]}\nA: {ans[:1000]}')
+
+    # RESEARCH
+    for m in re.finditer(r'<RESEARCH>(.*?)</RESEARCH>', response, re.DOTALL):
+        topic = m.group(1).strip()
+        print(f"\n{BL}  ▶ RESEARCH{RST}  {DIM}{topic[:60]}{RST}")
+        ans = call_deepseek("You are a research assistant. Be thorough.", topic, label="RESEARCH")
+        save_kb("anna", f"Research: {topic}\nFindings:\n{ans}")
+        parts.append(f'[RESEARCH: {topic[:60]}]\n{ans[:1000]}')
+
+    return "\n\n".join(parts)
+
+
 # ── Main Pipeline ─────────────────────────────────────────────────────────────
 
 def run_pipeline(user_input: str):
@@ -335,10 +459,22 @@ def run_pipeline(user_input: str):
 
     print(f"\n{YL}{'═'*55}{RST}")
     anna_response = call_deepseek(anna_system, user_input, label="ANNA", history=anna_history)
-    anna_history.append({"role": "user",      "content": user_input})
-    anna_history.append({"role": "assistant", "content": anna_response})
     log_raw("User", user_input)
     log_raw("Anna", anna_response, task="รับคำสั่งจาก User และวางแผน dispatch")
+
+    # Execute full-power actions แล้ว feed ผลกลับให้ Anna
+    action_results = execute_anna_actions(anna_response)
+    if action_results:
+        print(f"\n{CY}  ⟳ ส่งผลลัพธ์กลับให้ Anna...{RST}")
+        followup = f"ผลลัพธ์จากการดำเนินการ:\n\n{action_results}\n\nโปรดสรุปและตอบผู้ใช้เป็นภาษาไทย"
+        anna_history.append({"role": "user",      "content": user_input})
+        anna_history.append({"role": "assistant", "content": anna_response})
+        anna_response = call_deepseek(anna_system, followup, label="ANNA", history=anna_history)
+        anna_history.append({"role": "user",      "content": followup})
+        anna_history.append({"role": "assistant", "content": anna_response})
+    else:
+        anna_history.append({"role": "user",      "content": user_input})
+        anna_history.append({"role": "assistant", "content": anna_response})
 
     ask = parse_ask_user(anna_response)
     if ask:
@@ -502,7 +638,8 @@ def main():
     # ── Main loop ─────────────────────────────────────────────
     while True:
         try:
-            user_input = input(f"{BLD}{WH}คุณ:{RST} ").strip()
+            proj = f" {DIM}[{active_project.name}]{RST}" if active_project else ""
+            user_input = input(f"{BLD}{WH}คุณ{RST}{proj}{BLD}{WH}:{RST} ").strip()
         except (KeyboardInterrupt, EOFError):
             print(f"\n{YL}  ลาก่อนค่ะ{RST}")
             break
