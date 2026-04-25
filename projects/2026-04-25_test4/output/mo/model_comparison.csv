@@ -1,0 +1,5 @@
+Model,CV F1 Mean,CV F1 Std,Test Accuracy,Test Precision,Test Recall,Test F1,Time (s),Test AUC
+Logistic Regression,1.0,0.0,1.0,1.0,1.0,1.0,0.04,1.0
+Random Forest,1.0,0.0,1.0,1.0,1.0,1.0,1.0,1.0
+Gradient Boosting,1.0,0.0,1.0,1.0,1.0,1.0,0.7,1.0
+XGBoost,1.0,0.0,1.0,1.0,1.0,1.0,0.27,1.0

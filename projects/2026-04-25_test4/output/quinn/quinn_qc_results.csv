@@ -1,0 +1,13 @@
+check,status,detail,timestamp
+1_vera_shape,FAIL,"Expected (5,19) → Got (4, 9)",2026-04-25 20:32:12
+2_vera_missing_values,PASS,Missing cells: 0/36 (0.0%),2026-04-25 20:32:12
+3_vera_numeric_columns,PASS,"Numeric columns: ['cv_f1_mean', 'cv_f1_std', 'test_accuracy', 'test_precision', 'test_recall', 'test_f1', 'time_(s)', 'test_auc'] (count=8)",2026-04-25 20:32:12
+4_vera_no_infinite,PASS,Has infinite or NaN values: False,2026-04-25 20:32:12
+5_vera_data_types,FAIL,"Data types: {'model': <StringDtype(storage='python', na_value=nan)>, 'cv_f1_mean': dtype('float64'), 'cv_f1_std': dtype('float64'), 'test_accuracy': dtype('float64'), 'test_precision': dtype('float64'), 'test_recall': dtype('float64'), 'test_f1': dtype('float64'), 'time_(s)': dtype('float64'), 'test_auc': dtype('float64')}",2026-04-25 20:32:12
+6_vera_no_duplicates,PASS,Duplicate rows: 0,2026-04-25 20:32:12
+7_vera_column_names_clean,PASS,"Columns: ['model', 'cv_f1_mean', 'cv_f1_std', 'test_accuracy', 'test_precision', 'test_recall', 'test_f1', 'time_(s)', 'test_auc']",2026-04-25 20:32:12
+8_vera_numeric_ranges,PASS,All numeric columns non-negative: True,2026-04-25 20:32:12
+9_vera_no_empty_strings,PASS,Empty strings in object columns: 0,2026-04-25 20:32:12
+10_cross_agent_consistency,SKIP,Dana output not found,2026-04-25 20:32:12
+11_iris_output_exists,SKIP,Iris output not found,2026-04-25 20:32:12
+12_rex_output_exists,SKIP,Rex output not found,2026-04-25 20:32:12

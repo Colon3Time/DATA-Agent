@@ -1,0 +1,12 @@
+check_type,check_result,status
+data_integrity,Null ratios within acceptable range,PASS
+data_integrity,No duplicate rows,PASS
+data_integrity,"Data types verified: 4 numeric, 0 text columns",PASS
+data_integrity,"Column 'total_rows' has reasonable stats (mean=4.00, std=nan)",PASS
+data_integrity,"Column 'valid_content_rows' has reasonable stats (mean=4.00, std=nan)",PASS
+data_integrity,"Column 'numeric_columns_count' has reasonable stats (mean=7.00, std=nan)",PASS
+data_integrity,"Column 'string_columns_count' has reasonable stats (mean=1.00, std=nan)",PASS
+data_integrity,Has 10 columns — sufficient for visualization,PASS
+data_integrity,Cross-checked with Dana: 0 common columns verified,PASS
+data_integrity,Dataset size (1 rows) suitable for visualization,PASS
+data_issues,ISSUE: No clear grouping/segmentation columns found — Vera should produce clustered data,FAIL

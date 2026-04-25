@@ -79,6 +79,46 @@
 
 ---
 
+## ML ในหน้าที่ของ Scout (ใช้ ML ประเมินและจัดอันดับ datasets)
+
+Scout ไม่ได้แค่ search — ใช้ **ML ให้คะแนน relevance และ quality ของ dataset โดยอัตโนมัติ**
+
+### TF-IDF Relevance Scoring — วัดว่า dataset ตรงกับ task ไหม
+```python
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+# เปรียบเทียบ task description กับ dataset descriptions
+task_desc = "predict employee churn based on HR data"
+dataset_descs = ["IBM HR employee attrition dataset", "Iris flower classification", ...]
+
+tfidf = TfidfVectorizer()
+matrix = tfidf.fit_transform([task_desc] + dataset_descs)
+scores = cosine_similarity(matrix[0:1], matrix[1:])[0]
+ranked = sorted(zip(dataset_descs, scores), key=lambda x: x[1], reverse=True)
+```
+
+### Auto Quality Scoring — ให้คะแนน dataset quality ก่อน recommend
+```python
+def score_dataset(df):
+    scores = {}
+    # completeness (ครบถ้วน)
+    scores['completeness'] = 1 - df.isnull().mean().mean()
+    # size adequacy (ใหญ่พอ)
+    scores['size'] = min(1.0, len(df) / 1000)
+    # feature richness
+    scores['features'] = min(1.0, len(df.columns) / 10)
+    # class balance (classification)
+    if df.iloc[:,-1].nunique() <= 10:
+        vc = df.iloc[:,-1].value_counts(normalize=True)
+        scores['balance'] = 1 - (vc.max() - vc.min())
+    return sum(scores.values()) / len(scores)
+```
+
+**กฎ Scout:** ต้องคำนวณ relevance score และ quality score ก่อน recommend dataset ทุกครั้ง — เรียงตาม score ก่อน present ให้ Anna
+
+---
+
 ## การประเมินคุณภาพ Dataset
 
 | เกณฑ์ | รายละเอียด |
