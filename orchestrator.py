@@ -15,8 +15,6 @@ from pathlib import Path
 from datetime import datetime
 from dotenv import load_dotenv
 
-import anthropic
-
 load_dotenv(Path(__file__).parent / ".env")
 
 # ── Colors ────────────────────────────────────────────────────────────────────
@@ -107,39 +105,36 @@ def call_deepseek(system_prompt: str, user_message: str, label: str = "", histor
 
 
 def call_claude(system_prompt: str, user_message: str, label: str = "") -> str:
+    """ลอง Anthropic API ก่อน — ถ้าไม่มี key/credit ให้ fallback DeepSeek อัตโนมัติ"""
     api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        print(f"{RD}  ✗ ANTHROPIC_API_KEY not found{RST}")
-        return "[ERROR] ANTHROPIC_API_KEY not found"
-    print(f"\n{MG}{'━'*55}{RST}")
-    print(f"{MG}  ✦ CLAUDE  {BLD}{label}{RST}")
-    print(f"{MG}{'━'*55}{RST}")
-    client = anthropic.Anthropic(api_key=api_key)
-    try:
-        with client.messages.stream(
-            model=CLAUDE_MODEL, max_tokens=4096,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_message}],
-        ) as stream:
-            full = []
-            for text in stream.text_stream:
-                print(text, end="", flush=True)
-                full.append(text)
-        print()
-        return "".join(full)
-    except anthropic.BadRequestError as e:
-        msg = str(e)
-        if "credit balance is too low" in msg:
-            print(f"\n{RD}  ✗ CLAUDE:{RST} {YL}Credit หมดแล้ว — เติม credit ที่ console.anthropic.com{RST}")
-            return "[ERROR] Claude credit หมด"
-        print(f"\n{RD}  ✗ CLAUDE BadRequest: {e}{RST}")
-        return f"[ERROR] {e}"
-    except anthropic.APIStatusError as e:
-        print(f"\n{RD}  ✗ CLAUDE API error {e.status_code}: {e.message}{RST}")
-        return f"[ERROR] Claude API {e.status_code}"
-    except Exception as e:
-        print(f"\n{RD}  ✗ CLAUDE unexpected: {e}{RST}")
-        return f"[ERROR] {e}"
+    if api_key:
+        try:
+            import anthropic as _ant
+            print(f"\n{MG}{'━'*55}{RST}")
+            print(f"{MG}  ✦ CLAUDE  {BLD}{label}{RST}")
+            print(f"{MG}{'━'*55}{RST}")
+            client = _ant.Anthropic(api_key=api_key)
+            with client.messages.stream(
+                model=CLAUDE_MODEL, max_tokens=4096,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_message}],
+            ) as stream:
+                full = []
+                for text in stream.text_stream:
+                    print(text, end="", flush=True)
+                    full.append(text)
+            print()
+            return "".join(full)
+        except Exception as e:
+            msg = str(e)
+            if "credit" in msg.lower():
+                print(f"\n{RD}  ✗ CLAUDE credit หมด{RST} {YL}→ fallback DeepSeek{RST}")
+            else:
+                print(f"\n{YL}  ⚠ CLAUDE error ({e}) → fallback DeepSeek{RST}")
+    else:
+        print(f"\n{YL}  ⚠ ไม่พบ ANTHROPIC_API_KEY → ใช้ DeepSeek แทน{RST}")
+
+    return call_deepseek(system_prompt, user_message, label=f"{label} (via DeepSeek)")
 
 
 # ── Knowledge Base ────────────────────────────────────────────────────────────
@@ -148,12 +143,15 @@ def load_kb(agent_name: str) -> str:
     f = KNOWLEDGE_DIR / f"{agent_name}_methods.md"
     return f.read_text(encoding="utf-8") if f.exists() else ""
 
-def save_kb(agent_name: str, content: str):
+def save_kb(agent_name: str, content: str, entry_type: str = "discovery"):
+    """entry_type: 'discovery' = พิสูจน์แล้วว่าดี | 'feedback' = แก้งาน อาจไม่ถูกเสมอ"""
     KNOWLEDGE_DIR.mkdir(exist_ok=True)
     f = KNOWLEDGE_DIR / f"{agent_name}_methods.md"
     ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+    tag = "FEEDBACK" if entry_type == "feedback" else "DISCOVERY"
     with open(f, "a", encoding="utf-8") as fp:
-        fp.write(f"\n\n## [{ts}] Discovery\n{content}\n")
+        fp.write(f"\n\n## [{ts}] [{tag}]\n{content.strip()}\n")
+    log_raw("system", f"KB [{tag}] {agent_name}: {content[:80]}", task="kb_update")
 
 
 # ── Pipeline (PATH-BASED) ─────────────────────────────────────────────────────
@@ -193,6 +191,7 @@ def run_script(script_path: Path, input_path: str, output_dir: Path) -> str:
          "--input", input_path,
          "--output-dir", str(output_dir)],
         capture_output=True, text=True, encoding="utf-8", timeout=300,
+        env={**os.environ, "PYTHONUTF8": "1"},
     )
     if result.stdout:
         print(result.stdout[-2000:])
@@ -212,9 +211,17 @@ def run_script(script_path: Path, input_path: str, output_dir: Path) -> str:
 def get_system_prompt(agent_name: str) -> str:
     f = AGENTS_DIR / f"{agent_name}.md"
     base = f.read_text(encoding="utf-8") if f.exists() else f"You are {agent_name}, a data science specialist."
+    base += (
+        "\n\n---\n## Pre-Work Protocol (ทำก่อนทุกครั้ง — บังคับ)\n"
+        "1. อ่าน Knowledge Base ด้านล่างทั้งหมดก่อนเริ่มทำงาน\n"
+        "2. [FEEDBACK] = ข้อแนะนำจากการแก้งาน — ใช้เป็น guideline แต่ตัดสินใจตามบริบทจริง ไม่ใช่กฎตายตัว\n"
+        "3. [DISCOVERY] = วิธีที่พิสูจน์แล้วว่าได้ผลดี — ใช้ก่อนเสมอถ้าเหมาะสม\n"
+        "4. อ่าน Input file path ที่ระบุใน task message แล้วโหลดข้อมูลจาก path นั้นทันที\n"
+        "5. บันทึก Self-Improvement Report ทุกครั้งหลังทำงานเสร็จ\n"
+    )
     kb = load_kb(agent_name)
     if kb:
-        base += f"\n\n---\n## Knowledge Base\n{kb[:1000]}"
+        base += f"\n\n---\n## Knowledge Base — {agent_name}\n{kb}"
     return base
 
 
@@ -230,16 +237,54 @@ def read_report_summary(output_dir: Path, agent_name: str, max_chars: int = 800)
         return ""
 
 
+def auto_extract_kb_learning(agent_name: str, result: str):
+    """Extract 'วิธีใหม่ที่พบ' from Self-Improvement Report and save as DISCOVERY."""
+    m = re.search(
+        r'วิธีใหม่ที่พบ\s*[:：]\s*(.+?)(?=\nจะนำไปใช้|\nKnowledge|\Z)',
+        result, re.DOTALL | re.IGNORECASE,
+    )
+    if not m:
+        return
+    new_method = m.group(1).strip()
+    if any(skip in new_method for skip in ["ไม่พบ", "ไม่มี", "–", "-", "N/A", "none"]):
+        return
+    save_kb(agent_name, new_method[:400], entry_type="discovery")
+
+
+def resolve_input_path(prev_agent: str, raw_path: str, project_dir: Path | None) -> str:
+    """If Scout's pipeline points to a .md report, find actual CSV in project input/ instead."""
+    if prev_agent != "scout" or not raw_path or not project_dir:
+        return raw_path
+    if not raw_path.endswith(".md"):
+        return raw_path
+    input_dir = project_dir / "input"
+    if not input_dir.exists():
+        return raw_path
+    csvs = sorted(input_dir.glob("*.csv"), key=lambda x: x.stat().st_mtime, reverse=True)
+    return str(csvs[0]) if csvs else raw_path
+
+
 def run_agent(agent_name: str, task: str, prev_agent: str = "",
               project_dir: Path|None = None, discover: bool = False) -> str:
-    """
-    Priority 1: ถ้ามี Python script → รัน script จริง (ผลถูกต้อง 100%)
-    Priority 2: ถ้าไม่มี → DeepSeek LLM สร้าง report + บันทึก code เป็น .py
-    """
     bar = "─" * max(0, 48 - len(agent_name))
     print(f"\n{CY}┌─ {BLD}{agent_name.upper()}{RST}{CY} {bar}┐{RST}")
 
-    input_path = pipeline_read(prev_agent) if prev_agent else ""
+    raw_input_path = pipeline_read(prev_agent) if prev_agent else ""
+    input_path     = resolve_input_path(prev_agent, raw_input_path, project_dir)
+    if input_path != raw_input_path and input_path:
+        print(f"{CY}  ⟳ input resolved:{RST} {DIM}{input_path}{RST}")
+        log_raw("system", f"resolve input: {raw_input_path} → {input_path}", task=f"{agent_name}")
+
+    # fallback: ถ้าไม่มี input path ให้หา CSV ใน project/input/ อัตโนมัติ
+    if not input_path and project_dir:
+        input_dir = project_dir / "input"
+        if input_dir.exists():
+            csvs = sorted(input_dir.glob("*.csv"), key=lambda x: x.stat().st_mtime, reverse=True)
+            if csvs:
+                input_path = str(csvs[0])
+                print(f"{CY}  ⟳ input fallback:{RST} {DIM}{input_path}{RST}")
+                log_raw("system", f"input fallback → {input_path}", task=agent_name)
+
     output_dir = (project_dir / "output" / agent_name) if project_dir else None
 
     # ── Priority 1: script จริง ───────────────────────────────
@@ -252,6 +297,7 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
         if report_summary:
             action_msg += f"\n{report_summary}"
         log_raw(agent_name, action_msg, task=task, output=output_path)
+        log_raw("system", f"pipeline handoff: {agent_name} → {output_path}", task="pipeline")
         print(f"{GR}  ✓ {BLD}{agent_name.upper()}{RST}{GR} done{RST}  {DIM}→ {output_path}{RST}")
         return output_path
 
@@ -266,14 +312,21 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
         path_lines.append(f"Save CSV to     : {output_dir / f'{agent_name}_output.csv'}")
         path_lines.append(f"Save script to  : {output_dir / f'{agent_name}_script.py'}")
         path_lines.append(f"Save report to  : {output_dir / f'{agent_name}_report.md'}")
+    if agent_name == "scout" and project_dir:
+        path_lines.append(f"Save dataset to : {project_dir / 'input'}/ ← ไฟล์ข้อมูลจริงต้องอยู่ที่นี่เท่านั้น")
 
     message = "\n".join(path_lines) + f"\n\nTask: {task}" if path_lines else task
 
     if discover:
         result = call_claude(system, task, label=f"{agent_name.upper()} discover")
-        save_kb(agent_name, f"Task: {task}\nDiscovery:\n{result}")
+        # Extract key finding only — ห้าม dump ผล LLM ทั้งก้อนลง KB
+        first_para = result.strip().split("\n\n")[0][:400]
+        save_kb(agent_name, f"Task: {task[:100]}\nKey finding: {first_para}", entry_type="discovery")
     else:
         result = call_deepseek(system, message, label=f"{agent_name.upper()} execute")
+
+    # Auto-extract Self-Improvement discovery ไปเก็บ KB
+    auto_extract_kb_learning(agent_name, result)
 
     if output_dir:
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -286,12 +339,34 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
             py_path = output_dir / f"{agent_name}_script.py"
             py_path.write_text("\n\n".join(code_blocks), encoding="utf-8")
             print(f"{GR}  ✓ {BLD}{agent_name.upper()}{RST}{GR} script saved{RST}  {DIM}→ {py_path}{RST}")
-            pipeline_write(agent_name, str(py_path))
-            log_raw(agent_name, "สร้าง report และ script สำเร็จ (DeepSeek)", task=task, output=str(py_path))
-            return str(py_path)
+
+            # Scout: pipeline ชี้ไปที่ CSV ใน input/ ถ้ามี ไม่ใช่ script
+            if agent_name == "scout" and project_dir:
+                input_dir = project_dir / "input"
+                csvs = sorted(input_dir.glob("*.csv"), key=lambda x: x.stat().st_mtime, reverse=True) if input_dir.exists() else []
+                out_path = str(csvs[0]) if csvs else str(py_path)
+            else:
+                out_path = str(py_path)
+
+            pipeline_write(agent_name, out_path)
+            log_raw(agent_name, "สร้าง report และ script (DeepSeek)", task=task, output=out_path)
+            log_raw("system", f"pipeline handoff: {agent_name} → {out_path}", task="pipeline")
+            return out_path
+
+        # Scout: ถ้าไม่มี script ให้ check input/ ก่อน
+        if agent_name == "scout" and project_dir:
+            input_dir = project_dir / "input"
+            csvs = sorted(input_dir.glob("*.csv"), key=lambda x: x.stat().st_mtime, reverse=True) if input_dir.exists() else []
+            if csvs:
+                pipeline_write(agent_name, str(csvs[0]))
+                log_raw(agent_name, "พบ dataset ใน input/ — pipeline → CSV", task=task, output=str(csvs[0]))
+                log_raw("system", f"pipeline handoff: scout → {csvs[0]}", task="pipeline")
+                print(f"{GR}  ✓ {BLD}SCOUT{RST}{GR} dataset ready in input/{RST}  {DIM}→ {csvs[0]}{RST}")
+                return str(csvs[0])
 
         pipeline_write(agent_name, str(report_path))
-        log_raw(agent_name, "สร้าง report สำเร็จ (DeepSeek)", task=task, output=str(report_path))
+        log_raw(agent_name, "สร้าง report (DeepSeek)", task=task, output=str(report_path))
+        log_raw("system", f"pipeline handoff: {agent_name} → {report_path}", task="pipeline")
         print(f"{GR}  ✓ {BLD}{agent_name.upper()}{RST}{GR} report saved{RST}  {DIM}→ {report_path}{RST}")
         return str(report_path)
 
@@ -352,23 +427,29 @@ def execute_anna_actions(response: str) -> str:
     for m in re.finditer(r'<READ_FILE\s+path="([^"]+)"\s*/?>', response):
         fpath = BASE_DIR / m.group(1)
         print(f"\n{CY}  ▶ READ_FILE{RST}  {DIM}{m.group(1)}{RST}")
+        log_raw("anna", f"READ_FILE: {m.group(1)}", task="full-power")
         try:
             content = fpath.read_text(encoding="utf-8")
             parts.append(f'[READ_FILE: {m.group(1)}]\n{content[:3000]}')
         except Exception as e:
             parts.append(f'[READ_FILE ERROR: {e}]')
+            log_raw("anna", f"READ_FILE ERROR: {m.group(1)} — {e}", task="full-power")
 
     # RUN_SHELL
     for m in re.finditer(r'<RUN_SHELL>(.*?)</RUN_SHELL>', response, re.DOTALL):
         cmd = m.group(1).strip()
         print(f"\n{CY}  ▶ RUN_SHELL{RST}  {DIM}{cmd[:60]}{RST}")
+        log_raw("anna", f"RUN_SHELL: {cmd[:100]}", task="full-power")
         try:
             r = subprocess.run(cmd, shell=True, capture_output=True, text=True,
                                encoding="utf-8", timeout=60, cwd=str(BASE_DIR))
             out = (r.stdout + r.stderr)[:1500]
             parts.append(f'[RUN_SHELL: {cmd[:60]}]\n{out}')
+            if r.returncode != 0:
+                log_raw("anna", f"RUN_SHELL exit={r.returncode}: {cmd[:60]}", task="full-power")
         except Exception as e:
             parts.append(f'[RUN_SHELL ERROR: {e}]')
+            log_raw("anna", f"RUN_SHELL ERROR: {cmd[:60]} — {e}", task="full-power")
 
     # WRITE_FILE
     for m in re.finditer(r'<WRITE_FILE\s+path="([^"]+)">(.*?)</WRITE_FILE>', response, re.DOTALL):
@@ -378,8 +459,10 @@ def execute_anna_actions(response: str) -> str:
             fpath.parent.mkdir(parents=True, exist_ok=True)
             fpath.write_text(m.group(2), encoding="utf-8")
             parts.append(f'[WRITE_FILE: {m.group(1)}] เขียนสำเร็จ')
+            log_raw("anna", f"WRITE_FILE: {m.group(1)}", task="full-power")
         except Exception as e:
             parts.append(f'[WRITE_FILE ERROR: {e}]')
+            log_raw("anna", f"WRITE_FILE ERROR: {m.group(1)} — {e}", task="full-power")
 
     # APPEND_FILE
     for m in re.finditer(r'<APPEND_FILE\s+path="([^"]+)">(.*?)</APPEND_FILE>', response, re.DOTALL):
@@ -390,8 +473,10 @@ def execute_anna_actions(response: str) -> str:
             with open(fpath, "a", encoding="utf-8") as fp:
                 fp.write(m.group(2))
             parts.append(f'[APPEND_FILE: {m.group(1)}] เพิ่มสำเร็จ')
+            log_raw("anna", f"APPEND_FILE: {m.group(1)}", task="full-power")
         except Exception as e:
             parts.append(f'[APPEND_FILE ERROR: {e}]')
+            log_raw("anna", f"APPEND_FILE ERROR: {m.group(1)} — {e}", task="full-power")
 
     # EDIT_FILE
     for m in re.finditer(r'<EDIT_FILE\s+path="([^"]+)"><old>(.*?)</old><new>(.*?)</new></EDIT_FILE>', response, re.DOTALL):
@@ -401,8 +486,10 @@ def execute_anna_actions(response: str) -> str:
             original = fpath.read_text(encoding="utf-8")
             fpath.write_text(original.replace(m.group(2), m.group(3), 1), encoding="utf-8")
             parts.append(f'[EDIT_FILE: {m.group(1)}] แก้ไขสำเร็จ')
+            log_raw("anna", f"EDIT_FILE: {m.group(1)}", task="full-power")
         except Exception as e:
             parts.append(f'[EDIT_FILE ERROR: {e}]')
+            log_raw("anna", f"EDIT_FILE ERROR: {m.group(1)} — {e}", task="full-power")
 
     # CREATE_DIR
     for m in re.finditer(r'<CREATE_DIR\s+path="([^"]+)"\s*/?>', response):
@@ -411,6 +498,7 @@ def execute_anna_actions(response: str) -> str:
         try:
             dpath.mkdir(parents=True, exist_ok=True)
             parts.append(f'[CREATE_DIR: {m.group(1)}] สร้างสำเร็จ')
+            log_raw("anna", f"CREATE_DIR: {m.group(1)}", task="full-power")
         except Exception as e:
             parts.append(f'[CREATE_DIR ERROR: {e}]')
 
@@ -421,12 +509,13 @@ def execute_anna_actions(response: str) -> str:
         try:
             fpath.unlink()
             parts.append(f'[DELETE_FILE: {m.group(1)}] ลบสำเร็จ')
+            log_raw("anna", f"DELETE_FILE: {m.group(1)}", task="full-power")
         except Exception as e:
             parts.append(f'[DELETE_FILE ERROR: {e}]')
 
-    # UPDATE_KB
+    # UPDATE_KB — tagged FEEDBACK เพราะมาจากการแก้งานของ Anna
     for m in re.finditer(r'<UPDATE_KB\s+agent="([^"]+)">(.*?)</UPDATE_KB>', response, re.DOTALL):
-        save_kb(m.group(1), m.group(2).strip())
+        save_kb(m.group(1), m.group(2).strip(), entry_type="feedback")
         print(f"\n{GR}  ▶ UPDATE_KB{RST}  agent={BLD}{m.group(1)}{RST}")
         parts.append(f'[UPDATE_KB: {m.group(1)}] อัปเดตสำเร็จ')
 
@@ -434,6 +523,7 @@ def execute_anna_actions(response: str) -> str:
     for m in re.finditer(r'<ASK_DEEPSEEK>(.*?)</ASK_DEEPSEEK>', response, re.DOTALL):
         q = m.group(1).strip()
         print(f"\n{BL}  ▶ ASK_DEEPSEEK{RST}")
+        log_raw("anna", f"ASK_DEEPSEEK: {q[:80]}", task="full-power")
         ans = call_deepseek("You are a helpful AI assistant.", q, label="DEEPSEEK direct")
         parts.append(f'[ASK_DEEPSEEK]\nQ: {q[:200]}\nA: {ans[:1000]}')
 
@@ -441,15 +531,18 @@ def execute_anna_actions(response: str) -> str:
     for m in re.finditer(r'<ASK_CLAUDE>(.*?)</ASK_CLAUDE>', response, re.DOTALL):
         q = m.group(1).strip()
         print(f"\n{MG}  ▶ ASK_CLAUDE{RST}")
+        log_raw("anna", f"ASK_CLAUDE: {q[:80]}", task="full-power")
         ans = call_claude("You are a helpful AI assistant.", q, label="CLAUDE direct")
         parts.append(f'[ASK_CLAUDE]\nQ: {q[:200]}\nA: {ans[:1000]}')
 
-    # RESEARCH
+    # RESEARCH — save key findings only ไม่ dump ผลดิบลง KB
     for m in re.finditer(r'<RESEARCH>(.*?)</RESEARCH>', response, re.DOTALL):
         topic = m.group(1).strip()
         print(f"\n{BL}  ▶ RESEARCH{RST}  {DIM}{topic[:60]}{RST}")
+        log_raw("anna", f"RESEARCH: {topic[:80]}", task="full-power")
         ans = call_deepseek("You are a research assistant. Be thorough.", topic, label="RESEARCH")
-        save_kb("anna", f"Research: {topic}\nFindings:\n{ans}")
+        first_finding = ans.strip().split("\n\n")[0][:400]
+        save_kb("anna", f"Research: {topic[:100]}\nKey finding: {first_finding}", entry_type="discovery")
         parts.append(f'[RESEARCH: {topic[:60]}]\n{ans[:1000]}')
 
     return "\n\n".join(parts)
@@ -467,7 +560,7 @@ def run_pipeline(user_input: str):
 
     anna_system = (
         ANNA_SYSTEM
-        + (f"\n\n---\n## Anna KB\n{anna_kb[:500]}" if anna_kb else "")
+        + (f"\n\n---\n## Anna KB\n{anna_kb}" if anna_kb else "")
         + (f"\n\n---\n## Available Projects\n{projects_list}" if projects_list else "")
     )
 
@@ -568,14 +661,17 @@ def log_raw(role: str, content: str, task: str = "", output: str = ""):
     if role.lower() == "user":
         line = f"[{ts}] User: {content[:300]}\n"
     elif role.lower() in ("anna", "anna summary"):
-        line = f"[{ts}] Agent: Anna | Action: {content[:200]}\n"
+        line = f"[{ts}] Anna | Action: {content[:200]}\n"
+    elif role.lower() == "system":
+        task_part = f" | {task}" if task else ""
+        line = f"[{ts}] [SYS{task_part}] {content[:200]}\n"
     else:
-        parts = [f"[{ts}] Agent: {role}"]
+        parts = [f"[{ts}] {role.upper()}"]
         if task:
             parts.append(f"Task: {task[:100]}")
         parts.append(f"Action: {content[:200]}")
         if output:
-            parts.append(f"Output: {output}")
+            parts.append(f"→ {output}")
         line = " | ".join(parts) + "\n"
 
     LOGS_DIR.mkdir(exist_ok=True)

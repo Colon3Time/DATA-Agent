@@ -121,9 +121,13 @@ Scout ส่ง feedback ไปยัง Anna เมื่อ:
 
 ## Output
 
-- Dataset ไฟล์ → `projects/{project_name}/input/` (หลัง confirm เท่านั้น)
-- Dataset Brief → `projects/{project_name}/input/dataset_brief.md`
-- ความรู้ใหม่ → `knowledge_base/scout_sources.md`
+**Dataset ไฟล์จริง (CSV)** → `projects/{project_name}/input/` (หลัง confirm เท่านั้น)
+> Pipeline จะชี้ path นี้ให้ Dana อัตโนมัติ — Scout ต้องบันทึก CSV ที่นี่เท่านั้น ไม่ใช่ใน output/scout/
+
+**Dataset Brief** → `projects/{project_name}/output/scout/scout_report.md`
+> Brief เขียนลง output/scout/ แต่ข้อมูลจริงต้องอยู่ใน input/ เสมอ
+
+**ความรู้ใหม่** → `knowledge_base/scout_sources.md`
 
 ## รูปแบบ Shortlist (ส่ง Anna ก่อน confirm)
 
