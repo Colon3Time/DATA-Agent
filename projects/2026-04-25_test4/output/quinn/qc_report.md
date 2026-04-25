@@ -1,9 +1,9 @@
 Agent Report — Quinn
 ============================
 รับจาก     : Vera
-Input      : C:\Users\Amorntep\DATA-Agent\projects\2026-04-25_test4\output\vera\vera_output.csv
+Input      : C:\Users\Amorntep\DATA-Agent\projects\2026-04-25_test4\output\mo\mo_output.csv
 ทำ         : Quality Check — ตรวจสอบคุณภาพ Vera output และ cross-agent consistency
-พบ         : 7/12 checks ผ่าน, 2 FAIL, 3 SKIP
+พบ         : 4/12 checks ผ่าน, 5 FAIL, 3 SKIP
 เปลี่ยนแปลง: ไม่มีการเปลี่ยนแปลงข้อมูล (เป็นการตรวจสอบเท่านั้น)
 ส่งต่อ     : Rex — quinn_qc_results.csv
 

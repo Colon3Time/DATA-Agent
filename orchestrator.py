@@ -11,9 +11,14 @@ import json
 import subprocess
 import requests
 import sys
+import threading
+import time
 from pathlib import Path
 from datetime import datetime
 from dotenv import load_dotenv
+
+if sys.platform == "win32":
+    import msvcrt
 
 load_dotenv(Path(__file__).parent / ".env")
 
@@ -75,6 +80,26 @@ anna_history:     list      = []
 active_project:   Path|None = None
 claude_calls:     int       = 0
 agent_iter_count: dict      = {}  # ติดตาม iteration ของแต่ละ agent ในรอบ pipeline
+
+_current_proc:    subprocess.Popen | None = None
+_stop_requested:  threading.Event         = threading.Event()
+
+
+def _esc_monitor():
+    """Background thread: กด ESC เพื่อหยุด script ที่รันอยู่ โดยไม่ปิดโปรแกรม"""
+    while True:
+        if sys.platform == "win32" and msvcrt.kbhit():
+            key = msvcrt.getch()
+            if key == b'\x1b':
+                # ดูด extra bytes ที่ terminal บางตัวส่งตาม ESC ออกให้หมด
+                time.sleep(0.02)
+                while msvcrt.kbhit():
+                    msvcrt.getch()
+                if _current_proc is not None:
+                    print(f"\n{YL}  [ESC] หยุด script — กลับไปรอคำสั่ง...{RST}")
+                    _current_proc.kill()
+                    _stop_requested.set()
+        time.sleep(0.05)
 
 
 # ── LLM Callers ───────────────────────────────────────────────────────────────
@@ -218,30 +243,46 @@ def find_agent_script(agent_name: str, project_dir: Path|None) -> Path|None:
 
 def run_script(script_path: Path, input_path: str, output_dir: Path) -> tuple[str, int, str]:
     """Returns (output_path, returncode, stderr)"""
+    global _current_proc
     output_dir.mkdir(parents=True, exist_ok=True)
     print(f"\n{CY}  ▶ SCRIPT{RST}  {BLD}{script_path.name}{RST}  {DIM}← {input_path or 'no input'}{RST}")
+    print(f"{DIM}  กด ESC เพื่อหยุด script นี้{RST}")
 
-    result = subprocess.run(
+    _stop_requested.clear()
+    proc = subprocess.Popen(
         [sys.executable, str(script_path),
          "--input", input_path,
          "--output-dir", str(output_dir)],
-        capture_output=True, text=True, encoding="utf-8", timeout=300,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True, encoding="utf-8",
         env={**os.environ, "PYTHONUTF8": "1"},
     )
-    if result.stdout:
-        print(result.stdout[-2000:])
-    if result.returncode != 0:
+    _current_proc = proc
+    try:
+        stdout, stderr = proc.communicate(timeout=300)
+    except (KeyboardInterrupt, subprocess.TimeoutExpired):
+        proc.kill()
+        stdout, stderr = proc.communicate()
+        _current_proc = None
+        raise KeyboardInterrupt
+    _current_proc = None
+
+    if _stop_requested.is_set():
+        return str(output_dir), -999, "หยุดโดยผู้ใช้ (ESC)"
+
+    if stdout:
+        print(stdout[-2000:])
+    if proc.returncode != 0:
         print(f"{RD}  ╔══ SCRIPT ERROR ══╗{RST}")
-        print(f"{RD}{result.stderr[:500]}{RST}")
+        print(f"{RD}{stderr[:500]}{RST}")
         print(f"{RD}  ╚{'═'*18}╝{RST}")
 
     csvs = sorted(output_dir.glob("*.csv"), key=lambda x: x.stat().st_mtime, reverse=True)
     out_path = str(csvs[0]) if csvs else str(output_dir)
-    # ถ้า script รันสำเร็จแต่ไม่มี CSV → บังคับ returncode=-1 เพื่อ trigger auto-fix
-    if result.returncode == 0 and not csvs:
+    if proc.returncode == 0 and not csvs:
         fake_err = "Script ran successfully but produced no CSV in OUTPUT_DIR. Must add: df.to_csv(os.path.join(OUTPUT_DIR, 'output.csv'), index=False)"
         return out_path, -1, fake_err
-    return out_path, result.returncode, result.stderr
+    return out_path, proc.returncode, stderr
 
 
 # ── Agent Runner ──────────────────────────────────────────────────────────────
@@ -1108,12 +1149,19 @@ def main():
     print(f"  {BL}{BLD}DeepSeek:{RST} {ds_str}    {MG}{BLD}Claude:{RST} {cl_str}  {DIM}(limit: {CLAUDE_LIMIT} calls/session){RST}")
     print()
 
+    # ── ESC monitor (daemon thread) ───────────────────────────
+    _mon = threading.Thread(target=_esc_monitor, daemon=True)
+    _mon.start()
+
     # ── Main loop ─────────────────────────────────────────────
     while True:
         try:
             proj = f" {DIM}[{active_project.name}]{RST}" if active_project else ""
             user_input = input(f"{BLD}{WH}คุณ{RST}{proj}{BLD}{WH}:{RST} ").strip()
-        except (KeyboardInterrupt, EOFError):
+        except EOFError:
+            print(f"\n{YL}  ลาก่อนค่ะ{RST}")
+            break
+        except KeyboardInterrupt:
             print(f"\n{YL}  ลาก่อนค่ะ{RST}")
             break
 
@@ -1180,7 +1228,13 @@ def main():
             run_agent(agent_name, task, project_dir=active_project, discover=discover)
             continue
 
-        run_pipeline(user_input)
+        try:
+            run_pipeline(user_input)
+        except KeyboardInterrupt:
+            if _current_proc:
+                _current_proc.kill()
+            print(f"\n{YL}  หยุด pipeline แล้ว — พร้อมรับคำสั่งใหม่{RST}")
+            _stop_requested.clear()
 
 
 if __name__ == "__main__":

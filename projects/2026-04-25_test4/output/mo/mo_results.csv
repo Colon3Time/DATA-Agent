@@ -1,0 +1,4 @@
+Model,F1 (weighted),Recall (weighted),AUC-ROC
+LogisticRegression,FAILED,FAILED,FAILED
+RandomForest,FAILED,FAILED,FAILED
+XGBoost,FAILED,FAILED,FAILED

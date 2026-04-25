@@ -1,9 +1,8 @@
 Self-Improvement Report
-======================
-
-วิธีที่ใช้ครั้งนี้: Model comparison insight extraction
-เหตุผลที่เลือก: Input เป็น model comparison table
-Business Trend ใหม่ที่พบ: Model monitoring and MLOps maturity
-วิธีใหม่ที่พบ: Automated best-model selection with gap analysis
-จะนำไปใช้ครั้งหน้า: ใช่ — useful for production deployment decisions
-Knowledge Base: อัพเดตแล้ว (2026-04-25 20:27)
+=======================
+Method used: Column insight detection + content filtering
+Reason: Model comparison data requires different treatment than general data
+Business trend found: Model performance metrics standardization
+New method found: Detecting metric columns by value range [0, 1.5]
+Will use next time: Yes — generic method works for model comparison files
+Knowledge Base: Updated with metric detection logic

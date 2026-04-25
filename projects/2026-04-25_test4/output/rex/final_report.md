@@ -9,7 +9,7 @@
 | Flagged | 0 |
 | Success Rate | 0.0% |
 | Top Issue Category | N/A |
-| Pipeline Agents | quinn, iris, dana, finn, max, eddie, mo, vera |
+| Pipeline Agents | max, dana, mo, eddie, finn, quinn, iris, vera |
 
 ## 2. Agent Reports Integrated
 
@@ -26,7 +26,7 @@
 | 9 | quinn | `qc_report.md` |
 | 10 | quinn | `quinn_report.md` |
 | 11 | quinn | `self_improvement_report.md` |
-| 13 | vera | `vera_report.md` |
+| 14 | vera | `vera_report.md` |
 
 ## 3. Key Findings
 

@@ -291,3 +291,340 @@ test3 retail_sales_600.csv: median impute สำหรับ unit_price/quantity
 
 ## [2026-04-25 19:49] [FEEDBACK]
 test3 retail_sales_600.csv: median impute for unit_price/quantity/region (3% missing) - passed. Script must save Self-Improvement Report to report.md not just print. argparse + args.input works correctly.
+
+
+## [2026-04-25 23:53] [FEEDBACK]
+บทเรียนจากการเทียบกับ Kaggle Grandmaster Olist 2024:
+
+## [2026-04-25] Grandmaster Standards — Cleaning Checklist
+
+### 1. Missing Value Handling Framework
+ก่อนเติม missing ทุกครั้ง ให้ถาม 3 คำถาม:
+1. ทำไมถึง missing? (technical error / business logic / random)
+2. กลุ่มที่ missing กับไม่ missing มี pattern ต่างกันไหม?
+3. ควรแยกเป็น is_missing flag ก่อน impute ไหม?
+
+**Olist กรณี product numeric fields (1.85% missing):**
+- ❌ ทำ median impute รวมทุกแถว
+- ✅ **Grandmaster:** แยกกลุ่ม orders ที่ delivery late vs on-time ก่อน impute — เพราะ late orders มักมี data quality ต่ำกว่า
+
+### 2. Geolocation Features (Olist มี แต่ Dana ไม่ได้ทำ)
+ถ้ามีข้อมูล lat/lng หรือ state/city → ต้องทำ:
+- ✅ distance_seller_to_buyer (km)
+- ✅ state-based features (seller_state, customer_state difference)
+- ✅ city cluster (top N cities, others = 'other')
+- ✅ geo region grouping (North, Northeast, Central-West, Southeast, South)
+
+### 3. Delivery Delay — แยกเป็น 3 สถานะ
+- ❌ clipped at 0 (มีแค่ on-time vs late)
+- ✅ **Grandmaster:** on_time, late, canceled
+  - on_time = delivered before/on estimated date
+  - late = delivered after estimated date
+  - canceled = order_status == 'canceled'
+
+### 4. Timestamp Features — ต้องสกัดให้ละเอียด
+- ❌ มีแค่ purchase_year, purchase_month
+- ✅ ต้องเพิ่ม: day_of_week, hour, season, is_weekend, days_since_purchase
+
+### 5. Review Text Features
+ถ้า review_comment_message มีอยู่ → ทำ:
+- ✅ review_length (word count / char count)
+- ✅ sentiment_score (positive/negative/neutral)
+- ✅ has_review_comment = flag column ✅ (Dana ทำแล้ว)
+
+### 6. Data Quality Score — ต้องมี 6 Dimensions
+- ✅ Completeness (Dana ทำแล้ว)
+- ❌ Accuracy — outlier detection
+- ✅ Consistency (Dana ทำแล้ว)
+- ❌ Validity — ค่าอยู่ใน range ที่ควรเป็นไหม
+- ❌ Uniqueness — duplicate check (Dana ทำ dedup แต่ไม่ report เป็น dimension)
+- ❌ Timeliness (Dana ทำแล้ว)
+
+### 7. Pre-Cleaning Audit Protocol (สำหรับทุกโปรเจค)
+ก่อนเริ่ม cleaning ต้องทำ:
+```
+1. อ่าน schema ของทุกตาราง
+2. ตรวจ missing pattern (MCAR / MAR / MNAR)
+3. ดู distribution ของ key fields
+4. เขียน audit report สั้นๆ ให้ Anna approve ก่อนลงมือ clean
+```
+
+### 8. หลักคิด — Clean = Feature Engineering Step แรก
+อย่ามองว่า cleaning แค่ "ทำให้ข้อมูลสะอาด" — แต่มองว่า:
+"ทุก action ใน cleaning เป็น feature engineering ที่มีผลต่อโมเดล"
+ดังนั้นทุกการตัดสินใจ (drop, fill, transform) ต้องมี business rationale
+
+
+## [2026-04-26 00:12] [FEEDBACK]
+# Dana Advanced Methods — อัปเดตจาก Grandmaster Benchmark (2026-04-26)
+
+## 1. การจัดการ Missing Values (ระดับ Grandmaster)
+
+### review_comment_title (88% missing) + review_comment_message (59% missing)
+| วิธี | Dana เดิม | Grandmaster |
+|-----|-----------|-------------|
+| review_comment_title | fill '' + flag column | **ใช้ `review_comment_message` แทน** → extract sentiment (positive/neutral/negative), word_count, char_count |
+| review_comment_message | fill '' + flag column | keep original text, **เติม flag `has_review_message`** แทน แต่ไม่ drop เนื้อหา |
+| **เหตุผล** | loss of signal 88% | review_comment_message มี 41% non-null → NLP feature ได้ |
+
+**Code Pattern:**
+```python
+# Grandmaster approach — use message instead of title
+df['review_message_length'] = df['review_comment_message'].fillna('').str.len()
+df['review_word_count'] = df['review_comment_message'].fillna('').str.split().str.len()
+df['has_review_message'] = df['review_comment_message'].notna().astype(int)
+# ถ้าอยาก sentiment basic ให้ใช้ TextBlob หรือ VADER
+# from textblob import TextBlob
+# df['review_sentiment'] = df['review_comment_message'].fillna('').apply(lambda x: TextBlob(x).sentiment.polarity)
+```
+
+### Delivery Dates Missing (order_delivered_carrier_date 1.79%, order_delivered_customer_date 2.98%)
+| วิธี | Dana เดิม | Grandmaster |
+|-----|-----------|-------------|
+| delivery_dates | forward fill | **ใช้ flag แทน → `is_canceled`, `is_not_delivered`** |
+| delivery_delay_days | forward fill แล้วคำนวณ delay | **แยกกรณี: canceled = NaN, delivered = delay** |
+
+**Code Pattern:**
+```python
+# Grandmaster approach
+df['is_canceled'] = df['order_delivered_customer_date'].isna().astype(int)
+df['is_delivered'] = df['order_delivered_customer_date'].notna().astype(int)
+
+# คำนวณ delay เฉพาะ delivered orders
+mask_delivered = df['is_delivered'] == 1
+df.loc[mask_delivered, 'delivery_delay_days'] = (
+    df.loc[mask_delivered, 'order_delivered_customer_date'] - 
+    df.loc[mask_delivered, 'order_estimated_delivery_date']
+).dt.days
+```
+
+### product_category_name (1.85% missing)
+| วิธี | Dana เดิม | Grandmaster |
+|-----|-----------|-------------|
+| product_category | fill 'unknown' | **หา from other tables → ถ้าไม่มี จัดกลุ่มเป็น 'misc'** |
+| product numeric fields | median impute | **KNN Imputer** (เพราะมี correlation ระหว่าง dimension) |
+
+## 2. การจัดการ Outliers (ระดับ Grandmaster)
+
+### Key Principle: แยก Outlier จริง vs Feature
+| Column | Dana (global) | Grandmaster | เหตุผล |
+|--------|--------------|-------------|--------|
+| payment_value | IQR ตรวจจับ 16k outliers | **IQR → แยก payment_value > 3x MAD** | payment_value สูง = ขายดี → เก็บไว้ |
+| freight_value | IQR ตรวจจับ | **clip ที่ 99.9 percentile** | freight สูงผิดปกติ = logistics issue |
+| review_score | IQR ตรวจจับ | **ไม่ remove** | score ต่ำ = feedback จริง |
+
+**Code Pattern — column-specific threshold:**
+```python
+# Grandmaster approach — ใช้ column-specific logic
+def detect_outliers(df, col, method='iqr', threshold=3.0):
+    if col == 'payment_value':
+        # เก็บ outliers เพราะเป็น signal ของ big spenders
+        return df[col] < (df[col].mean() + 3 * df[col].std())  # very extreme only
+    elif col == 'freight_value':
+        # clip ที่ 99.9 percentile
+        upper = df[col].quantile(0.999)
+        return df[col] <= upper
+    elif col in ['product_weight_g', 'product_length_cm']:
+        # physical constraint — IQR tight
+        Q1, Q3 = df[col].quantile(0.25), df[col].quantile(0.75)
+        IQR = Q3 - Q1
+        return (df[col] >= Q1 - 1.5*IQR) & (df[col] <= Q3 + 1.5*IQR)
+    else:
+        Q1, Q3 = df[col].quantile(0.25), df[col].quantile(0.75)
+        IQR = Q3 - Q1
+        return (df[col] >= Q1 - 1.5*IQR) & (df[col] <= Q3 + 1.5*IQR)
+```
+
+### Expected Results:
+- Payment outlier threshold ที่ loosen → outlier count **ลดจาก 16k → ~500**
+- Physical dimension outlier ที่ tight → **คงไว้ ~50-200**
+
+## 3. Consistency Validation (ระดับ Grandmaster)
+
+### ต้อง validate ก่อน clean:
+```python
+# 1. Foreign Key Integrity
+def check_integrity(left, right, key):
+    left_keys = set(left[key].unique())
+    right_keys = set(right[key].unique())
+    orphan = left_keys - right_keys
+    return len(orphan) == 0, orphan
+
+# 2. Category Mapping validation
+cat_map = category_translation.set_index('product_category_name')['product_category_name_english'].to_dict()
+products['category_mapped'] = products['product_category_name'].map(cat_map)
+# Check unmapped
+unmapped = products[products['category_mapped'].isna()]['product_category_name'].unique()
+```
+
+### Expected Results:
+- Consistency issues **ลดจาก 205 → 0**
+
+## 4. Feature Extraction (ระดับ Grandmaster)
+
+| Feature | Dana | Grandmaster |
+|---------|------|-------------|
+| geohash | ✅ ทำแล้ว | **เพิ่ม `distance_km`** — Haversine distance seller → customer |
+| delivery_delay | ✅ done | ✅ |
+| customer_region | ✅ done | ✅ |
+| review_sentiment | ❌ | **เพิ่ม sentiment polarity** |
+| freight_to_price_ratio | ❌ | **เพิ่ม `freight_to_price_ratio`** |
+| installment_value_per_payment | ❌ | **เพิ่ม `installment_per_payment`** |
+
+**Code Pattern — Haversine Distance:**
+```python
+import numpy as np
+
+def haversine(lat1, lon1, lat2, lon2):
+    R = 6371  # Earth radius in km
+    dlat = np.radians(lat2 - lat1)
+    dlon = np.radians(lon2 - lon1)
+    a = np.sin(dlat/2)**2 + np.cos(np.radians(lat1)) * np.cos(np.radians(lat2)) * np.sin(dlon/2)**2
+    c = 2 * np.arcsin(np.sqrt(a))
+    return R * c
+
+# Merge customer & seller geolocation
+# df['distance_km'] = haversine(df['customer_lat'], df['customer_lng'], df['seller_lat'], df['seller_lng'])
+```
+
+## 5. Data Quality Score Calibration (ระดับ Grandmaster)
+
+| Component | Weight | Dana | Grandmaster Target |
+|-----------|--------|------|-------------------|
+| Completeness | 30% | 99.78% | 100% |
+| Consistency | 25% | 205 issues | 0 |
+| Validity | 20% | 0 | 0 |
+| Duplicate | 15% | 0 | 0 |
+| Accuracy (outlier) | 10% | 16,076 | ~200-500 |
+| **Overall** | **100%** | **97.88%** | **99.5% - 100%** |
+
+
+## [2026-04-26 00:15] [FEEDBACK]
+# Dana — Grandmaster Principles & Mindset (2026-04-26)
+
+---
+
+## ⚖️ หลักการที่ 1: "Missing ≠ Error — Missing = Signal"
+
+### Grandmaster มองยังไง
+- **Missing value ไม่ใช่สิ่งที่ต้อง "กำจัด"** แต่เป็น **สัญญาณบอกอะไรบางอย่าง**
+- เช่น `review_comment_title` หาย 88% → ไม่ใช่ปัญหา data quality แต่เป็น **พฤติกรรมผู้ใช้**: คนส่วนมากไม่กรอกหัวข้อ review
+- ถ้าเติม mean/median/mode → **ทำลาย signal นั้น**
+- ถ้า drop → **เสียข้อมูล**
+
+### ทำไมมองแบบนี้
+- Data ในโลกจริง **ไม่ได้เกิดมาเพื่อให้ AI ใช้** — เกิดจากพฤติกรรมมนุษย์
+- ยิ่ง missing มาก → ยิ่งเป็น pattern ของพฤติกรรม
+- Grandmaster รู้ว่า: **แยกแยะให้ออกว่า missing แบบ "สุ่ม" หรือ "มีระบบ"**
+  - MCAR (Missing Completely At Random) → หายแบบสุ่ม
+  - MAR (Missing At Random) → หายเพราะมีปัจจัยอื่น
+  - MNAR (Missing Not At Random) → หายเพราะค่าของตัวมันเอง ← อันนี้ signal แท้
+
+### หลักการที่ Dana ควรใช้
+```
+ถามตัวเองทุกครั้งเจอ missing:
+
+1. column นี้ทำไมถึงหาย?
+   - user ไม่กรอก? → behavior signal
+   - system error? → data quality issue
+   - ไม่มีค่า? → legitimate null
+
+2. รูปแบบการหายบอกอะไร?
+   - หายเยอะในบางกลุ่ม? → grouping feature
+   - หายสุ่ม? → imputable
+   
+3. จะ "ใช้ประโยชน์" จาก missing ยังไง?
+   - สร้าง is_missing flag → feature ใหม่
+   - ใช้ค่าใน column อื่นที่สัมพันธ์กัน → preserve information
+```
+
+---
+
+## ⚖️ หลักการที่ 2: "Outlier = Information, Not Noise"
+
+### Grandmaster มองยังไง
+- **Outlier ทุกตัวมีเรื่องเล่า** — อย่าลบทิ้งโดยไม่ฟัง
+- payment_value สูงมาก → ลูกค้าซื้อของแพง หรือ fraud?
+- delivery_delay นานมาก → logistics ปัญหา หรือ remote area?
+- review_score ต่ำมาก → feedback จริง ต้องเก็บไว้
+
+### ทำไมมองแบบนี้
+- ถ้า outlier = ความผิดพลาด → แก้/ลบ
+- ถ้า outlier = ความจริงของธุรกิจ → **เก็บไว้ เพราะคือ signal ที่มีค่าที่สุด**
+- Grandmaster จะ **แยกก่อน clean**:
+  - outlier ที่เกิน physical constraint → error (เช่น weight ติดลบ)
+  - outlier ที่ business มีเหตุผล → keep (เช่น รายการที่แพงที่สุดใน store)
+
+### หลักการที่ Dana ควรใช้
+```
+ถามตัวเองทุกครั้งเจอ outlier:
+
+1. มันเป็นไปได้หรือไม่ในโลกความจริง?
+   - product_height_cm = 999 → error
+   - payment_value = 10,000 → เป็นไปได้ (สินค้าราคาแพง)
+
+2. ถ้าเป็นไปได้ -> business เล่าอะไร?
+   - ค่านี้ extreme แต่ถูกต้อง → preserve
+   - ใช้ domain knowledge ตัดสินใจ
+
+3. จัดการยังไง?
+   - Physical impossible → remove/clip
+   - Business possible → flag (is_high_value, is_remote_area) 
+   - แล้วเก็บไว้เป็น feature
+```
+
+---
+
+## ⚖️ หลักการที่ 3: "Consistency First — Clean After"
+
+### Grandmaster มองยังไง
+- **อย่า clean ก่อน validate** — เพราะคุณจะ clean ข้อมูลผิดซ้ำไปอีก
+- ขั้นตอนแรกคือ **check foreign key integrity**:
+  - order_id ใน items มีตรงกับ orders ทุกอันไหม?
+  - seller_id ทุกตัวมีใน sellers ไหม?
+  - product_category_name แมปกับ translation ได้ครบไหม?
+
+### ทำไมมองแบบนี้
+- ถ้า integrity พัง → การ merge, join, aggregate ทั้งหมดจะเพี้ยน
+- Grandmaster ทุ่มเท 30% ของเวลาทำ cleaning ไปกับการ **validate structure** ก่อน
+- เพราะ cleaning ที่ดีบน structure ที่พัง = **ขยะเข้า ขยะออก**
+
+### หลักการที่ Dana ควรใช้
+```
+ก่อน clean เสมอ:
+
+1. Schema Validation
+   - ทุก FK ตรงกัน? ถ้าไม่ → ตามหา orphan records
+   - ทุก column type ถูกต้อง? (date เป็น datetime, number เป็น numeric)
+
+2. Cross-table Validation
+   - order_id เชื่อมกันได้ทุก table?
+   - product_category_name แมปกับ translation ชัดเจน?
+
+3. หลั
+
+
+## [2026-04-26 00:35] [FEEDBACK]
+# Dana — Data Quality Score Policy (2026-04-26)
+
+## 🎯 DQ Score = แค่สกอตัวเลข ไม่ใช่ KPI
+
+DQ Score **เป็นแค่ตัวชี้วัดเบื้องต้น** ไม่ใช่เป้าหมายของงาน
+
+### สิ่งที่สำคัญจริง ๆ
+1. ✅ **Data พร้อมใช้งานต่อ pipeline** — Eddie, Max, Finn, Mo ต้องเอาไปต่อได้
+2. ✅ **Feature ที่มีประโยชน์** — signal ถูก preserve ไว้ ไม่ถูกทำลาย
+3. ✅ **Business insight ถูกเก็บไว้** — outlier ที่เป็นความจริงของธุรกิจ keep ไว้
+4. ✅ **Consistency ดี** — FK integrity, schema ถูกต้อง
+
+### DQ Score ใช้แค่
+- Diagnostic เบื้องต้น — alert ถ้ามีปัญหาใหญ่
+- **ไม่ใช่** ตัวชี้วัดว่างานดีหรือไม่ดี
+- **ไม่ใช่** เหตุผลให้ทำงานซ้ำ
+
+### วิธีการรายงาน
+- completeness, consistency issues, duplicates — รายงานแยกมิติ
+- outlier — แยกเป็น impossible vs business variance
+- **ไม่ต้องรวมเป็น DQ Score เดียว**
+
+> จำไว้: ข้อมูลที่ clean เกินไป = ข้อมูลที่ถูกทำลาย signal
