@@ -1,0 +1,11 @@
+agent,type,files
+dana,csv,['output\\dana\\dana_output.csv']
+eddie,csv,[]
+finn,csv,['output\\finn\\finn_output.csv']
+iris,csv,['output\\iris\\iris_output.csv']
+max,csv,['output\\max\\max_output.csv']
+max_test,csv,['output\\max_test\\max_output.csv']
+mo,csv,[]
+quinn,csv,[]
+scout,csv,[]
+vera,csv,[]

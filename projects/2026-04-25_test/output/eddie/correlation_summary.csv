@@ -1,0 +1,7 @@
+﻿feature1,feature2,correlation,strength,direction
+unit_price,total_amount,0.818,Strong,Positive
+quantity,total_amount,0.248,Weak,Positive
+quantity,discount_pct,0.083,Weak,Positive
+discount_pct,total_amount,-0.062,Weak,Negative
+unit_price,discount_pct,-0.05,Weak,Negative
+unit_price,quantity,-0.043,Weak,Negative

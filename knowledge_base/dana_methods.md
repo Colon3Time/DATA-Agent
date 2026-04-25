@@ -264,3 +264,30 @@ print(f"[STATUS] เสร็จ -> {path}")
 - Dana ทำงานเสร็จ = มี output.csv + report.md
 - ใช้ template ใน KB ที่มี .to_csv() เสมอ
 - ห้ามเขียน .py file
+
+
+## [2026-04-25 16:14] [FEEDBACK]
+เพิ่มการวิจัย: Grandmaster Olist benchmark — วิธีวัดคุณภาพ Data Cleaning มาตรฐาน Kaggle พร้อมเปรียบเทียบกับงานของ Dana
+
+
+## [2026-04-25 16:38] [DISCOVERY]
+Task: โปรดทำงานเฉพาะในโปรเจค iris เท่านั้น! path: C:\Users\Amorntep\DATA-Agent\projects\iris\input\iris.cs
+Key finding: I'll clean the Iris dataset for you. Let me first check the input file.
+
+
+## [2026-04-25 16:49] [DISCOVERY]
+Task: ทำงานในโปรเจค Olist — อ่านข้อมูลจาก olist.sqlite ที่ projects/Olist/input/olist.sqlite ทำความสะอาดข้
+Key finding: I see the confusion. Let me clarify by reading the actual task from the Message Hub.
+
+
+## [2026-04-25 16:50] [DISCOVERY]
+Task: กลับมาทำงานในโปรเจค iris เท่านั้น! — input: C:\Users\Amorntep\DATA-Agent\projects\iris\input\iris.cs
+Key finding: Working on the Iris project only — as instructed.
+
+
+## [2026-04-25 19:49] [FEEDBACK]
+test3 retail_sales_600.csv: median impute สำหรับ unit_price/quantity/region (3% missing) → ผ่าน. Script ต้องบันทึก Self-Improvement Report ลง report.md เสมอ ไม่แค่ print. ใช้ argparse + args.input สำเร็จ.
+
+
+## [2026-04-25 19:49] [FEEDBACK]
+test3 retail_sales_600.csv: median impute for unit_price/quantity/region (3% missing) - passed. Script must save Self-Improvement Report to report.md not just print. argparse + args.input works correctly.

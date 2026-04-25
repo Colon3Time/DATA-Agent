@@ -1,0 +1,37 @@
+{
+  "total_rows": 800,
+  "total_columns": 17,
+  "numerical_columns": [
+    "age",
+    "salary",
+    "performance_score",
+    "training_hours",
+    "overtime_hours",
+    "satisfaction_score",
+    "work_from_home_days",
+    "num_projects",
+    "promotion_last_3yr",
+    "resigned"
+  ],
+  "categorical_columns": [
+    "employee_id",
+    "name",
+    "department",
+    "position",
+    "gender",
+    "hire_date",
+    "region"
+  ],
+  "column_mapping": {
+    "date": "hire_date",
+    "region": "region"
+  },
+  "key_columns_found": {
+    "date": "hire_date",
+    "price_revenue": null,
+    "quantity": null,
+    "product": "name",
+    "region": "region",
+    "customer": null
+  }
+}

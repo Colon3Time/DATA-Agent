@@ -47,12 +47,34 @@ if "--mode" in sys.argv:
     if idx + 1 < len(sys.argv):
         MODE = sys.argv[idx + 1]
 
+CLAUDE_LIMIT = 10
+if "--claude-limit" in sys.argv:
+    idx = sys.argv.index("--claude-limit")
+    if idx + 1 < len(sys.argv):
+        try:
+            CLAUDE_LIMIT = int(sys.argv[idx + 1])
+        except ValueError:
+            pass
+
 ANNA_SYSTEM = (BASE_DIR / "CLAUDE.md").read_text(encoding="utf-8")
 
 VALID_AGENTS = {"scout", "dana", "eddie", "max", "finn", "mo", "iris", "vera", "quinn", "rex"}
 
-anna_history:   list      = []
-active_project: Path|None = None
+# ── CRISP-DM Phase Mapping ──────────────────────────────────────────────────
+CRISP_DM_PHASES = {
+    "data_understanding": ["scout", "eddie"],
+    "data_preparation":   ["dana", "max", "finn"],
+    "modeling":           ["mo"],
+    "evaluation":         ["quinn", "iris"],
+    "deployment":         ["vera", "rex"],
+}
+AGENT_TO_PHASE = {a: p for p, agents in CRISP_DM_PHASES.items() for a in agents}
+MAX_AGENT_ITER = 5  # สูงสุดที่ agent เดียวกันรันซ้ำได้ใน 1 pipeline (CRISP-DM: explore→preprocess→tune→validate)
+
+anna_history:     list      = []
+active_project:   Path|None = None
+claude_calls:     int       = 0
+agent_iter_count: dict      = {}  # ติดตาม iteration ของแต่ละ agent ในรอบ pipeline
 
 
 # ── LLM Callers ───────────────────────────────────────────────────────────────
@@ -77,7 +99,10 @@ def call_deepseek(system_prompt: str, user_message: str, label: str = "", histor
             json={"model": DEEPSEEK_MODEL, "messages": messages, "stream": True},
             stream=True, timeout=180,
         )
-        response.raise_for_status()
+        if response.status_code != 200:
+            body = response.text[:500]
+            print(f"{RD}  ✗ DeepSeek HTTP {response.status_code}: {body}{RST}")
+            return f"[ERROR] DeepSeek HTTP {response.status_code}"
     except requests.exceptions.ConnectionError:
         print(f"{RD}  ✗ DeepSeek connection failed{RST}")
         return "[ERROR] DeepSeek connection failed"
@@ -105,13 +130,21 @@ def call_deepseek(system_prompt: str, user_message: str, label: str = "", histor
 
 
 def call_claude(system_prompt: str, user_message: str, label: str = "") -> str:
-    """ลอง Anthropic API ก่อน — ถ้าไม่มี key/credit ให้ fallback DeepSeek อัตโนมัติ"""
+    """ลอง Anthropic API ก่อน — ถ้าถึง limit / ไม่มี key / credit หมด → fallback DeepSeek"""
+    global claude_calls
+
+    if claude_calls >= CLAUDE_LIMIT:
+        print(f"\n{YL}  ⚠ Claude limit ถึง {claude_calls}/{CLAUDE_LIMIT} calls แล้ว → ใช้ DeepSeek แทน{RST}")
+        return call_deepseek(system_prompt, user_message, label=f"{label} (via DeepSeek[limit])")
+
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if api_key:
         try:
             import anthropic as _ant
+            claude_calls += 1
+            remaining = CLAUDE_LIMIT - claude_calls
             print(f"\n{MG}{'━'*55}{RST}")
-            print(f"{MG}  ✦ CLAUDE  {BLD}{label}{RST}")
+            print(f"{MG}  ✦ CLAUDE  {BLD}{label}{RST}  {DIM}[{claude_calls}/{CLAUDE_LIMIT} — เหลือ {remaining}]{RST}")
             print(f"{MG}{'━'*55}{RST}")
             client = _ant.Anthropic(api_key=api_key)
             with client.messages.stream(
@@ -126,6 +159,7 @@ def call_claude(system_prompt: str, user_message: str, label: str = "") -> str:
             print()
             return "".join(full)
         except Exception as e:
+            claude_calls -= 1  # ไม่นับ call ที่ fail
             msg = str(e)
             if "credit" in msg.lower():
                 print(f"\n{RD}  ✗ CLAUDE credit หมด{RST} {YL}→ fallback DeepSeek{RST}")
@@ -203,6 +237,10 @@ def run_script(script_path: Path, input_path: str, output_dir: Path) -> tuple[st
 
     csvs = sorted(output_dir.glob("*.csv"), key=lambda x: x.stat().st_mtime, reverse=True)
     out_path = str(csvs[0]) if csvs else str(output_dir)
+    # ถ้า script รันสำเร็จแต่ไม่มี CSV → บังคับ returncode=-1 เพื่อ trigger auto-fix
+    if result.returncode == 0 and not csvs:
+        fake_err = "Script ran successfully but produced no CSV in OUTPUT_DIR. Must add: df.to_csv(os.path.join(OUTPUT_DIR, 'output.csv'), index=False)"
+        return out_path, -1, fake_err
     return out_path, result.returncode, result.stderr
 
 
@@ -218,6 +256,39 @@ def get_system_prompt(agent_name: str) -> str:
         "3. [DISCOVERY] = วิธีที่พิสูจน์แล้วว่าได้ผลดี — ใช้ก่อนเสมอถ้าเหมาะสม\n"
         "4. อ่าน Input file path ที่ระบุใน task message แล้วโหลดข้อมูลจาก path นั้นทันที\n"
         "5. บันทึก Self-Improvement Report ทุกครั้งหลังทำงานเสร็จ\n"
+        "\n\n---\n## ⚠ กฎสำคัญที่สุด — ห้ามละเมิด\n"
+        "1. **ห้ามใช้ `<thinking>` tags, XML tool calls, หรือ `<assistant_tool_use>` syntax ใดๆ**\n"
+        "2. **ต้องตอบด้วย Python code block เสมอ** (```python ... ```) — ไม่ใช่แค่ plan หรือ text\n"
+        "3. **ห้ามแกล้งทำเป็นว่าอ่านไฟล์ได้** — คุณอ่านไม่ได้ ต้องเขียน script ที่รันจริง\n"
+        "4. **Script ต้องโหลดข้อมูลจริงจาก INPUT_PATH และ save CSV จริงใน OUTPUT_DIR**\n\n"
+        "---\n## กฎการเขียน Python Script (บังคับ)\n"
+        "ทุก script ต้องรับ argument ผ่าน argparse เท่านั้น ห้าม hardcode path\n\n"
+        "```python\n"
+        "import argparse, os, pandas as pd\n"
+        "from pathlib import Path\n\n"
+        "parser = argparse.ArgumentParser()\n"
+        "parser.add_argument('--input',      default='')\n"
+        "parser.add_argument('--output-dir', default='')\n"
+        "args, _ = parser.parse_known_args()\n\n"
+        "INPUT_PATH = args.input\n"
+        "OUTPUT_DIR = args.output_dir\n"
+        "os.makedirs(OUTPUT_DIR, exist_ok=True)\n\n"
+        "# ถ้า input เป็น .md ให้หา CSV จาก parent folder แทน\n"
+        "if INPUT_PATH.endswith('.md'):\n"
+        "    parent = Path(INPUT_PATH).parent.parent\n"
+        "    csvs = sorted(parent.glob('**/dana_output.csv')) + sorted(parent.glob('**/*_output.csv'))\n"
+        "    if csvs: INPUT_PATH = str(csvs[0])\n\n"
+        "df = pd.read_csv(INPUT_PATH)\n"
+        "print(f'[STATUS] Loaded: {df.shape}')\n"
+        "# ... ทำงานตามที่ได้รับมอบหมาย ...\n"
+        "output_csv = os.path.join(OUTPUT_DIR, '{agent_name}_output.csv')\n"
+        "df.to_csv(output_csv, index=False)\n"
+        "print(f'[STATUS] Saved: {output_csv}')\n"
+        "```\n\n"
+        "- ห้ามใช้ r'C:\\\\...' หรือ path ตายตัวใดๆ\n"
+        "- ถ้า input เป็น folder ให้ glob หา .csv ข้างใน\n"
+        "- output ทุกไฟล์ต้อง save ใน OUTPUT_DIR\n"
+        "- ต้องมี print('[STATUS] ...') เพื่อแสดงความคืบหน้า\n"
     )
     kb = load_kb(agent_name)
     if kb:
@@ -264,10 +335,62 @@ def resolve_input_path(prev_agent: str, raw_path: str, project_dir: Path | None)
     return str(csvs[0]) if csvs else raw_path
 
 
+def anna_autofix_script(agent_name: str, task: str, script: Path,
+                        input_path: str, output_dir: Path, stderr: str) -> tuple[str, bool]:
+    """Anna ใช้ Claude วิเคราะห์และแก้ script เมื่อ DeepSeek retry ทั้งหมดล้มเหลว"""
+    print(f"\n{YL}{'─'*55}{RST}")
+    print(f"{YL}  ⟳ ANNA AUTO-FIX{RST}  {BLD}{agent_name.upper()}{RST}  (Claude กำลังวิเคราะห์...)")
+    log_raw("anna", f"anna-autofix start: {agent_name}", task="anna-autofix")
+
+    anna_kb = load_kb("anna")
+    anna_system = ANNA_SYSTEM + (f"\n\n---\n## Anna KB\n{anna_kb}" if anna_kb else "")
+
+    try:
+        rel_path = script.relative_to(BASE_DIR).as_posix()
+    except ValueError:
+        rel_path = script.name
+
+    script_content = script.read_text(encoding="utf-8")
+    fix_prompt = (
+        f"Script ของ {agent_name} fail ทุก retry แล้ว ดิฉันต้องแก้ไขด้วยตัวเองในฐานะ Anna CEO\n\n"
+        f"Script:\n```python\n{script_content[:3000]}\n```\n\n"
+        f"Error:\n```\n{stderr[:1000]}\n```\n\n"
+        f"Input path: {input_path}\nOutput dir: {output_dir}\nTask: {task}\n\n"
+        f"วิเคราะห์ error และแก้ script ให้รันได้โดยใช้:\n"
+        f'<WRITE_FILE path="{rel_path}">...fixed python code ทั้งไฟล์...</WRITE_FILE>\n\n'
+        f"ตอบเป็น WRITE_FILE เท่านั้น ไม่ต้องอธิบาย"
+    )
+
+    anna_resp = call_claude(anna_system, fix_prompt, label=f"ANNA autofix {agent_name}")
+    action_results = execute_anna_actions(anna_resp)
+
+    if action_results and "[WRITE_FILE:" in action_results:
+        print(f"{GR}  ✓ Anna เขียน script ใหม่ — รันทดสอบ...{RST}")
+        output_path, returncode, _ = run_script(script, input_path, output_dir)
+        if returncode == 0:
+            print(f"{GR}  ✓ ANNA AUTO-FIX สำเร็จ!{RST}")
+            log_raw("anna", f"anna-autofix SUCCESS: {agent_name}", task="anna-autofix")
+            return output_path, True
+        print(f"{RD}  ✗ Script ยังไม่สำเร็จหลัง Anna fix{RST}")
+    else:
+        print(f"{RD}  ✗ Anna ไม่ได้ส่ง WRITE_FILE กลับมา{RST}")
+
+    log_raw("anna", f"anna-autofix FAILED: {agent_name}", task="anna-autofix")
+    return str(output_dir), False
+
+
 def run_agent(agent_name: str, task: str, prev_agent: str = "",
               project_dir: Path|None = None, discover: bool = False) -> str:
-    bar = "─" * max(0, 48 - len(agent_name))
-    print(f"\n{CY}┌─ {BLD}{agent_name.upper()}{RST}{CY} {bar}┐{RST}")
+    # CRISP-DM iteration guard — ป้องกัน infinite loop
+    agent_iter_count[agent_name] = agent_iter_count.get(agent_name, 0) + 1
+    if agent_iter_count[agent_name] > MAX_AGENT_ITER:
+        print(f"\n{RD}  ✗ {BLD}{agent_name.upper()}{RST}{RD} ถึง max iterations ({MAX_AGENT_ITER}) — ข้าม CRISP-DM loop{RST}")
+        log_raw("system", f"CRISP-DM loop guard: {agent_name} ถึง max {MAX_AGENT_ITER} iterations", task="loop-guard")
+        return pipeline_read(agent_name) or ""
+
+    iter_label = f" [{agent_iter_count[agent_name]}/{MAX_AGENT_ITER}]" if agent_iter_count[agent_name] > 1 else ""
+    bar = "─" * max(0, 48 - len(agent_name) - len(iter_label))
+    print(f"\n{CY}┌─ {BLD}{agent_name.upper()}{RST}{CY}{YL}{iter_label}{RST}{CY} {bar}┐{RST}")
 
     raw_input_path = pipeline_read(prev_agent) if prev_agent else ""
     input_path     = resolve_input_path(prev_agent, raw_input_path, project_dir)
@@ -285,19 +408,33 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
                 print(f"{CY}  ⟳ input fallback:{RST} {DIM}{input_path}{RST}")
                 log_raw("system", f"input fallback → {input_path}", task=agent_name)
 
+    # fallback: ถ้า input เป็น .md (agent ก่อนหน้าไม่ผลิต CSV) → หา CSV ที่ดีที่สุดใน project
+    if input_path and input_path.endswith(".md") and project_dir:
+        output_root = project_dir / "output"
+        # เรียงตาม mtime ล่าสุด — ได้ CSV ที่ผลิตล่าสุด
+        all_csvs = sorted(output_root.glob("**/*_output.csv"),
+                          key=lambda x: x.stat().st_mtime, reverse=True)
+        if all_csvs:
+            old_input = input_path
+            input_path = str(all_csvs[0])
+            print(f"{YL}  ⟳ input .md → CSV fallback:{RST} {DIM}{input_path}{RST}")
+            log_raw("system", f"input .md fallback: {old_input} → {input_path}", task=agent_name)
+
     output_dir = (project_dir / "output" / agent_name) if project_dir else None
 
     # ── Priority 1: script จริง (+ auto-fix via DeepSeek ถ้า error) ──────────
     script = find_agent_script(agent_name, project_dir)
     if script and output_dir and not discover:
-        MAX_RETRIES = 2
+        MAX_RETRIES = 15
         output_path = str(output_dir)
+        returncode = -1
+        stderr = ""
         for attempt in range(MAX_RETRIES):
             output_path, returncode, stderr = run_script(script, input_path, output_dir)
             if returncode == 0:
                 break
             if attempt < MAX_RETRIES - 1:
-                print(f"\n{YL}  ⟳ Script error (รอบ {attempt+1}) → DeepSeek กำลังแก้ไข...{RST}")
+                print(f"\n{YL}  ⟳ Script error (รอบ {attempt+1}/{MAX_RETRIES}) → DeepSeek กำลังแก้ไข...{RST}")
                 script_content = script.read_text(encoding="utf-8")
                 fix_prompt = (
                     f"Script นี้ error:\n\n```python\n{script_content[:3000]}\n```\n\n"
@@ -316,7 +453,27 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
                     print(f"{RD}  ✗ DeepSeek ไม่ส่ง code กลับมา — หยุด retry{RST}")
                     break
             else:
-                print(f"{RD}  ✗ Script ยังไม่สำเร็จหลัง {MAX_RETRIES} รอบ{RST}")
+                print(f"{RD}  ✗ Script ยังไม่สำเร็จหลัง {MAX_RETRIES} รอบ → Anna auto-fix (Claude){RST}")
+
+        # ── Anna auto-fix (Claude) หลัง DeepSeek ทุกรอบล้มเหลว ──────────────
+        if returncode != 0:
+            output_path, success = anna_autofix_script(
+                agent_name, task, script, input_path, output_dir, stderr)
+            if not success:
+                print(f"\n{RD}{'─'*55}{RST}")
+                print(f"{RD}  ✗ Auto-fix ทั้งหมด {MAX_RETRIES} รอบ + Anna ล้มเหลว{RST}")
+                print(f"{YL}  Anna ต้องการความช่วยเหลือจากคุณ{RST}")
+                print(f"{YL}  Agent: {BLD}{agent_name.upper()}{RST}  |  Script: {script.name}{RST}")
+                print(f"{YL}  Error: {DIM}{stderr[:200]}{RST}")
+                try:
+                    choice = input(
+                        f"  {BLD}ข้าม agent นี้ต่อ (skip) หรือหยุด pipeline (stop)? [skip/stop]:{RST} "
+                    ).strip().lower()
+                except EOFError:
+                    choice = "skip"
+                log_raw("anna", f"ask user: {agent_name} auto-fix failed — user chose {choice}", task="auto-fix")
+                if choice == "stop":
+                    raise RuntimeError(f"{agent_name} script failed after all retries")
 
         pipeline_write(agent_name, output_path)
         report_summary = read_report_summary(output_dir, agent_name)
@@ -362,23 +519,82 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
         report_path.write_text(result, encoding="utf-8")
 
         code_blocks = re.findall(r'```python\n(.*?)```', result, re.DOTALL)
+
+        # ถ้า LLM ไม่ส่ง code เลย → retry สูงสุด 3 รอบด้วย prompt บังคับ
+        if not code_blocks:
+            for _nc in range(3):
+                print(f"{YL}  ⟳ ไม่พบ Python code block — retry #{_nc+1} (บังคับ code){RST}")
+                _force_msg = (
+                    f"คำตอบของคุณต้องมี Python code block เท่านั้น ห้ามตอบเป็น text\n"
+                    f"เขียน script ที่รันได้ทันที โดย:\n"
+                    f"- อ่านข้อมูลจาก INPUT_PATH (args.input)\n"
+                    f"- ประมวลผลตาม task\n"
+                    f"- save CSV ไปที่ OUTPUT_DIR (args.output_dir)\n"
+                    f"ตอบเป็น ```python ... ``` เท่านั้น ห้ามอธิบาย\n\n"
+                    f"Task: {task}\nInput: {input_path}\nOutput dir: {output_dir}"
+                )
+                result = call_deepseek(system, _force_msg, label=f"{agent_name.upper()} force-code #{_nc+1}")
+                code_blocks = re.findall(r'```python\n(.*?)```', result, re.DOTALL)
+                if code_blocks:
+                    break
+
         if code_blocks:
             py_path = output_dir / f"{agent_name}_script.py"
             py_path.write_text("\n\n".join(code_blocks), encoding="utf-8")
-            print(f"{GR}  ✓ {BLD}{agent_name.upper()}{RST}{GR} script saved{RST}  {DIM}→ {py_path}{RST}")
+            print(f"{GR}  ✓ {BLD}{agent_name.upper()}{RST}{GR} script saved — กำลังรัน...{RST}  {DIM}→ {py_path}{RST}")
 
-            # Scout: pipeline ชี้ไปที่ CSV ใน input/ ถ้ามี ไม่ใช่ script
+            # รัน script จริงๆ + auto-fix 15 รอบถ้า error
+            _MAX = 15
+            _returncode = -1
+            _stderr = ""
+            _out = str(output_dir)
+            for _attempt in range(_MAX):
+                _out, _returncode, _stderr = run_script(py_path, input_path, output_dir)
+                if _returncode == 0:
+                    break
+                if _attempt < _MAX - 1:
+                    print(f"\n{YL}  ⟳ Script error (รอบ {_attempt+1}/{_MAX}) → DeepSeek แก้ไข...{RST}")
+                    _fix = call_deepseek(
+                        get_system_prompt(agent_name),
+                        f"Script error:\n```python\n{py_path.read_text(encoding='utf-8')[:3000]}\n```\n"
+                        f"Error:\n```\n{_stderr[:800]}\n```\n"
+                        f"Input: {input_path}\nOutput dir: {output_dir}\n"
+                        f"แก้ให้รันได้ ตอบ python code block เดียว",
+                        label=f"{agent_name.upper()} auto-fix #{_attempt+1}",
+                    )
+                    _blocks = re.findall(r'```python\n(.*?)```', _fix, re.DOTALL)
+                    if _blocks:
+                        py_path.write_text("\n\n".join(_blocks), encoding="utf-8")
+                        log_raw("system", f"auto-fix {agent_name} attempt {_attempt+1}", task="auto-fix")
+                    else:
+                        print(f"{RD}  ✗ DeepSeek ไม่ส่ง code — หยุด retry{RST}")
+                        break
+                else:
+                    print(f"{RD}  ✗ Script ยังไม่สำเร็จหลัง {_MAX} รอบ → Anna auto-fix (Claude){RST}")
+
+            if _returncode != 0:
+                _out, _ok = anna_autofix_script(agent_name, task, py_path, input_path, output_dir, _stderr)
+                if not _ok:
+                    print(f"{RD}  ✗ Auto-fix ทั้งหมดล้มเหลว — ใช้ report แทน{RST}")
+                    _out = str(report_path)
+                    try:
+                        _choice = input(f"  {BLD}ข้าม agent นี้ (skip) หรือหยุด (stop)? [skip/stop]:{RST} ").strip().lower()
+                    except EOFError:
+                        _choice = "skip"
+                    if _choice == "stop":
+                        raise RuntimeError(f"{agent_name} script failed after all retries")
+
+            # Scout: ชี้ CSV ใน input/ แทน
             if agent_name == "scout" and project_dir:
-                input_dir = project_dir / "input"
-                csvs = sorted(input_dir.glob("*.csv"), key=lambda x: x.stat().st_mtime, reverse=True) if input_dir.exists() else []
-                out_path = str(csvs[0]) if csvs else str(py_path)
-            else:
-                out_path = str(py_path)
+                _input_dir = project_dir / "input"
+                _csvs = sorted(_input_dir.glob("*.csv"), key=lambda x: x.stat().st_mtime, reverse=True) if _input_dir.exists() else []
+                _out = str(_csvs[0]) if _csvs else _out
 
-            pipeline_write(agent_name, out_path)
-            log_raw(agent_name, "สร้าง report และ script (DeepSeek)", task=task, output=out_path)
-            log_raw("system", f"pipeline handoff: {agent_name} → {out_path}", task="pipeline")
-            return out_path
+            pipeline_write(agent_name, _out)
+            log_raw(agent_name, f"รัน script (DeepSeek+run) → {_out}", task=task, output=_out)
+            log_raw("system", f"pipeline handoff: {agent_name} → {_out}", task="pipeline")
+            print(f"{GR}  ✓ {BLD}{agent_name.upper()}{RST}{GR} done{RST}  {DIM}→ {_out}{RST}")
+            return _out
 
         # Scout: ถ้าไม่มี script ให้ check input/ ก่อน
         if agent_name == "scout" and project_dir:
@@ -435,7 +651,10 @@ def detect_project(text: str) -> Path|None:
         if p.exists():
             return p
     if PROJECTS_DIR.exists():
-        projects = sorted([p for p in PROJECTS_DIR.iterdir() if p.is_dir()])
+        projects = sorted(
+            [p for p in PROJECTS_DIR.iterdir() if p.is_dir()],
+            key=lambda x: x.stat().st_mtime,
+        )
         if projects:
             return projects[-1]
     return None
@@ -526,6 +745,14 @@ def execute_anna_actions(response: str) -> str:
             dpath.mkdir(parents=True, exist_ok=True)
             parts.append(f'[CREATE_DIR: {m.group(1)}] สร้างสำเร็จ')
             log_raw("anna", f"CREATE_DIR: {m.group(1)}", task="full-power")
+            # ถ้าสร้าง folder ใน projects/ → set active_project ทันที
+            try:
+                global active_project
+                rel_parts = dpath.relative_to(PROJECTS_DIR).parts
+                if rel_parts:
+                    active_project = PROJECTS_DIR / rel_parts[0]
+            except ValueError:
+                pass
         except Exception as e:
             parts.append(f'[CREATE_DIR ERROR: {e}]')
 
@@ -575,10 +802,43 @@ def execute_anna_actions(response: str) -> str:
     return "\n\n".join(parts)
 
 
+# ── Anna Auto-Fix ─────────────────────────────────────────────────────────────
+
+def _anna_autofix_response(original: str, user_input: str, anna_system: str,
+                            action_errors: str = "") -> str:
+    """Anna auto-fix: dispatch malformed หรือ action errors → Claude วิเคราะห์ใหม่
+    (เหมือน agent script auto-fix แต่ใช้กับ planning ของ Anna เอง)
+    """
+    print(f"\n{YL}{'─'*55}{RST}")
+    print(f"{YL}  ⟳ ANNA auto-fix{RST}  (Claude กำลังวิเคราะห์และแก้ไข...)")
+    log_raw("anna", "anna-autofix start: planning error", task="anna-autofix")
+
+    issues = []
+    if "<DISPATCH>" in original and not parse_dispatches(original):
+        issues.append("- dispatch tags มีอยู่แต่ JSON malformed หรือ agent name ไม่อยู่ใน valid list")
+    if action_errors:
+        issues.append(f"- action execution มี error:\n{action_errors[:400]}")
+
+    fix_prompt = (
+        f"Anna ตอบกลับมาแต่มีปัญหาต่อไปนี้:\n"
+        + "\n".join(issues) + "\n\n"
+        f"Response เดิม:\n```\n{original[:2000]}\n```\n\n"
+        f"Task เดิมของ user: {user_input}\n\n"
+        f"วิเคราะห์ปัญหาและตอบใหม่ให้ถูกต้อง "
+        f"ถ้าต้อง dispatch ให้แน่ใจว่า JSON valid และ agent name ถูกต้อง "
+        f"(valid agents: scout, dana, eddie, max, finn, mo, iris, vera, quinn, rex)"
+    )
+
+    fixed = call_claude(anna_system, fix_prompt, label="ANNA auto-fix")
+    log_raw("anna", f"anna-autofix done: dispatches={len(parse_dispatches(fixed))}", task="anna-autofix")
+    return fixed
+
+
 # ── Main Pipeline ─────────────────────────────────────────────────────────────
 
 def run_pipeline(user_input: str):
-    global active_project
+    global active_project, agent_iter_count
+    agent_iter_count = {}  # reset iteration counter ทุก pipeline run
 
     anna_kb = load_kb("anna")
     projects_list = "\n".join(
@@ -595,6 +855,9 @@ def run_pipeline(user_input: str):
     anna_response = call_deepseek(anna_system, user_input, label="ANNA", history=anna_history)
     log_raw("User", user_input)
     log_raw("Anna", anna_response, task="รับคำสั่งจาก User และวางแผน dispatch")
+
+    # เก็บ dispatch จาก response แรกก่อน — ป้องกันหายหลัง action execution
+    first_dispatches = parse_dispatches(anna_response)
 
     # Execute full-power actions แล้ว feed ผลกลับให้ Anna
     action_results = execute_anna_actions(anna_response)
@@ -621,9 +884,37 @@ def run_pipeline(user_input: str):
             return
 
     dispatches = parse_dispatches(anna_response)
+
+    # fallback: ถ้า response ที่ 2 ไม่มี dispatch → ใช้จาก response แรก
+    if not dispatches and first_dispatches:
+        print(f"\n{CY}  ⟳ dispatch จาก response แรก ({len(first_dispatches)} รายการ){RST}")
+        dispatches = first_dispatches
+
+    # ── Anna auto-fix (เหมือน agent script auto-fix) ──────────────────────────
+    # trigger เมื่อ: (1) มี <DISPATCH> แต่ parse ไม่ได้  (2) action มี ERROR และยังไม่มี dispatch
+    # ไม่ trigger ถ้ามี valid dispatches อยู่แล้ว (เช่น action เล็กๆ fail แต่ dispatch ดีอยู่)
+    dispatch_attempted = "<DISPATCH>" in anna_response
+    action_had_errors  = bool(action_results) and "ERROR" in action_results
+    if (dispatch_attempted and not dispatches) or (action_had_errors and not dispatches):
+        fixed = _anna_autofix_response(
+            anna_response, user_input, anna_system,
+            action_errors=action_results if action_had_errors else "",
+        )
+        if action_had_errors:
+            new_acts = execute_anna_actions(fixed)
+            # สร้าง summary เฉพาะกรณีที่ fixed ยังไม่มี dispatch (ไม่งั้นจะทับ dispatch ดี)
+            if new_acts and not parse_dispatches(fixed):
+                fp = f"ผลลัพธ์จากการดำเนินการ:\n\n{new_acts}\n\nโปรดสรุปและตอบผู้ใช้เป็นภาษาไทย"
+                fixed = call_deepseek(anna_system, fp, label="ANNA auto-fix summary")
+        anna_response = fixed
+        anna_history[-1] = {"role": "assistant", "content": anna_response}
+        dispatches = parse_dispatches(anna_response)
+
     if not dispatches:
         return
 
+    # detect project จาก response เฉพาะกรณีที่ยังไม่มี active_project เท่านั้น
+    # ไม่ override project ที่ user ตั้งไว้ผ่าน "project <name>" command
     if active_project is None:
         active_project = detect_project(anna_response)
 
@@ -667,15 +958,57 @@ def run_pipeline(user_input: str):
                     report_sections.append(f"=== {agent.upper()} REPORT ===\n{summary}")
 
         reports_block = "\n\n".join(report_sections)
+        # ตรวจสอบ CRISP-DM phase ที่เสร็จแล้ว
+        completed_phases = list(dict.fromkeys(
+            AGENT_TO_PHASE.get(a, "unknown") for a in completed
+        ))
+        iter_status = ", ".join(f"{a}×{n}" for a, n in agent_iter_count.items() if n > 1)
+
         summary_msg = (
             f"Team completed: {', '.join(completed)}\n"
-            f"Final output: {last_path}\n\n"
+            f"CRISP-DM phases done: {', '.join(completed_phases)}\n"
+            + (f"CRISP-DM iterations: {iter_status}\n" if iter_status else "")
+            + f"Final output: {last_path}\n\n"
             + (f"--- Agent Reports ---\n{reports_block}\n\n" if reports_block else "")
-            + "สรุปผลลัพธ์ให้ผู้ใช้เป็นภาษาไทย โดยอ้างอิงตัวเลขและข้อมูลจาก report ด้านบนจริงๆ"
+            + "วิเคราะห์ตาม CRISP-DM process:\n"
+            + "1. สรุปผลลัพธ์ให้ผู้ใช้เป็นภาษาไทย โดยอ้างอิงตัวเลขจาก report\n"
+            + "2. ถ้า Mo report มี 'Loop Back To Finn: YES' → dispatch finn แล้ว mo ใหม่ทันที\n"
+            + "3. ถ้า Quinn พบปัญหา → dispatch agent ที่เกี่ยวข้องใหม่ตาม CRISP-DM\n"
+            + "4. ถ้าทุก phase ผ่านแล้ว → บอก user ว่า CRISP-DM cycle เสร็จสมบูรณ์\n"
         )
         summary = call_deepseek(anna_system, summary_msg, label="ANNA summary", history=anna_history)
         anna_history.append({"role": "user",      "content": summary_msg})
         anna_history.append({"role": "assistant", "content": summary})
+
+        # Auto-continue: CRISP-DM loop — รันต่อเนื่องอัตโนมัติ (max 10 รอบ สำหรับ multi-model + tuning loop)
+        for _cont in range(10):
+            cont_dispatches = parse_dispatches(summary)
+            if not cont_dispatches:
+                break
+            print(f"\n{CY}  ⟳ Auto-continue pipeline:{RST} {BLD}{len(cont_dispatches)} agent(s) เพิ่มเติม{RST}")
+            for d in cont_dispatches:
+                agent    = d.get("agent", "").lower()
+                task     = d.get("task", "")
+                discover = d.get("discover", False)
+                if not agent or not task:
+                    continue
+                run_agent(agent, task, prev_agent=prev_agent,
+                          project_dir=active_project, discover=discover)
+                completed.append(agent)
+                prev_agent = agent
+                print(f"\n{GR}  ✓ {BLD}{agent}{RST}{GR} เสร็จแล้ว  (total: {len(completed)}){RST}")
+
+            # อัปเดต summary หลังรัน batch ใหม่
+            last_path = pipeline_read(completed[-1])
+            cont_msg = (
+                f"ทีมเพิ่มเติมที่เสร็จแล้ว: {', '.join(d.get('agent','') for d in cont_dispatches)}\n"
+                f"Output ล่าสุด: {last_path}\n"
+                f"รวม agent ทั้งหมดที่เสร็จ: {', '.join(completed)}\n"
+                f"สรุปผลและระบุว่า pipeline เสร็จสมบูรณ์หรือต้องดำเนินการต่อ"
+            )
+            summary = call_deepseek(anna_system, cont_msg, label="ANNA summary", history=anna_history)
+            anna_history.append({"role": "user",      "content": cont_msg})
+            anna_history.append({"role": "assistant", "content": summary})
 
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -723,8 +1056,10 @@ def print_help():
 {CY}│{RST}  {BLD}{WH}@<agent>! <task>{RST}      {YL}»{RST} dispatch ตรงไป agent ({MG}Claude{RST})
 {CY}│{RST}  {BLD}{WH}project <name>{RST}        {YL}»{RST} set active project
 {CY}│{RST}  {BLD}{WH}kb <agent>{RST}            {YL}»{RST} ดู knowledge base ของ agent
-{CY}│{RST}  {BLD}{WH}end session{RST}           {YL}»{RST} ล้าง history / เริ่ม session ใหม่
+{CY}│{RST}  {BLD}{WH}claude{RST}                {YL}»{RST} ดู {MG}Claude{RST} usage / calls เหลือ
+{CY}│{RST}  {BLD}{WH}end session{RST}           {YL}»{RST} ล้าง history + reset Claude calls
 {CY}│{RST}  {BLD}{WH}exit{RST}                  {YL}»{RST} ออกจากระบบ
+{CY}│{RST}  {DIM}--claude-limit N{RST}      {YL}»{RST} {DIM}ตั้ง limit เมื่อเริ่มโปรแกรม (default 10){RST}
 {CY}└──────────────────────────────────────────────────────┘{RST}""")
 
 
@@ -738,6 +1073,7 @@ def anna_discover(user_input: str):
 def main():
     global active_project
     sys.stdout.reconfigure(encoding="utf-8")
+    sys.stdin.reconfigure(encoding="utf-8", errors="replace")
 
     ds_ok = bool(os.environ.get("DEEPSEEK_API_KEY"))
     cl_ok = bool(os.environ.get("ANTHROPIC_API_KEY"))
@@ -746,7 +1082,7 @@ def main():
     plain = [
         "DataScienceOS  —  Anna (CEO)",
         f"DeepSeek: {DEEPSEEK_MODEL}  |  Claude: {CLAUDE_MODEL}",
-        f"PATH-BASED pipeline v2  |  mode: {MODE}  |  auto-fix: ON",
+        f"PATH-BASED pipeline v2  |  mode: {MODE}  |  Claude limit: {CLAUDE_LIMIT}",
         "Type  help  for commands",
     ]
     w = max(len(l) for l in plain) + 4   # inner padding 2+2
@@ -761,7 +1097,7 @@ def main():
     print(box_row(plain[1],
         f"{BL}DeepSeek:{RST} {BLD}{DEEPSEEK_MODEL}{RST}  {DIM}|{RST}  {MG}Claude:{RST} {BLD}{CLAUDE_MODEL}{RST}"))
     print(box_row(plain[2],
-        f"{DIM}PATH-BASED pipeline v2{RST}  {DIM}|{RST}  mode: {BLD}{MODE}{RST}  {DIM}|{RST}  auto-fix: {GR}{BLD}ON{RST}"))
+        f"{DIM}PATH-BASED pipeline v2{RST}  {DIM}|{RST}  mode: {BLD}{MODE}{RST}  {DIM}|{RST}  Claude limit: {MG}{BLD}{CLAUDE_LIMIT}{RST}"))
     print(box_row(plain[3],
         f"Type  {BLD}{WH}help{RST}  for commands"))
     print(f"{CY}└{'─'*w}┘{RST}")
@@ -769,7 +1105,7 @@ def main():
 
     ds_str = f"{GR}✓{RST}" if ds_ok else f"{RD}✗ ไม่พบ key{RST}"
     cl_str = f"{GR}✓{RST}" if cl_ok else f"{RD}✗ ไม่พบ key{RST}"
-    print(f"  {BL}{BLD}DeepSeek:{RST} {ds_str}    {MG}{BLD}Claude:{RST} {cl_str}")
+    print(f"  {BL}{BLD}DeepSeek:{RST} {ds_str}    {MG}{BLD}Claude:{RST} {cl_str}  {DIM}(limit: {CLAUDE_LIMIT} calls/session){RST}")
     print()
 
     # ── Main loop ─────────────────────────────────────────────
@@ -789,7 +1125,9 @@ def main():
         if user_input.lower() == "end session":
             anna_history.clear()
             active_project = None
-            print(f"{YL}  ANNA:{RST} เริ่ม session ใหม่แล้วค่ะ")
+            claude_calls = 0
+            agent_iter_count.clear()
+            print(f"{YL}  ANNA:{RST} เริ่ม session ใหม่แล้วค่ะ  {DIM}(Claude calls reset → 0/{CLAUDE_LIMIT}){RST}")
             continue
         if user_input.lower() == "help":
             print_help()
@@ -811,6 +1149,21 @@ def main():
                 print(f"{CY}└{'─'*50}┘{RST}")
             else:
                 print(f"{YL}  [{name}]{RST} ยังไม่มี Knowledge Base")
+            continue
+        if user_input.lower() in ("claude", "claude status"):
+            used  = claude_calls
+            limit = CLAUDE_LIMIT
+            pct   = int(used / limit * 100) if limit > 0 else 100
+            bar_len = 20
+            filled  = int(bar_len * used / limit) if limit > 0 else bar_len
+            bar_color = GR if pct < 60 else (YL if pct < 90 else RD)
+            bar = f"{bar_color}{'█' * filled}{DIM}{'░' * (bar_len - filled)}{RST}"
+            print(f"\n  {MG}{BLD}Claude usage:{RST}  {bar}  {BLD}{used}/{limit}{RST}  ({pct}%)")
+            if used >= limit:
+                print(f"  {RD}  ✗ ถึง limit แล้ว — ทุก call จะใช้ DeepSeek แทน{RST}")
+            else:
+                print(f"  เหลืออีก {BLD}{limit - used}{RST} calls  →  reset ด้วย {BLD}end session{RST}  หรือ {BLD}--claude-limit N{RST}")
+            print()
             continue
         if user_input.startswith("!!"):
             anna_discover(user_input[2:].strip())

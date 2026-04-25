@@ -1,0 +1,5 @@
+﻿column,lower_bound,upper_bound,outlier_count,outlier_pct,outlier_min,outlier_max
+unit_price,-11250.0,20350.0,42,8.4,45000.0,45000.0
+quantity,-9.0,31.0,0,0.0,,
+discount_pct,-0.15,0.25,0,0.0,,
+total_amount,-76837.5,143382.5,56,11.2,144500.0,900000.0

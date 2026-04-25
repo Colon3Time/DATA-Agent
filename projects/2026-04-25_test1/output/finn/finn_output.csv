@@ -1,0 +1,16 @@
+OrderID,CustomerID,OrderDate,ProductID,ProductName,Category,Quantity,UnitPrice,TotalAmount,PaymentMethod,Region,SalesPerson,anomaly,cluster,customer_segment,ProductID_encoded,Category_encoded,PaymentMethod_encoded,Region_encoded
+1001,C001,2025-01-15,P001,Widget A,Electronics,5,29.99,149.95,Credit Card,North,Alice,False,0,Segment_0_Cluster_0,0,2,1,1
+1002,C002,2025-01-16,P002,Widget B,Clothing,2,49.99,99.98,Cash,South,Bob,False,0,Segment_0_Cluster_0,1,1,0,2
+1003,C003,2025-01-17,P003,Widget C,Home,10,9.99,99.9,Credit Card,East,Carol,False,2,Segment_2_Cluster_2,2,4,1,0
+1004,C004,2025-01-18,P001,Widget A,Electronics,3,29.99,89.97,Debit Card,West,Dave,False,0,Segment_0_Cluster_0,0,2,2,3
+1005,C005,2025-01-19,P004,Widget D,Sports,1,199.99,199.99,Digital Wallet,North,Eve,False,0,Segment_0_Cluster_0,3,5,3,1
+1006,C006,2025-01-20,P002,Widget B,Clothing,4,49.99,199.96,Credit Card,South,Frank,False,0,Segment_0_Cluster_0,1,1,1,2
+1007,C007,2025-01-21,P005,Widget E,Food,7,15.5,108.5,Cash,East,Grace,False,2,Segment_2_Cluster_2,4,3,0,0
+1008,C008,2025-01-22,P003,Widget C,Home,2,9.99,19.98,Credit Card,West,Hank,False,3,Segment_3_Cluster_3,2,4,1,3
+1009,C009,2025-01-23,P001,Widget A,Electronics,8,29.99,239.92,Debit Card,North,Ivy,False,2,Segment_2_Cluster_2,0,2,2,1
+1010,C010,2025-01-24,P006,Widget F,Beauty,3,39.99,119.97,Digital Wallet,South,Jack,False,3,Segment_3_Cluster_3,5,0,3,2
+1011,C011,2025-01-25,P004,Widget D,Sports,6,199.99,1199.94,Credit Card,East,Karen,True,1,Segment_1_Cluster_1,3,5,1,0
+1012,C012,2025-01-26,P002,Widget B,Clothing,1,49.99,49.99,Cash,West,Leo,False,3,Segment_3_Cluster_3,1,1,0,3
+1013,C013,2025-01-27,P005,Widget E,Food,4,15.5,62.0,Credit Card,North,Mona,False,3,Segment_3_Cluster_3,4,3,1,1
+1014,C014,2025-01-28,P003,Widget C,Home,9,9.99,89.91,Debit Card,South,Nick,False,2,Segment_2_Cluster_2,2,4,2,2
+1015,C015,2025-01-29,P006,Widget F,Beauty,2,39.99,79.98,Cash,East,Olivia,False,3,Segment_3_Cluster_3,5,0,0,0

@@ -17,6 +17,74 @@
 
 ---
 
+## ML ในหน้าที่ของ Vera (ใช้ ML สร้าง visualization ที่ลึกกว่า)
+
+Vera ไม่ได้แค่ plot ข้อมูล — ใช้ **ML เพื่อ visualize structure ที่ซ่อนอยู่ในข้อมูล**
+
+### Dimensionality Reduction Plots — ดู cluster/pattern ใน 2D
+```python
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
+import matplotlib.pyplot as plt
+
+# PCA plot — เร็ว ดู variance direction
+pca = PCA(n_components=2)
+X_2d = pca.fit_transform(X_scaled)
+plt.figure(figsize=(10,6))
+scatter = plt.scatter(X_2d[:,0], X_2d[:,1], c=labels, cmap='tab10', alpha=0.7)
+plt.colorbar(scatter)
+plt.title(f'PCA (explained variance: {pca.explained_variance_ratio_.sum():.1%})')
+plt.savefig(f'{OUTPUT_DIR}/pca_plot.png', dpi=150, bbox_inches='tight')
+
+# t-SNE plot — ดู cluster ที่ชัดเจน (ใช้เมื่อ n < 50,000)
+tsne = TSNE(n_components=2, perplexity=30, random_state=42)
+X_tsne = tsne.fit_transform(X_scaled)
+plt.figure(figsize=(10,6))
+plt.scatter(X_tsne[:,0], X_tsne[:,1], c=labels, cmap='tab10', alpha=0.7)
+plt.title('t-SNE Cluster Visualization')
+plt.savefig(f'{OUTPUT_DIR}/tsne_plot.png', dpi=150, bbox_inches='tight')
+```
+
+### SHAP Visualization — visualize model explanations
+```python
+import shap
+import matplotlib.pyplot as plt
+
+explainer = shap.TreeExplainer(model)
+shap_values = explainer.shap_values(X_test)
+
+# Summary plot
+fig, ax = plt.subplots(figsize=(10, 6))
+shap.summary_plot(shap_values, X_test, show=False)
+plt.savefig(f'{OUTPUT_DIR}/shap_summary.png', dpi=150, bbox_inches='tight')
+
+# Feature importance bar
+shap.summary_plot(shap_values, X_test, plot_type='bar', show=False)
+plt.savefig(f'{OUTPUT_DIR}/shap_importance.png', dpi=150, bbox_inches='tight')
+```
+
+### Correlation Heatmap with Significance
+```python
+import seaborn as sns
+from scipy.stats import pearsonr
+
+corr = df.corr()
+# Mask non-significant correlations
+p_matrix = df.corr(method=lambda x,y: pearsonr(x,y)[1]) - np.eye(len(df.columns))
+mask = p_matrix > 0.05  # ซ่อน correlation ที่ไม่ significant
+
+fig, ax = plt.subplots(figsize=(12,10))
+sns.heatmap(corr, mask=mask, annot=True, fmt='.2f', cmap='RdBu_r',
+            center=0, ax=ax, square=True)
+plt.title('Correlation Heatmap (significant only, p<0.05)')
+plt.savefig(f'{OUTPUT_DIR}/correlation_heatmap.png', dpi=150, bbox_inches='tight')
+```
+
+**กฎ Vera:** ถ้ามี cluster labels จาก Max/Mo → ต้อง plot t-SNE/PCA colored by cluster เสมอ
+ถ้ามี SHAP values จาก Mo → ต้อง plot SHAP summary เสมอ
+
+---
+
 ## หน้าที่หลัก
 - เลือก chart type ที่เหมาะกับข้อมูลและเรื่องที่จะสื่อ
 - ออกแบบ visual ให้ผู้บริหารและ non-technical เข้าใจได้

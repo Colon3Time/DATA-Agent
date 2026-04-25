@@ -1,0 +1,348 @@
+{
+  "data_quality": {
+    "dataset_shape": [
+      500,
+      10
+    ],
+    "columns": [
+      "date",
+      "customer_id",
+      "product",
+      "category",
+      "unit_price",
+      "quantity",
+      "discount_pct",
+      "total_amount",
+      "region",
+      "sales_channel"
+    ],
+    "dtypes": {
+      "date": "str",
+      "customer_id": "str",
+      "product": "str",
+      "category": "str",
+      "unit_price": "int64",
+      "quantity": "int64",
+      "discount_pct": "float64",
+      "total_amount": "float64",
+      "region": "str",
+      "sales_channel": "str"
+    },
+    "missing_values": {
+      "date": 0,
+      "customer_id": 0,
+      "product": 0,
+      "category": 0,
+      "unit_price": 0,
+      "quantity": 0,
+      "discount_pct": 0,
+      "total_amount": 0,
+      "region": 0,
+      "sales_channel": 0
+    },
+    "missing_pct": {
+      "date": 0.0,
+      "customer_id": 0.0,
+      "product": 0.0,
+      "category": 0.0,
+      "unit_price": 0.0,
+      "quantity": 0.0,
+      "discount_pct": 0.0,
+      "total_amount": 0.0,
+      "region": 0.0,
+      "sales_channel": 0.0
+    },
+    "duplicates": 0,
+    "total_missing": 0,
+    "total_missing_pct": 0.0
+  },
+  "categorical_analysis": {
+    "date": {
+      "unique_values": 264,
+      "top_values": {
+        "2025-06-08": 6,
+        "2025-07-22": 6,
+        "2025-02-21": 6,
+        "2025-07-02": 5,
+        "2025-03-02": 5,
+        "2025-09-19": 4,
+        "2025-12-05": 4,
+        "2025-07-19": 4,
+        "2025-11-22": 4,
+        "2025-10-12": 4
+      },
+      "missing": 0,
+      "top_categories_analysis": "Top 10 categories cover 9.6% of data"
+    },
+    "customer_id": {
+      "unique_values": 478,
+      "top_values": {
+        "CUST_6151": 3,
+        "CUST_2023": 2,
+        "CUST_6866": 2,
+        "CUST_7125": 2,
+        "CUST_5540": 2,
+        "CUST_8133": 2,
+        "CUST_8659": 2,
+        "CUST_9538": 2,
+        "CUST_7174": 2,
+        "CUST_7931": 2
+      },
+      "missing": 0,
+      "top_categories_analysis": "Top 10 categories cover 4.2% of data"
+    },
+    "product": {
+      "unique_values": 12,
+      "top_values": {
+        "Mouse": 47,
+        "USB Hub": 46,
+        "Chair": 46,
+        "Monitor": 44,
+        "Cable": 44,
+        "Webcam": 44,
+        "Laptop": 42,
+        "Desk": 42,
+        "Keyboard": 41,
+        "Adapter": 39
+      },
+      "missing": 0,
+      "top_categories_analysis": "Top 10 categories cover 87.0% of data"
+    },
+    "category": {
+      "unique_values": 3,
+      "top_values": {
+        "Electronics": 382,
+        "Furniture": 88,
+        "Accessories": 30
+      },
+      "missing": 0,
+      "top_categories_analysis": "Top 3 categories cover 100.0% of data"
+    },
+    "region": {
+      "unique_values": 5,
+      "top_values": {
+        "Central": 104,
+        "North": 102,
+        "West": 101,
+        "South": 101,
+        "East": 92
+      },
+      "missing": 0,
+      "top_categories_analysis": "Top 5 categories cover 100.0% of data"
+    },
+    "sales_channel": {
+      "unique_values": 4,
+      "top_values": {
+        "In-Store": 135,
+        "Online": 126,
+        "Wholesale": 121,
+        "Catalog": 118
+      },
+      "missing": 0,
+      "top_categories_analysis": "Top 4 categories cover 100.0% of data"
+    }
+  },
+  "univariate_analysis": {
+    "unit_price": {
+      "count": 500,
+      "mean": 6965.0,
+      "std": 12088.46,
+      "min": "150",
+      "q25": 600.0,
+      "median": 1800.0,
+      "q75": 8500.0,
+      "max": "45000",
+      "skewness": 2.564,
+      "kurtosis": 5.3714,
+      "interpretation": "Skewness=2.564030153635525: Highly skewed (right-tailed: many low values, few high values/potential outliers). Kurtosis=5.371437299462315: Strongly leptokurtic (significant outlier presence)."
+    },
+    "quantity": {
+      "count": 500,
+      "mean": 10.61,
+      "std": 5.67,
+      "min": "1",
+      "q25": 6.0,
+      "median": 10.5,
+      "q75": 16.0,
+      "max": "20",
+      "skewness": 0.0309,
+      "kurtosis": -1.2003,
+      "interpretation": "Skewness=0.03091721368780985: Near-symmetric distribution. Kurtosis=-1.2003382381104757: Moderately platykurtic (fewer outliers than normal)."
+    },
+    "discount_pct": {
+      "count": 500,
+      "mean": 0.05,
+      "std": 0.06,
+      "min": 0.0,
+      "q25": 0.0,
+      "median": 0.05,
+      "q75": 0.1,
+      "max": 0.15,
+      "skewness": 0.5354,
+      "kurtosis": -1.3347,
+      "interpretation": "Skewness=0.535372035517115: Moderately skewed (right-tailed: most values below mean). Kurtosis=-1.334688784085087: Moderately platykurtic (fewer outliers than normal)."
+    },
+    "total_amount": {
+      "count": 500,
+      "mean": 67411.16,
+      "std": 142566.08,
+      "min": 300.0,
+      "q25": 5745.0,
+      "median": 17000.0,
+      "q75": 60800.0,
+      "max": 900000.0,
+      "skewness": 3.8887,
+      "kurtosis": 16.4184,
+      "interpretation": "Skewness=3.888650685646937: Highly skewed (right-tailed: many low values, few high values/potential outliers). Kurtosis=16.418405326754794: Strongly leptokurtic (significant outlier presence)."
+    }
+  },
+  "correlation_analysis": {
+    "matrix": {
+      "unit_price": {
+        "unit_price": 1.0,
+        "quantity": -0.043,
+        "discount_pct": -0.05,
+        "total_amount": 0.818
+      },
+      "quantity": {
+        "unit_price": -0.043,
+        "quantity": 1.0,
+        "discount_pct": 0.083,
+        "total_amount": 0.248
+      },
+      "discount_pct": {
+        "unit_price": -0.05,
+        "quantity": 0.083,
+        "discount_pct": 1.0,
+        "total_amount": -0.062
+      },
+      "total_amount": {
+        "unit_price": 0.818,
+        "quantity": 0.248,
+        "discount_pct": -0.062,
+        "total_amount": 1.0
+      }
+    },
+    "high_correlations": [
+      {
+        "var1": "unit_price",
+        "var2": "total_amount",
+        "correlation": 0.818,
+        "strength": "strong"
+      }
+    ]
+  },
+  "outlier_analysis": [
+    {
+      "column": "unit_price",
+      "lower_bound": -11250.0,
+      "upper_bound": 20350.0,
+      "outlier_count": 42,
+      "outlier_pct": 8.4,
+      "outlier_min": "45000",
+      "outlier_max": "45000"
+    },
+    {
+      "column": "quantity",
+      "lower_bound": -9.0,
+      "upper_bound": 31.0,
+      "outlier_count": 0,
+      "outlier_pct": 0.0,
+      "outlier_min": null,
+      "outlier_max": null
+    },
+    {
+      "column": "discount_pct",
+      "lower_bound": -0.15,
+      "upper_bound": 0.25,
+      "outlier_count": 0,
+      "outlier_pct": 0.0,
+      "outlier_min": null,
+      "outlier_max": null
+    },
+    {
+      "column": "total_amount",
+      "lower_bound": -76837.5,
+      "upper_bound": 143382.5,
+      "outlier_count": 56,
+      "outlier_pct": 11.2,
+      "outlier_min": 144500.0,
+      "outlier_max": 900000.0
+    }
+  ],
+  "time_series_analysis": {},
+  "feature_interaction": [],
+  "geographic_insights": {
+    "geography_column": "region",
+    "value_column": "unit_price",
+    "top_regions": {
+      "sum": {
+        "West": 817950,
+        "North": 775550,
+        "Central": 661550,
+        "South": 648900,
+        "East": 578550
+      },
+      "mean": {
+        "West": 8098.51,
+        "North": 7603.43,
+        "Central": 6361.06,
+        "South": 6424.75,
+        "East": 6288.59
+      },
+      "count": {
+        "West": 101,
+        "North": 102,
+        "Central": 104,
+        "South": 101,
+        "East": 92
+      },
+      "share_pct": {
+        "West": 23.49,
+        "North": 22.27,
+        "Central": 19.0,
+        "South": 18.63,
+        "East": 16.61
+      }
+    }
+  },
+  "statistical_tests": [
+    {
+      "test": "2025-06-08 vs 2025-07-22",
+      "t_statistic": 0.1861,
+      "p_value": 0.8561,
+      "significant": "No"
+    }
+  ],
+  "executive_insights": [
+    "• unit_price: mean=6965.0, median=1800.0, range=[150–45000] — 8.4% outliers detected",
+    "• quantity: mean=10.61, median=10.5, range=[1–20]",
+    "• discount_pct: mean=0.05, median=0.05, range=[0.0–0.15]",
+    "• Key correlation: unit_price vs total_amount = 0.818 (strong)",
+    "• date: 264 unique values — Top 10 categories cover 9.6% of data",
+    "• customer_id: 478 unique values — Top 10 categories cover 4.2% of data"
+  ],
+  "business_questions": [
+    "Q: unit_price is highly right-skewed — are there premium segments causing the skew? Should we segment customers by value?",
+    "Q: unit_price has heavy tails — are there outlier events we should investigate separately?",
+    "Q: total_amount is highly right-skewed — are there premium segments causing the skew? Should we segment customers by value?",
+    "Q: total_amount has heavy tails — are there outlier events we should investigate separately?"
+  ],
+  "opportunities_found": [
+    "Top region sum dominates — consider focused marketing campaigns and localized strategies",
+    "Strong correlation between unit_price and total_amount — potential for predictive modeling or cross-selling"
+  ],
+  "risk_signals": [
+    "⚠️ 42 outliers (8.4%) in unit_price — investigate if these are errors or genuine extreme values",
+    "⚠️ 56 outliers (11.2%) in total_amount — investigate if these are errors or genuine extreme values"
+  ],
+  "actionable_roadmap": [
+    "🟢 Phase 1 (Immediate): Investigate outliers and data quality issues before making strategic decisions",
+    "🟡 Phase 2 (Short-term): Segment customers based on key numeric features to identify high-value clusters",
+    "🟡 Phase 2 (Short-term): Develop predictive model using unit_price and total_amount",
+    "🔵 Phase 3 (Medium-term): Implement geo-targeted marketing campaigns based on regional performance data",
+    "🔵 Phase 3 (Medium-term): Set up automated data quality monitoring with alerts for >5% missing rates",
+    "🔴 Phase 4 (Long-term): Build customer retention model to reduce single-purchase rate and increase CLV"
+  ],
+  "data_quality_flags": []
+}
