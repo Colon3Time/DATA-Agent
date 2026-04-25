@@ -1,8 +1,0 @@
-agent,check,status,detail
-max,dataset loaded,✅ PASS,"98666 rows, 22 columns"
-max,column completeness,⚠️ PARTIAL,"Missing: ['order_purchase_timestamp', 'price', 'freight_value', 'product_category_name'], Found: 3/7"
-finn,insights file,✅ PASS,"98666 insights, 59 dimensions"
-finn,data completeness,✅ PASS,0.0% null values - acceptable
-finn,report completeness,⚠️ WARN,Only 2/6 key analysis terms found
-iris,visualization data,✅ PASS,"2 rows, 4 columns"
-vera,visualizations,⚠️ WARN,No PNG visualizations found

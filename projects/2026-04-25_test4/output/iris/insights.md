@@ -1,24 +1,18 @@
 Iris Chief Insight Report
 ==========================
+Analysis Date: 2026-04-26 00:52
+Input File: quinn_qc_results.csv
 
 Business Context:
-- Industry Trend ตอนนี้: Data-driven decision making in production ML
-- Macro Environment: AI adoption accelerating across industries
-- Competitive Landscape: Model performance and speed are key differentiators
+- This analysis is based on model comparison / QC results data
+- Insights derived from 12 rows × 4 columns
 
 Top Insights:
-1. **Best Model: Logistic Regression** with CV F1 Mean=1.0000
-   → Business Impact: High accuracy means reliable predictions for decision-making
-   → Action: Deploy Logistic Regression as primary model for production
-2. **Gap to Runner-up (Random Forest): 0.0000**
-   → Business Impact: Tight competition
-   → Action: Consider ensemble approach
-3. **Fastest Model: Logistic Regression** (Time (s)=0.0400)
-   → Business Impact: Faster inference = lower latency = better user experience
-   → Action: Consider for real-time prediction scenarios
+1. **Data overview: QC Results** — file loaded successfully
+   → Business Impact: 12 data points available for analysis
+2. **Key Pattern: status** = most frequent is 'FAIL'
+   → Business Impact: This category dominates, may require targeted strategy
 
 Trend Alert:
-- MLOps and model monitoring becoming standard practice
-
----
-Generated: 2026-04-25T20:27:37.884912
+- Model performance comparison enables data-driven model selection
+- Consider production deployment of best performing model

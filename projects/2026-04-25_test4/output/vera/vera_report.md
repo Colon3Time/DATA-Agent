@@ -3,7 +3,7 @@ Vera Visualization Report
 Agent Report — Vera
 ============================
 รับจาก     : Iris
-Input      : Employee attrition dataset (4 rows, 9 columns)
+Input      : Employee attrition dataset (12 rows, 4 columns)
 ทำ         : สร้าง visualizations เพื่อวิเคราะห์ attrition factor
 พบ         : 
 - Department และ Salary Level มีผลต่อ attrition rate ชัดเจน

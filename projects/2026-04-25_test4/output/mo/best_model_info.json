@@ -1,5 +1,5 @@
 {
-  "best_model": "Logistic Regression",
+  "best_model": "Gradient Boosting",
   "target_column": "resigned",
   "problem_type": "classification",
   "feature_columns": [
@@ -11,40 +11,17 @@
     "satisfaction_score",
     "work_from_home_days",
     "num_projects",
-    "promotion_last_3yr",
-    "cluster",
-    "tenure_years",
-    "salary_to_tenure_ratio",
-    "department_risk_score",
-    "position_encoded",
-    "gender_encoded",
-    "region_encoded",
-    "anomaly_encoded",
-    "age_scaled",
-    "salary_scaled",
-    "performance_score_scaled",
-    "training_hours_scaled",
-    "overtime_hours_scaled",
-    "satisfaction_score_scaled",
-    "work_from_home_days_scaled",
-    "num_projects_scaled",
-    "promotion_last_3yr_scaled",
-    "resigned_scaled",
-    "cluster_scaled",
-    "tenure_years_scaled",
-    "salary_to_tenure_ratio_scaled",
-    "department_risk_score_scaled",
-    "overall_risk_score"
+    "promotion_last_3yr"
   ],
   "metrics": {
-    "Model": "Logistic Regression",
-    "CV F1 Mean": 1.0,
-    "CV F1 Std": 0.0,
-    "Test Accuracy": 1.0,
-    "Test Precision": 1.0,
-    "Test Recall": 1.0,
-    "Test F1": 1.0,
-    "Time (s)": 0.04,
-    "Test AUC": 1.0
+    "Model": "Gradient Boosting",
+    "CV F1 Mean": 0.81,
+    "CV F1 Std": 0.0079,
+    "Test Accuracy": 0.8688,
+    "Test Precision": 0.833,
+    "Test Recall": 0.8688,
+    "Test F1": 0.8445,
+    "Time (s)": 0.77,
+    "Test AUC": 0.6484
   }
 }

@@ -7,8 +7,10 @@
 - Categorical: 7
 
 ## Data Quality
-- Missing values found in 1 columns
+- Missing values found in 3 columns
+  - salary: 24 (3.0%)
   - satisfaction_score: 24 (3.0%)
+  - performance_score: 24 (3.0%)
 
 ## Key Findings
 ### Sales Trend
