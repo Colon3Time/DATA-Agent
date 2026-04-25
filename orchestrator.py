@@ -182,7 +182,8 @@ def find_agent_script(agent_name: str, project_dir: Path|None) -> Path|None:
             return scripts[-1]
     return None
 
-def run_script(script_path: Path, input_path: str, output_dir: Path) -> str:
+def run_script(script_path: Path, input_path: str, output_dir: Path) -> tuple[str, int, str]:
+    """Returns (output_path, returncode, stderr)"""
     output_dir.mkdir(parents=True, exist_ok=True)
     print(f"\n{CY}  ▶ SCRIPT{RST}  {BLD}{script_path.name}{RST}  {DIM}← {input_path or 'no input'}{RST}")
 
@@ -201,9 +202,8 @@ def run_script(script_path: Path, input_path: str, output_dir: Path) -> str:
         print(f"{RD}  ╚{'═'*18}╝{RST}")
 
     csvs = sorted(output_dir.glob("*.csv"), key=lambda x: x.stat().st_mtime, reverse=True)
-    if csvs:
-        return str(csvs[0])
-    return str(output_dir)
+    out_path = str(csvs[0]) if csvs else str(output_dir)
+    return out_path, result.returncode, result.stderr
 
 
 # ── Agent Runner ──────────────────────────────────────────────────────────────
@@ -287,10 +287,37 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
 
     output_dir = (project_dir / "output" / agent_name) if project_dir else None
 
-    # ── Priority 1: script จริง ───────────────────────────────
+    # ── Priority 1: script จริง (+ auto-fix via DeepSeek ถ้า error) ──────────
     script = find_agent_script(agent_name, project_dir)
     if script and output_dir and not discover:
-        output_path = run_script(script, input_path, output_dir)
+        MAX_RETRIES = 2
+        output_path = str(output_dir)
+        for attempt in range(MAX_RETRIES):
+            output_path, returncode, stderr = run_script(script, input_path, output_dir)
+            if returncode == 0:
+                break
+            if attempt < MAX_RETRIES - 1:
+                print(f"\n{YL}  ⟳ Script error (รอบ {attempt+1}) → DeepSeek กำลังแก้ไข...{RST}")
+                script_content = script.read_text(encoding="utf-8")
+                fix_prompt = (
+                    f"Script นี้ error:\n\n```python\n{script_content[:3000]}\n```\n\n"
+                    f"Error:\n```\n{stderr[:800]}\n```\n\n"
+                    f"Input path: {input_path}\nOutput dir: {output_dir}\n\n"
+                    f"แก้ script ให้รันได้ ตอบเป็น python code block เดียวเท่านั้น"
+                )
+                fixed = call_deepseek(get_system_prompt(agent_name), fix_prompt,
+                                      label=f"{agent_name.upper()} auto-fix #{attempt+1}")
+                blocks = re.findall(r'```python\n(.*?)```', fixed, re.DOTALL)
+                if blocks:
+                    script.write_text("\n\n".join(blocks), encoding="utf-8")
+                    print(f"{GR}  ✓ Script แก้แล้ว — รันใหม่...{RST}")
+                    log_raw("system", f"auto-fix {agent_name} script attempt {attempt+1}", task="auto-fix")
+                else:
+                    print(f"{RD}  ✗ DeepSeek ไม่ส่ง code กลับมา — หยุด retry{RST}")
+                    break
+            else:
+                print(f"{RD}  ✗ Script ยังไม่สำเร็จหลัง {MAX_RETRIES} รอบ{RST}")
+
         pipeline_write(agent_name, output_path)
         report_summary = read_report_summary(output_dir, agent_name)
         action_msg = f"รัน script {script.name} สำเร็จ"
