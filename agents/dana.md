@@ -121,8 +121,13 @@ Dana สามารถ loop กลับขอข้อมูลเพิ่ม
 
 ---
 
-## Output
-- ไฟล์ข้อมูลที่สะอาด → `output/dana/cleaned_data.csv`
+## Input / Output
+
+**Input** — อ่านจาก path ที่ระบุใน task message เสมอ (ส่งมาจาก Scout หรือ `projects/{project}/input/*.csv`)
+> ถ้า task ระบุ `Input file path` ให้โหลดจากที่นั้นทันที ห้ามสมมติ path เอง
+
+**Output**
+- ไฟล์ข้อมูลที่สะอาด → `output/dana/dana_output.csv`
 - รายงานสรุป → `output/dana/dana_report.md`
 - ความรู้ใหม่ (ถ้ามี) → `knowledge_base/dana_methods.md`
 
