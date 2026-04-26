@@ -656,6 +656,24 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
             print(f"{YL}  ⟳ input .md → CSV fallback:{RST} {DIM}{input_path}{RST}")
             log_raw("system", f"input .md fallback: {old_input} → {input_path}", task=agent_name)
 
+    # fallback พิเศษสำหรับ Vera และ Rex — ถ้า input CSV เล็กเกิน (< 20 rows หรือ < 5 cols)
+    # ให้หา feature data ที่ดีที่สุดใน project แทน (finn > mo > dana > original input)
+    if agent_name in ("vera", "rex") and input_path and input_path.endswith(".csv") and project_dir:
+        try:
+            import pandas as _pd
+            _df = _pd.read_csv(input_path, nrows=5)
+            if _df.shape[0] < 20 or _df.shape[1] < 5:
+                _preferred = ["finn", "mo", "dana"]
+                for _ag in _preferred:
+                    _candidate = project_dir / "output" / _ag / f"{_ag}_output.csv"
+                    if _candidate.exists():
+                        print(f"{YL}  ⟳ {agent_name} input too small → fallback to {_ag}_output.csv{RST}")
+                        log_raw("system", f"{agent_name} input fallback: {input_path} → {_candidate}", task=agent_name)
+                        input_path = str(_candidate)
+                        break
+        except Exception:
+            pass
+
     output_dir = (project_dir / "output" / agent_name) if project_dir else None
 
     # ── ลบ script เก่าออกก่อนทุกครั้ง — บังคับให้ LLM สร้างใหม่เสมอ ──────────
