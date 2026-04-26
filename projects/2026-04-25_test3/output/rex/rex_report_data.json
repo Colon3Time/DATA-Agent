@@ -1,0 +1,14 @@
+{
+  "total_questions": 11,
+  "avg_score": 0,
+  "min_score": 0,
+  "max_score": 0,
+  "score_distribution": {},
+  "status_distribution": {
+    "PASS": 10,
+    "FAIL": 1
+  },
+  "topic_distribution": {},
+  "low_score_questions": [],
+  "null_columns": {}
+}

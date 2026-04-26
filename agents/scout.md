@@ -73,9 +73,175 @@
 5. ประเมินคุณภาพแต่ละรายการ
 6. ส่งรายการให้ Anna → Anna ถามผู้ใช้ → รอ confirm
 7. เมื่อผู้ใช้ยืนยันแล้วเท่านั้น → ดาวน์โหลดและวางใน projects/{project}/input/
-8. สร้าง Dataset Brief ส่ง Dana
-9. บันทึก lesson learned
+8. รัน Auto-Profiling Script → สร้าง DATASET_PROFILE block
+9. สร้าง Dataset Brief ส่ง Dana
+10. บันทึก lesson learned
 ```
+
+---
+
+## Auto-Profiling Script (บังคับรันทุกครั้งหลังโหลด dataset)
+
+หลังโหลด dataset เสร็จ Scout ต้องรัน profiling script นี้เสมอ เพื่อสร้าง `DATASET_PROFILE` ให้ Anna ใช้ dispatch agent ถัดไปได้ถูกต้อง
+
+```python
+import argparse, os, json
+import pandas as pd
+import numpy as np
+from pathlib import Path
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--input',      default='')
+parser.add_argument('--output-dir', default='')
+args, _ = parser.parse_known_args()
+
+INPUT_PATH = args.input
+OUTPUT_DIR = args.output_dir
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+df = pd.read_csv(INPUT_PATH)
+print(f"[STATUS] Loaded: {df.shape}")
+
+# --- dtypes breakdown ---
+n_numeric   = df.select_dtypes(include='number').shape[1]
+n_cat       = df.select_dtypes(include=['object','category']).shape[1]
+n_datetime  = df.select_dtypes(include='datetime').shape[1]
+
+# --- missing ---
+miss = (df.isnull().mean() * 100).sort_values(ascending=False)
+top_miss = miss[miss > 0].head(5).round(2).to_dict()
+
+# --- guess target column ---
+# priority 1: ชื่อ column ที่บ่งชัดว่าเป็น target
+TARGET_KEYWORDS = [
+    "survived","target","label","class","churn","fraud",
+    "default","outcome","result","y","status","response",
+    "converted","clicked","bought","cancelled","returned",
+]
+target_col = None
+for kw in TARGET_KEYWORDS:
+    for col in df.columns:
+        if col.lower() == kw or col.lower().startswith(kw):
+            target_col = col
+            break
+    if target_col:
+        break
+
+# priority 2: numeric binary column (0/1 เท่านั้น)
+if not target_col:
+    for col in df.columns:
+        if pd.api.types.is_numeric_dtype(df[col]) and set(df[col].dropna().unique()).issubset({0, 1, 0.0, 1.0}):
+            target_col = col
+            break
+
+# priority 3: numeric col ≤10 unique values (classification-like)
+if not target_col:
+    for col in reversed(df.columns):
+        if pd.api.types.is_numeric_dtype(df[col]) and df[col].nunique() <= 10:
+            target_col = col
+            break
+
+# --- problem type detection ---
+problem_type = "unknown"
+imbalance    = None
+class_dist   = {}
+if target_col:
+    n_uniq = df[target_col].nunique()
+    if n_uniq <= 20:
+        problem_type = "classification"
+        vc = df[target_col].value_counts(normalize=True).round(4)
+        class_dist = vc.to_dict()
+        majority   = vc.max()
+        minority   = vc.min()
+        imbalance  = round(majority / minority, 2) if minority > 0 else None
+    else:
+        # check if date column exists → time series
+        date_cols = df.select_dtypes(include=['datetime','object']).columns
+        has_date  = any('date' in c.lower() or 'time' in c.lower() for c in date_cols)
+        problem_type = "time_series" if has_date else "regression"
+elif df.select_dtypes(include='number').shape[1] >= 2:
+    problem_type = "clustering"
+
+# --- recommended preprocessing ---
+if problem_type in ("classification","regression"):
+    scaling = "StandardScaler" if n_numeric > 0 else "None"
+elif problem_type == "time_series":
+    scaling = "MinMaxScaler"
+else:
+    scaling = "StandardScaler"
+
+# --- write profile ---
+profile_lines = [
+    "DATASET_PROFILE",
+    "===============",
+    f"rows         : {df.shape[0]:,}",
+    f"cols         : {df.shape[1]}",
+    f"dtypes       : numeric={n_numeric}, categorical={n_cat}, datetime={n_datetime}",
+    f"missing      : {json.dumps(top_miss, ensure_ascii=False)}",
+    f"target_column: {target_col or 'unknown'}",
+    f"problem_type : {problem_type}",
+]
+if class_dist:
+    profile_lines.append(f"class_dist   : {json.dumps({str(k): v for k,v in list(class_dist.items())[:6]})}")
+if imbalance is not None:
+    profile_lines.append(f"imbalance_ratio: {imbalance}")
+profile_lines.append(f"recommended_scaling: {scaling}")
+
+profile_text = "\n".join(profile_lines)
+print(profile_text)
+
+profile_path = os.path.join(OUTPUT_DIR, "dataset_profile.md")
+with open(profile_path, "w", encoding="utf-8") as f:
+    f.write(profile_text)
+print(f"[STATUS] Profile saved: {profile_path}")
+
+# save CSV (pass-through)
+out_csv = os.path.join(OUTPUT_DIR, "scout_output.csv")
+df.to_csv(out_csv, index=False)
+print(f"[STATUS] Saved: {out_csv}")
+```
+
+**กฎ Scout:** ต้องรัน profiling script นี้ทุกครั้งหลังโหลด dataset — DATASET_PROFILE คือ input สำคัญของ Anna ในการ dispatch Eddie และ Mo
+
+---
+
+## ML ในหน้าที่ของ Scout (ใช้ ML ประเมินและจัดอันดับ datasets)
+
+Scout ไม่ได้แค่ search — ใช้ **ML ให้คะแนน relevance และ quality ของ dataset โดยอัตโนมัติ**
+
+### TF-IDF Relevance Scoring — วัดว่า dataset ตรงกับ task ไหม
+```python
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+# เปรียบเทียบ task description กับ dataset descriptions
+task_desc = "predict employee churn based on HR data"
+dataset_descs = ["IBM HR employee attrition dataset", "Iris flower classification", ...]
+
+tfidf = TfidfVectorizer()
+matrix = tfidf.fit_transform([task_desc] + dataset_descs)
+scores = cosine_similarity(matrix[0:1], matrix[1:])[0]
+ranked = sorted(zip(dataset_descs, scores), key=lambda x: x[1], reverse=True)
+```
+
+### Auto Quality Scoring — ให้คะแนน dataset quality ก่อน recommend
+```python
+def score_dataset(df):
+    scores = {}
+    # completeness (ครบถ้วน)
+    scores['completeness'] = 1 - df.isnull().mean().mean()
+    # size adequacy (ใหญ่พอ)
+    scores['size'] = min(1.0, len(df) / 1000)
+    # feature richness
+    scores['features'] = min(1.0, len(df.columns) / 10)
+    # class balance (classification)
+    if df.iloc[:,-1].nunique() <= 10:
+        vc = df.iloc[:,-1].value_counts(normalize=True)
+        scores['balance'] = 1 - (vc.max() - vc.min())
+    return sum(scores.values()) / len(scores)
+```
+
+**กฎ Scout:** ต้องคำนวณ relevance score และ quality score ก่อน recommend dataset ทุกครั้ง — เรียงตาม score ก่อน present ให้ Anna
 
 ---
 
@@ -121,9 +287,16 @@ Scout ส่ง feedback ไปยัง Anna เมื่อ:
 
 ## Output
 
-- Dataset ไฟล์ → `projects/{project_name}/input/` (หลัง confirm เท่านั้น)
-- Dataset Brief → `projects/{project_name}/input/dataset_brief.md`
-- ความรู้ใหม่ → `knowledge_base/scout_sources.md`
+**Dataset ไฟล์จริง (CSV)** → `projects/{project_name}/input/` (หลัง confirm เท่านั้น)
+> Pipeline จะชี้ path นี้ให้ Dana อัตโนมัติ — Scout ต้องบันทึก CSV ที่นี่เท่านั้น ไม่ใช่ใน output/scout/
+
+**DATASET_PROFILE** → `projects/{project_name}/output/scout/dataset_profile.md`
+> Anna อ่าน profile นี้ก่อน dispatch Eddie และ Mo เพื่อ dispatch task ได้ถูกต้อง
+
+**Dataset Brief** → `projects/{project_name}/output/scout/scout_report.md`
+> Brief เขียนลง output/scout/ แต่ข้อมูลจริงต้องอยู่ใน input/ เสมอ
+
+**ความรู้ใหม่** → `knowledge_base/scout_sources.md`
 
 ## รูปแบบ Shortlist (ส่ง Anna ก่อน confirm)
 
@@ -189,23 +362,3 @@ Self-Improvement Report
 จะนำไปใช้ครั้งหน้า: [ใช่/ไม่ใช่ เพราะอะไร]
 Knowledge Base: [อัพเดต/ไม่มีการเปลี่ยนแปลง]
 ```
-
-
----
-
-## กฎการเขียน Report (ทำทุกครั้งหลังทำงานเสร็จ)
-
-เมื่อทำงานเสร็จ ต้องเขียน Agent Report ก่อนส่งผลต่อเสมอ:
-
-```
-Agent Report — [ชื่อ Agent]
-============================
-รับจาก     : [agent ก่อนหน้า หรือ User]
-Input      : [อธิบายสั้นๆ ว่าได้รับอะไรมา เช่น dataset กี่ rows กี่ columns]
-ทำ         : [ทำอะไรบ้าง]
-พบ         : [สิ่งสำคัญที่พบ 2-3 ข้อ]
-เปลี่ยนแปลง: [data หรือ insight เปลี่ยนยังไง เช่น 1000 rows → 985 rows]
-ส่งต่อ     : [agent ถัดไป] — [ส่งอะไรไป]
-```
-
-> Report นี้ช่วยให้ผู้ใช้เห็นการเปลี่ยนแปลงของข้อมูลทุกขั้นตอน

@@ -1,0 +1,2 @@
+total_rows,valid_content_rows,numeric_columns_count,string_columns_count,has_cluster_analysis,has_model_scores,has_pattern_mining,has_churn_analysis,has_rfm_analysis,has_segment_labels
+4,4,7,1,False,False,False,False,False,False

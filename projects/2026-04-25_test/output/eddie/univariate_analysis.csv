@@ -1,0 +1,5 @@
+﻿column,mean,std,min,q25,median,q75,max,iqr,skewness,kurtosis,interpretation
+unit_price,6965.0,12088.46,150.0,600.0,1800.0,8500.0,45000.0,7900.0,2.564,5.371,"Skewness=2.564: Highly skewed (right-tailed: many low values, few high values/potential outliers). Kurtosis=5.371: Strongly leptokurtic (significant outlier presence)."
+quantity,10.61,5.67,1.0,6.0,10.5,16.0,20.0,10.0,0.031,-1.2,Skewness=0.031: Near-symmetric distribution. Kurtosis=-1.2: Moderately platykurtic (fewer outliers than normal).
+discount_pct,0.05,0.06,0.0,0.0,0.05,0.1,0.15,0.1,0.535,-1.335,Skewness=0.535: Moderately skewed (right-tailed: most values below mean). Kurtosis=-1.335: Moderately platykurtic (fewer outliers than normal).
+total_amount,67411.16,142566.08,300.0,5745.0,17000.0,60800.0,900000.0,55055.0,3.889,16.418,"Skewness=3.889: Highly skewed (right-tailed: many low values, few high values/potential outliers). Kurtosis=16.418: Strongly leptokurtic (significant outlier presence)."

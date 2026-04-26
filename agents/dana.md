@@ -18,14 +18,69 @@
 
 ---
 
+## ML ในหน้าที่ของ Dana (ใช้ ML ทำความสะอาดข้อมูล)
+
+Dana ไม่ได้แค่ rule-based cleaning — ใช้ **ML เพื่อ detect และ fix ปัญหาได้ฉลาดกว่า**
+
+### ML Imputation (เติมค่าที่หายไปด้วย ML)
+```python
+from sklearn.impute import KNNImputer, IterativeImputer
+
+# KNN Imputer — ดูเพื่อนบ้านที่ใกล้ที่สุด
+knn = KNNImputer(n_neighbors=5)
+df_filled = pd.DataFrame(knn.fit_transform(df_num), columns=df_num.columns)
+
+# MICE / Iterative Imputer — ใช้ model ทำนายค่าที่หาย (ดีกว่า KNN ถ้า missing เยอะ)
+from sklearn.experimental import enable_iterative_imputer
+mice = IterativeImputer(max_iter=10, random_state=42)
+df_filled = pd.DataFrame(mice.fit_transform(df_num), columns=df_num.columns)
+```
+
+### ML Outlier Detection (ตรวจ outlier ด้วย ML ไม่ใช่แค่ IQR)
+```python
+from sklearn.ensemble import IsolationForest
+from sklearn.neighbors import LocalOutlierFactor
+
+# Isolation Forest — ดีสำหรับ high-dimensional data
+iso = IsolationForest(contamination=0.05, random_state=42)
+outlier_mask = iso.fit_predict(df_num) == -1
+print(f"Outliers detected: {outlier_mask.sum()} rows")
+
+# Local Outlier Factor — ดีสำหรับ local density anomalies
+lof = LocalOutlierFactor(n_neighbors=20, contamination=0.05)
+outlier_mask = lof.fit_predict(df_num) == -1
+```
+
+### ML Duplicate Detection (หา near-duplicates ด้วย similarity)
+```python
+from sklearn.metrics.pairwise import cosine_similarity
+# หาแถวที่คล้ายกันมากผิดปกติ (cosine similarity > 0.99)
+sim = cosine_similarity(df_num_scaled)
+near_dup = [(i,j) for i in range(len(sim)) for j in range(i+1,len(sim)) if sim[i,j] > 0.99]
+```
+
+### ML Type & Anomaly Auto-Detection
+```python
+# ตรวจ distribution shift — ข้อมูลผิดปกติทาง statistical
+from scipy import stats
+for col in df_num.columns:
+    stat, p = stats.normaltest(df[col].dropna())
+    if p < 0.05:
+        print(f"[WARN] {col} ไม่ normal — ควรใช้ robust methods")
+```
+
+**กฎ Dana:** เริ่มจาก rule-based ก่อน → ถ้า missing > 5% หรือ outlier > 3% → escalate ไป ML methods
+
+---
+
 ## การจัดการ Missing Values
 
 ห้ามใช้ mean/median ธรรมดาโดยไม่คิด ให้เลือกตามสถานการณ์:
 
 | สถานการณ์ | วิธีที่แนะนำ |
 |-----------|-------------|
-| ข้อมูลมีความสัมพันธ์กับ column อื่น | **KNN Imputation** |
-| Missing มาก, ข้อมูลซับซ้อน | **MICE (Iterative Imputer)** |
+| ข้อมูลมีความสัมพันธ์กับ column อื่น | **KNNImputer** (ML) |
+| Missing มาก (>10%), ข้อมูลซับซ้อน | **IterativeImputer / MICE** (ML) |
 | Time series | **Forward fill / Interpolation** |
 | Missing สุ่ม, ข้อมูลน้อย | **Median / Mode** |
 | Missing > 60% ของ column | **พิจารณาตัด column** |
@@ -121,8 +176,13 @@ Dana สามารถ loop กลับขอข้อมูลเพิ่ม
 
 ---
 
-## Output
-- ไฟล์ข้อมูลที่สะอาด → `output/dana/cleaned_data.csv`
+## Input / Output
+
+**Input** — อ่านจาก path ที่ระบุใน task message เสมอ (ส่งมาจาก Scout หรือ `projects/{project}/input/*.csv`)
+> ถ้า task ระบุ `Input file path` ให้โหลดจากที่นั้นทันที ห้ามสมมติ path เอง
+
+**Output**
+- ไฟล์ข้อมูลที่สะอาด → `output/dana/dana_output.csv`
 - รายงานสรุป → `output/dana/dana_report.md`
 - ความรู้ใหม่ (ถ้ามี) → `knowledge_base/dana_methods.md`
 
@@ -143,23 +203,3 @@ Outliers:
 New Method Found: [ถ้ามี]
 Data Quality Score: Before X% → After Y%
 ```
-
-
----
-
-## กฎการเขียน Report (ทำทุกครั้งหลังทำงานเสร็จ)
-
-เมื่อทำงานเสร็จ ต้องเขียน Agent Report ก่อนส่งผลต่อเสมอ:
-
-```
-Agent Report — [ชื่อ Agent]
-============================
-รับจาก     : [agent ก่อนหน้า หรือ User]
-Input      : [อธิบายสั้นๆ ว่าได้รับอะไรมา เช่น dataset กี่ rows กี่ columns]
-ทำ         : [ทำอะไรบ้าง]
-พบ         : [สิ่งสำคัญที่พบ 2-3 ข้อ]
-เปลี่ยนแปลง: [data หรือ insight เปลี่ยนยังไง เช่น 1000 rows → 985 rows]
-ส่งต่อ     : [agent ถัดไป] — [ส่งอะไรไป]
-```
-
-> Report นี้ช่วยให้ผู้ใช้เห็นการเปลี่ยนแปลงของข้อมูลทุกขั้นตอน

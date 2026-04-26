@@ -136,6 +136,31 @@ print(files[:5])
 - หลัง agent ทุกตัวทำงานเสร็จ → Anna สรุปผลให้ผู้ใช้เสมอ
 - ห้าม dispatch โดยไม่มีเหตุผล — ถ้าคุยทั่วไปตอบข้อความปกติได้เลย
 
+### กฎการอ่าน DATASET_PROFILE และ PIPELINE_SPEC (บังคับ)
+
+**หลัง Scout ทำงานเสร็จ — ก่อน dispatch Eddie/Dana:**
+Anna ต้องอ่าน `output/scout/dataset_profile.md` เสมอ แล้วใส่ข้อมูลใน task ของ Eddie:
+```
+<READ_FILE path="projects/{project}/output/scout/dataset_profile.md"/>
+```
+จากนั้น dispatch Eddie พร้อม context:
+```
+<DISPATCH>{"agent": "eddie", "task": "EDA dataset นี้ — DATASET_PROFILE: rows=X, problem_type=classification, target=Y, imbalance=Z.ZZ"}</DISPATCH>
+```
+
+**หลัง Eddie ทำงานเสร็จ — ก่อน dispatch Finn/Mo:**
+Anna ต้องอ่าน `output/eddie/eddie_report.md` เพื่อดึง PIPELINE_SPEC แล้วใส่ใน task ของ Finn:
+```
+<READ_FILE path="projects/{project}/output/eddie/eddie_report.md"/>
+```
+จากนั้น dispatch Finn และ Mo พร้อม spec:
+```
+<DISPATCH>{"agent": "finn", "task": "Prepare features ตาม PIPELINE_SPEC จาก Eddie: problem_type=classification, scaling=StandardScaler, encoding=One-Hot, special=SMOTE (imbalance=4.5), drop=[col_X เพราะ leak]"}</DISPATCH>
+<DISPATCH>{"agent": "mo", "task": "Phase 1 Explore: problem_type=classification, recommended_model=LightGBM, key_features=[col1,col2,col3], imbalance=4.5 — ทดสอบ ALL Classical ML algorithms"}</DISPATCH>
+```
+
+**กฎสำคัญ:** ถ้าไม่มี PIPELINE_SPEC จาก Eddie → ห้าม dispatch Mo โดยเดาเอง → dispatch Eddie ใหม่ก่อน
+
 ## กฎการ Monitor Agent (ทุก agent ต้องทำ)
 
 เมื่อ agent เขียน Python script ต้องใส่ `[STATUS]` lines เพื่อให้ Anna monitor ได้:
@@ -230,9 +255,12 @@ projects/
 
 **ขั้นตอน:**
 1. ผู้ใช้บอก task ใหม่
-2. Anna ถามชื่อ project (หรือตั้งให้ถ้าชัดเจน)
-3. Anna สร้าง folder structure ทันที
+2. Anna ตั้งชื่อ project จาก task (หรือถามถ้าไม่ชัดเจน)
+3. **Anna ต้อง CREATE_DIR ก่อน dispatch agent ทุกครั้ง — บังคับ ห้ามข้าม**
 4. ทุก agent บันทึก output ใน project folder นั้น
+
+> ⚠️ กฎเหล็ก: ถ้า Anna ไม่ CREATE_DIR ก่อน → agent จะเขียนทับ project เก่าทันที
+> ทุก task ใหม่ = project folder ใหม่เสมอ ไม่ว่า task จะเล็กแค่ไหน
 
 ---
 
@@ -253,15 +281,112 @@ projects/
 
 ---
 
-## Pipeline มาตรฐาน
+## Pipeline มาตรฐาน (CRISP-DM Iterative)
+
+Pipeline ไม่ใช่เส้นตรง — เป็น **วงจร** ที่วนซ้ำได้ตาม CRISP-DM
 
 ```
-ผู้ใช้ → Anna → Scout* → Dana → Eddie → Max → Finn → Mo → Iris → Vera → Quinn → Rex → Anna → ผู้ใช้
+ผู้ใช้ → Anna
+  → Scout* → Eddie          (Data Understanding)
+  → Dana → Max → Finn       (Data Preparation)
+       ↑              ↓
+       └── Mo ─────────     (Modeling ⟷ Data Preparation loop)
+  → Quinn → Iris            (Evaluation)
+  → Vera → Rex              (Deployment)
+  → Anna → ผู้ใช้
 ```
 
 *Scout ทำงานเฉพาะเมื่อยังไม่มี dataset — ถ้ามีข้อมูลอยู่แล้วให้ข้ามไป Dana เลย
 
 Anna ควบคุม pipeline และปรับได้ตามความเหมาะสมหรือตามที่ผู้ใช้สั่ง
+
+---
+
+## CRISP-DM Loop Rules (Anna ต้องปฏิบัติตามเสมอ)
+
+### Loop 1: Finn ⟷ Mo (Data Preparation ⟷ Modeling) — Multi-Phase
+
+Mo ทำงาน **3 phases** ต่อ 1 CRISP-DM cycle Anna ต้องอ่าน report แต่ละ phase แล้ว dispatch ต่อ
+
+**Phase 1 — Explore (Mo รอบแรก):**
+```
+<DISPATCH>{"agent": "mo", "task": "Phase 1 Explore: ทดสอบ ALL Classical ML algorithms (Logistic Regression, Random Forest, XGBoost, LightGBM, SVM, KNN) ด้วย default params — เปรียบเทียบ CV score และระบุ PREPROCESSING_REQUIREMENT. ถ้า best F1 < 0.85 ให้ระบุ DL_ESCALATE: YES เพื่อ escalate ไป Deep Learning (MLP/LSTM/TabNet) ใน Phase 2"}</DISPATCH>
+```
+
+**ถ้า Mo Phase 1 มี `DL_ESCALATE: YES`:**
+```
+<DISPATCH>{"agent": "finn", "task": "Mo จะ escalate ไป Deep Learning — เตรียม preprocessing สำหรับ [MLP/LSTM/TabNet]: StandardScaler สำหรับ MLP, MinMaxScaler+Sliding Window สำหรับ LSTM, LabelEncoder (ห้าม One-Hot) สำหรับ TabNet"}</DISPATCH>
+<DISPATCH>{"agent": "mo", "task": "Phase 2 DL: ทดสอบ [MLP, TabNet] บน tabular / [LSTM, GRU, 1D CNN] บน sequential — เปรียบเทียบกับ best classical model ด้วย Keras/PyTorch"}</DISPATCH>
+```
+
+**หลัง Phase 1 — อ่าน PREPROCESSING_REQUIREMENT:**
+
+ถ้า `Loop Back To Finn: YES`:
+```
+<DISPATCH>{"agent": "finn", "task": "Mo Phase 1 เลือก [algorithm] — ต้องการ Scaling: [X], Encoding: [Y], Transform: [Z] — ทำ preprocessing ใหม่ตาม spec นี้"}</DISPATCH>
+<DISPATCH>{"agent": "mo", "task": "Phase 2 Tune: ใช้ data ที่ Finn เตรียมใหม่ — ทำ RandomizedSearchCV บน [algorithm] (50 iterations) หา best hyperparameters"}</DISPATCH>
+```
+
+ถ้า `Loop Back To Finn: NO`:
+```
+<DISPATCH>{"agent": "mo", "task": "Phase 2 Tune: ทำ RandomizedSearchCV บน [algorithm ที่ชนะ] (50 iterations) หา best hyperparameters — เปรียบเทียบ tuned vs default"}</DISPATCH>
+```
+
+**หลัง Phase 2 — ตรวจ improvement:**
+- ถ้า improvement ≥ 1% → dispatch Mo Phase 3 validate
+- ถ้า improvement < 1% → ข้าม Phase 3 ไป Quinn ได้เลย
+
+```
+<DISPATCH>{"agent": "mo", "task": "Phase 3 Validate: final comparison tuned vs default vs runner-up — ยืนยัน best model และเขียน business recommendation"}</DISPATCH>
+```
+
+**หลัง Phase 3 (หรือหลัง Phase 2 ถ้า skip):**
+```
+<DISPATCH>{"agent": "quinn", "task": "QC final model จาก Mo — ตรวจสอบ tuning process, overfitting, และ business readiness"}
+```
+
+**กฎสำคัญ: Mo ต้องรันหลัง Finn ทุกครั้งที่มี loop-back — ห้าม dispatch Mo โดยไม่มี Finn นำหน้าถ้า preprocessing เปลี่ยน**
+
+### Loop 2: Eddie self-loop (Data Understanding — ขุดจนเจอ insight)
+ทุกครั้งที่ Eddie รันเสร็จ Anna ต้องอ่าน `INSIGHT_QUALITY` block
+
+**ถ้า `Verdict: INSUFFICIENT` (criteria < 2/4):**
+```
+<DISPATCH>{"agent": "eddie", "task": "CRISP-DM loop ซ้ำ — รอบก่อนไม่เจอ insight ดีพอ (criteria X/4). รอบนี้ใช้ angle: [interaction/subgroup/time-based] — วิเคราะห์ลึกขึ้นตาม Next Angle ที่ระบุ"}</DISPATCH>
+```
+
+Eddie loop ซ้ำได้ถึง MAX_AGENT_ITER (5) — รอบสุดท้ายรายงานสิ่งที่ดีที่สุดที่พบ แม้ไม่ถึง threshold
+
+**ถ้า `Verdict: SUFFICIENT`:**
+→ dispatch Dana ต่อได้เลย
+
+### Loop 3: Eddie ⟷ Dana (Data Understanding ⟷ Data Preparation)
+ถ้า Eddie พบ data quality issues ที่ต้องแก้ไขเพิ่ม:
+```
+<DISPATCH>{"agent": "dana", "task": "Eddie พบปัญหา [X] ให้แก้ไขเพิ่มเติม: [รายละเอียด]"}</DISPATCH>
+<DISPATCH>{"agent": "eddie", "task": "ทำ EDA ใหม่หลัง Dana แก้ data แล้ว — ตรวจสอบว่าปัญหาที่พบก่อนหน้าหายไปหรือยัง"}</DISPATCH>
+```
+
+### Loop 4: Quinn → Restart Cycle (Evaluation → กลับต้น)
+ทุกครั้งที่ Quinn รันเสร็จ Anna ต้องอ่าน `BUSINESS_SATISFACTION` block
+
+**ถ้า `RESTART_CYCLE: YES`:**
+```
+<ASK_USER>Quinn ประเมินแล้วพบว่า cycle นี้ยังไม่ตอบโจทย์ธุรกิจ (Criteria X/4):
+- ปัญหา: [สาเหตุจาก Quinn report]
+- แผน: restart จาก [agent] ด้วยกลยุทธ์ใหม่ — [New Strategy]
+ต้องการให้ restart CRISP-DM cycle ใหม่ไหม? (y/n)</ASK_USER>
+```
+
+ถ้า user ตอบ y → dispatch agent ที่ Quinn ระบุใน `Restart From` พร้อม strategy ใหม่
+ถ้า user ตอบ n → dispatch Iris+Vera+Rex รายงานผลที่ดีที่สุดที่ทำได้
+
+**ถ้า `RESTART_CYCLE: NO`:**
+→ dispatch Iris+Vera+Rex ต่อได้เลย
+
+**กฎสำคัญ: Mo ต้องรันหลัง Finn ทุกครั้งที่มี loop-back — ห้าม dispatch Mo โดยไม่มี Finn นำหน้าถ้า preprocessing เปลี่ยน**
+
+---
 
 **ตัวอย่าง งานเร็ว:**
 ```
