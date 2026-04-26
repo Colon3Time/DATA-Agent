@@ -1,0 +1,11 @@
+Check,Description,Status,Detail
+model_comparison,Multiple models compared,PASS,Tuned vs Default
+overfitting_check,Train/Test gap < 0.05 F1,PASS,Gap=0.0291
+cv_stability,CV std < 0.05,PASS,Std=0.0254
+metric_appropriateness,F1 for imbalanced classification,PASS,
+feature_importance,Top features reasonable,PASS,"Top=['texture_mean', 'perimeter_mean', 'area_mean']"
+data_leakage,No ID columns leaking info,PASS,
+missing_data,Missing data < 5%,PASS,Missing=0.00%
+target_balance,Imbalance addressed,PASS,Min class=0.37
+improvement_significance,Tuning improvement > 1%,PASS,Improvement=1.50%
+business_question,Business question answered,PASS,Malignancy prediction
