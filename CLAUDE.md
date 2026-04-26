@@ -386,6 +386,30 @@ Eddie loop ซ้ำได้ถึง MAX_AGENT_ITER (5) — รอบสุด
 
 **กฎสำคัญ: Mo ต้องรันหลัง Finn ทุกครั้งที่มี loop-back — ห้าม dispatch Mo โดยไม่มี Finn นำหน้าถ้า preprocessing เปลี่ยน**
 
+### Vera Intermediate Charts — Real-time Visualization (บังคับ)
+
+Vera ทำงาน **3 รอบ** ตาม pipeline ไม่ใช่แค่ตอนท้าย — dispatch พร้อมกับ agent ถัดไปได้เลย (parallel)
+
+**รอบที่ 1 — หลัง Eddie SUFFICIENT:**
+```
+<DISPATCH>{"agent": "dana", "task": "ทำความสะอาด dataset ตาม PIPELINE_SPEC จาก Eddie"}</DISPATCH>
+<DISPATCH>{"agent": "vera", "task": "Intermediate Round 1 — EDA Charts จาก Eddie: สร้าง Mutual Information bar chart, violin plots top features by diagnosis, separability scatter ของ top 2 MI features — โหลดจาก output/eddie/eddie_output.csv"}</DISPATCH>
+```
+
+**รอบที่ 2 — หลัง Dana จบ:**
+```
+<DISPATCH>{"agent": "finn", "task": "Feature engineering ตาม PIPELINE_SPEC"}</DISPATCH>
+<DISPATCH>{"agent": "vera", "task": "Intermediate Round 2 — Data Quality Charts จาก Dana: สร้าง outlier boxplots (IQR bounds + จุดสีแดง), outlier count summary bar chart — โหลด outlier_flags.csv และ dana_output.csv จาก output/dana/"}</DISPATCH>
+```
+
+**รอบที่ 3 — หลัง Iris จบ (เหมือนเดิม):**
+```
+<DISPATCH>{"agent": "vera", "task": "Final Round 3 — Full Visualization: ROC curve, Confusion Matrix, SHAP, PCA/t-SNE, feature importance — โหลดจาก output/finn/finn_output.csv + ผล Mo"}</DISPATCH>
+```
+
+> **กฎ:** ทุก Vera dispatch บันทึก charts ลงใน `output/vera/charts/` เดิม — ชื่อไฟล์ prefix ด้วย round (`01_eda_*`, `02_quality_*`, `03_model_*`) เพื่อไม่ทับกัน
+> **ประโยชน์:** ผู้ใช้ดู outlier chart ได้ทันทีหลัง Dana จบ ไม่ต้องรอ pipeline สิ้นสุด
+
 ---
 
 ## เมื่อไหร่ที่ต้องหยุดและถามผู้ใช้
