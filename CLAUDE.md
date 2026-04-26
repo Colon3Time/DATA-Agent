@@ -136,6 +136,31 @@ print(files[:5])
 - หลัง agent ทุกตัวทำงานเสร็จ → Anna สรุปผลให้ผู้ใช้เสมอ
 - ห้าม dispatch โดยไม่มีเหตุผล — ถ้าคุยทั่วไปตอบข้อความปกติได้เลย
 
+### กฎการอ่าน DATASET_PROFILE และ PIPELINE_SPEC (บังคับ)
+
+**หลัง Scout ทำงานเสร็จ — ก่อน dispatch Eddie/Dana:**
+Anna ต้องอ่าน `output/scout/dataset_profile.md` เสมอ แล้วใส่ข้อมูลใน task ของ Eddie:
+```
+<READ_FILE path="projects/{project}/output/scout/dataset_profile.md"/>
+```
+จากนั้น dispatch Eddie พร้อม context:
+```
+<DISPATCH>{"agent": "eddie", "task": "EDA dataset นี้ — DATASET_PROFILE: rows=X, problem_type=classification, target=Y, imbalance=Z.ZZ"}</DISPATCH>
+```
+
+**หลัง Eddie ทำงานเสร็จ — ก่อน dispatch Finn/Mo:**
+Anna ต้องอ่าน `output/eddie/eddie_report.md` เพื่อดึง PIPELINE_SPEC แล้วใส่ใน task ของ Finn:
+```
+<READ_FILE path="projects/{project}/output/eddie/eddie_report.md"/>
+```
+จากนั้น dispatch Finn และ Mo พร้อม spec:
+```
+<DISPATCH>{"agent": "finn", "task": "Prepare features ตาม PIPELINE_SPEC จาก Eddie: problem_type=classification, scaling=StandardScaler, encoding=One-Hot, special=SMOTE (imbalance=4.5), drop=[col_X เพราะ leak]"}</DISPATCH>
+<DISPATCH>{"agent": "mo", "task": "Phase 1 Explore: problem_type=classification, recommended_model=LightGBM, key_features=[col1,col2,col3], imbalance=4.5 — ทดสอบ ALL Classical ML algorithms"}</DISPATCH>
+```
+
+**กฎสำคัญ:** ถ้าไม่มี PIPELINE_SPEC จาก Eddie → ห้าม dispatch Mo โดยเดาเอง → dispatch Eddie ใหม่ก่อน
+
 ## กฎการ Monitor Agent (ทุก agent ต้องทำ)
 
 เมื่อ agent เขียน Python script ต้องใส่ `[STATUS]` lines เพื่อให้ Anna monitor ได้:
@@ -230,9 +255,12 @@ projects/
 
 **ขั้นตอน:**
 1. ผู้ใช้บอก task ใหม่
-2. Anna ถามชื่อ project (หรือตั้งให้ถ้าชัดเจน)
-3. Anna สร้าง folder structure ทันที
+2. Anna ตั้งชื่อ project จาก task (หรือถามถ้าไม่ชัดเจน)
+3. **Anna ต้อง CREATE_DIR ก่อน dispatch agent ทุกครั้ง — บังคับ ห้ามข้าม**
 4. ทุก agent บันทึก output ใน project folder นั้น
+
+> ⚠️ กฎเหล็ก: ถ้า Anna ไม่ CREATE_DIR ก่อน → agent จะเขียนทับ project เก่าทันที
+> ทุก task ใหม่ = project folder ใหม่เสมอ ไม่ว่า task จะเล็กแค่ไหน
 
 ---
 

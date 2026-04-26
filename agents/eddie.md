@@ -96,6 +96,32 @@ print(f"Components ที่อธิบาย 90% variance: {n_components_90}")
 
 ---
 
+## PIPELINE_SPEC (บังคับเขียนทุกครั้งหลัง EDA เสร็จ)
+
+Eddie ต้องเขียน `PIPELINE_SPEC` block ท้าย report เสมอ — Anna อ่าน block นี้เพื่อ dispatch Finn และ Mo ได้ถูกต้องโดยไม่ต้องเดา
+
+```
+PIPELINE_SPEC
+=============
+problem_type        : [classification / regression / clustering / time_series]
+target_column       : [ชื่อ column หรือ none]
+n_rows              : X
+n_features          : Y
+imbalance_ratio     : X.XX  (ถ้า classification — majority/minority ratio)
+key_features        : [col1, col2, col3]  (top features จาก MI หรือ correlation)
+recommended_model   : [XGBoost / LightGBM / RandomForest / Ridge / ARIMA / KMeans / etc.]
+preprocessing:
+  scaling           : [StandardScaler / MinMaxScaler / None]
+  encoding          : [One-Hot / LabelEncoder / None]
+  special           : [SMOTE / PCA / sliding_window / None]
+data_quality_issues : [missing_col:X%, outliers:Y rows, encoding_issues, etc. / None]
+finn_instructions   : [สิ่งที่ Finn ต้องทำพิเศษ เช่น "drop col X เพราะ leak" / None]
+```
+
+**กฎ Eddie:** ถ้าขาด PIPELINE_SPEC → Anna จะ dispatch Finn/Mo ผิด → ต้องรัน CRISP-DM cycle ใหม่ทั้งหมด
+
+---
+
 ## CRISP-DM Insight Quality Gate (สำคัญมาก)
 
 Eddie ต้องประเมินตัวเองว่าได้ insight ที่มีคุณค่าหรือยัง ทุกครั้งหลังวิเคราะห์เสร็จ
@@ -172,6 +198,22 @@ Verdict: [SUFFICIENT / INSUFFICIENT]
 Loop Back: [YES — ต้องวิเคราะห์เพิ่มด้วย angle ใหม่ / NO — insight ดีพอ]
 Next Angle: [ถ้า Loop Back YES: interaction / subgroup / time-based / final]
 
+PIPELINE_SPEC
+=============
+problem_type        : [classification / regression / clustering / time_series]
+target_column       : [ชื่อ column หรือ none]
+n_rows              : X
+n_features          : Y
+imbalance_ratio     : X.XX
+key_features        : [col1, col2, col3]
+recommended_model   : [XGBoost / LightGBM / RandomForest / Ridge / ARIMA / KMeans / etc.]
+preprocessing:
+  scaling           : [StandardScaler / MinMaxScaler / None]
+  encoding          : [One-Hot / LabelEncoder / None]
+  special           : [SMOTE / PCA / sliding_window / None]
+data_quality_issues : [อธิบาย / None]
+finn_instructions   : [สิ่งพิเศษที่ Finn ต้องทำ / None]
+
 Self-Improvement Report
 =======================
 วิธีที่ใช้ครั้งนี้: [ชื่อวิธี]
@@ -180,23 +222,3 @@ Self-Improvement Report
 จะนำไปใช้ครั้งหน้า: [ใช่/ไม่ใช่ เพราะอะไร]
 Knowledge Base: [อัพเดต/ไม่มีการเปลี่ยนแปลง]
 ```
-
-
----
-
-## กฎการเขียน Report (ทำทุกครั้งหลังทำงานเสร็จ)
-
-เมื่อทำงานเสร็จ ต้องเขียน Agent Report ก่อนส่งผลต่อเสมอ:
-
-```
-Agent Report — [ชื่อ Agent]
-============================
-รับจาก     : [agent ก่อนหน้า หรือ User]
-Input      : [อธิบายสั้นๆ ว่าได้รับอะไรมา เช่น dataset กี่ rows กี่ columns]
-ทำ         : [ทำอะไรบ้าง]
-พบ         : [สิ่งสำคัญที่พบ 2-3 ข้อ]
-เปลี่ยนแปลง: [data หรือ insight เปลี่ยนยังไง เช่น 1000 rows → 985 rows]
-ส่งต่อ     : [agent ถัดไป] — [ส่งอะไรไป]
-```
-
-> Report นี้ช่วยให้ผู้ใช้เห็นการเปลี่ยนแปลงของข้อมูลทุกขั้นตอน
