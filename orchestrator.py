@@ -540,6 +540,18 @@ def validate_agent_output(agent_name: str, output_path: str) -> tuple[bool, str]
     return True, p.name
 
 
+def check_pipeline_spec(output_dir: Path) -> bool:
+    """ตรวจว่า eddie_report.md มี PIPELINE_SPEC block ครบหรือไม่"""
+    if not output_dir or not output_dir.exists():
+        return False
+    reports = sorted(output_dir.glob("*.md"), key=lambda x: x.stat().st_mtime, reverse=True)
+    if not reports:
+        return False
+    text = reports[0].read_text(encoding="utf-8", errors="ignore")
+    required = ["PIPELINE_SPEC", "problem_type", "recommended_model", "target_column"]
+    return all(k.lower() in text.lower() for k in required)
+
+
 def resolve_input_path(prev_agent: str, raw_path: str, project_dir: Path | None) -> str:
     """If Scout's pipeline points to a .md report, find actual CSV in project input/ instead."""
     if prev_agent != "scout" or not raw_path or not project_dir:
@@ -1317,6 +1329,26 @@ def run_pipeline(user_input: str):
             ok, msg = validate_agent_output(agent, out)
             if not ok:
                 print(f"{YL}  ⚠ {BLD}{agent.upper()}{RST}{YL} output warning: {msg}{RST}")
+
+            # ── PIPELINE_SPEC guard: Eddie ต้องเขียน PIPELINE_SPEC ครบ ──────
+            if agent == "eddie" and active_project:
+                eddie_out_dir = active_project / "output" / "eddie"
+                for _retry in range(2):
+                    if check_pipeline_spec(eddie_out_dir):
+                        break
+                    print(f"\n{YL}  ⚠ Eddie report ขาด PIPELINE_SPEC — retry {_retry+1}/2{RST}")
+                    log_raw("system", f"PIPELINE_SPEC missing — Eddie retry {_retry+1}", task="pipeline-guard")
+                    out = run_agent(
+                        "eddie",
+                        task + " — บังคับเขียน PIPELINE_SPEC block ให้ครบ: problem_type, target_column, recommended_model, preprocessing, key_features",
+                        prev_agent=prev_agent,
+                        project_dir=active_project,
+                    )
+                else:
+                    if not check_pipeline_spec(eddie_out_dir):
+                        print(f"{RD}  ✗ Eddie ไม่เขียน PIPELINE_SPEC หลัง 2 retry — Anna จะต้องเดาค่าเอง{RST}")
+                        log_raw("system", "PIPELINE_SPEC missing after 2 retries", task="pipeline-guard")
+
             completed.append(agent)
             prev_agent = agent
 
