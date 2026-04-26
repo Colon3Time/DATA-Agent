@@ -102,3 +102,108 @@ Next Angle: [ถ้า INSUFFICIENT — ระบุ angle ถัดไปที
 ```
 
 > Anna อ่าน Verdict: ถ้า INSUFFICIENT → dispatch Eddie ซ้ำพร้อม Next Angle ที่ระบุ (max 5 รอบ)
+
+---
+
+## Statistical Testing — Feature Significance
+
+ใช้ก่อน feature selection เพื่อยืนยันว่า feature มีความสัมพันธ์กับ target จริง (ไม่ใช่แค่บังเอิญ)
+
+```python
+from scipy import stats
+import pandas as pd
+
+# t-test: เปรียบเทียบ mean ของ numerical feature ระหว่าง 2 กลุ่ม
+group0 = df[df["target"] == 0]["feature"]
+group1 = df[df["target"] == 1]["feature"]
+t_stat, p_value = stats.ttest_ind(group0, group1)
+print(f"t={t_stat:.3f}, p={p_value:.4f}")
+# p < 0.05 → แตกต่างกันอย่างมีนัยสำคัญ
+
+# ANOVA: เปรียบเทียบ mean ระหว่าง > 2 กลุ่ม (multi-class target)
+groups = [df[df["target"] == c]["feature"] for c in df["target"].unique()]
+f_stat, p_value = stats.f_oneway(*groups)
+
+# Chi-square: categorical feature vs categorical target
+from scipy.stats import chi2_contingency
+ct = pd.crosstab(df["cat_feature"], df["target"])
+chi2, p, dof, expected = chi2_contingency(ct)
+# p < 0.05 → มีความสัมพันธ์
+
+# Mann-Whitney U: ใช้แทน t-test เมื่อ data ไม่ normal
+u_stat, p_value = stats.mannwhitneyu(group0, group1, alternative="two-sided")
+```
+
+**เมื่อไหร่ใช้อะไร:**
+| Feature | Target | Test |
+|---------|--------|------|
+| Numerical | Binary | t-test (normal) / Mann-Whitney (non-normal) |
+| Numerical | Multi-class | ANOVA (normal) / Kruskal-Wallis (non-normal) |
+| Categorical | Categorical | Chi-square |
+| Numerical | Numerical | Pearson correlation / Spearman (non-linear) |
+
+**ตรวจ normality ก่อนเสมอ:**
+```python
+stat, p = stats.shapiro(feature_series)  # p > 0.05 → normal
+```
+
+---
+
+## Statistical Power Analysis — Sample Size
+
+ใช้เมื่อต้องการรู้ว่า dataset ใหญ่พอสำหรับ test ที่ต้องการหรือไม่
+
+```python
+from statsmodels.stats.power import TTestIndPower, FTestAnovaPower
+
+# t-test: หา sample size ที่ต้องการ
+analysis = TTestIndPower()
+n = analysis.solve_power(
+    effect_size=0.5,   # Cohen's d: 0.2=small, 0.5=medium, 0.8=large
+    alpha=0.05,        # significance level
+    power=0.80,        # 1 - beta (80% chance to detect real effect)
+    ratio=1.0          # n_group2 / n_group1
+)
+print(f"Sample size per group needed: {n:.0f}")
+
+# ตรวจสอบย้อนกลับ: dataset ที่มีอยู่มี power เท่าไหร่?
+power = analysis.solve_power(effect_size=0.5, alpha=0.05, nobs1=len(group0))
+print(f"Current power: {power:.2f}")  # ควร >= 0.80
+```
+
+**กฎ:** ถ้า power < 0.80 → ผล test อาจไม่น่าเชื่อถือ ควรระบุไว้ใน report
+
+---
+
+## Causal Inference — ความสัมพันธ์ vs เหตุ-ผล
+
+**หลักการ:** Correlation ≠ Causation — ใช้ concept นี้วิเคราะห์ว่า feature ไหน "ทำให้เกิด" outcome จริง
+
+```python
+# ตรวจ confounding variable
+# ถ้า feature A สัมพันธ์กับ target Y อาจเพราะ C → A และ C → Y
+# วิธีแก้: control for C ใน model หรือ stratified analysis
+
+# Partial correlation — ควบคุม confounders
+import pingouin as pg
+result = pg.partial_corr(data=df, x="feature_A", y="target", covar=["confound_C"])
+print(result[["r", "p-val"]])
+
+# DoWhy (causal ML library)
+# ใช้เมื่อต้องการ estimate causal effect อย่างเป็นทางการ
+import dowhy
+model = dowhy.CausalModel(
+    data=df,
+    treatment="feature_A",
+    outcome="target",
+    common_causes=["confound_C"]
+)
+identified = model.identify_effect()
+estimate = model.estimate_effect(identified, method_name="backdoor.linear_regression")
+print(f"Causal effect: {estimate.value:.4f}")
+```
+
+**กฎสำคัญ:**
+- ML model บอกได้ว่า feature ไหน "predict" — ไม่ได้บอกว่า "cause"
+- ถ้า business ต้องการ intervention (เปลี่ยน A แล้วจะเกิดอะไร) → ต้องใช้ causal inference
+- ถ้าแค่ predict → correlation เพียงพอ
