@@ -1,0 +1,6 @@
+check,passed,details
+Model_Performance,"{'test_f1': 0.8621, 'test_auc': 0.9485, 'test_acc': 0.83}",
+No_Data_Leakage,True,
+No_Distribution_Drift,True,
+No_Overfitting,True,
+Feature_Importance_Sane,True,

@@ -1,0 +1,62 @@
+  Flow เมื่อ Anna dispatch agent เช่น Dana
+
+  Anna response มี <DISPATCH>{"agent":"dana","task":"clean data"}
+         ↓
+  orchestrator.py → run_agent("dana", task)
+         ↓
+  get_system_prompt("dana")
+    = agents/dana.md                    ← บทบาท Dana
+    + Pre-Work Protocol (hardcoded)     ← กฎ: อ่าน KB, อย่า hardcode path
+    + load_relevant_kb("dana", task)    ← RAG: TF-IDF ดึง KB sections ที่ตรง task
+         ↓
+  ส่งไปให้ DeepSeek
+         ↓
+  DeepSeek ตอบกลับ (text + ```python code```)
+         ↓
+  orchestrator สกัด ```python``` บันทึกเป็น dana_script.py
+         ↓
+  subprocess.Popen() รัน dana_script.py จริง
+    --input <path> --output-dir <path>
+         ↓
+  ถ้า error → DeepSeek แก้ script ซ้ำสูงสุด 15 รอบ
+  ถ้า fail ครบ 15 รอบ → Claude (anna_autofix_script) วิเคราะห์แก้
+  ถ้า fail ทั้งหมด → ถาม user: skip หรือ stop?
+         ↓
+  pipeline_write("dana", output_path)  ← บันทึก path ไว้ให้ agent ถัดไปอ่าน
+         ↓
+  read_report_summary() — อ่าน header 1200 chars + KEY BLOCKS
+    (PREPROCESSING_REQUIREMENT, INSIGHT_QUALITY, etc.)
+         ↓
+  ส่งสรุปกลับให้ Anna → Anna ตัดสินใจ dispatch ต่อหรือ loop
+
+KB อ่านตอนไหน — และ RAG ทำงานอย่างไร
+
+  # orchestrator.py บรรทัด 218-237
+  def load_relevant_kb(agent_name, task, top_n=6):   # ← อัปเกรด 2026-04-27: 4→6
+      kb = load_kb(agent_name)       # อ่าน {agent}_methods.md + {agent}_decision_tree.md
+      sections = re.split(r'\n(?=##)', kb)  # แบ่งตาม heading ##
+
+      # TF-IDF cosine similarity
+      docs = [task] + sections
+      mat = TfidfVectorizer().fit_transform(docs)
+      scores = cosine_similarity(mat[0:1], mat[1:])[0]
+      top_idx = scores.argsort()[::-1][:top_n]  # เอา 6 sections ที่ตรงที่สุด
+      return sections[top_idx]
+
+ความหมาย: KB ไม่ถูกอ่านทั้งไฟล์ — ถูกอ่านเฉพาะ 6 sections ที่ตรงกับ task ที่สุด ผ่าน TF-IDF
+
+  ดังนั้น heading ## ของแต่ละ section ใน KB มีผลต่อว่า section นั้นจะถูกดึงมาหรือเปล่า
+
+  ---
+  จุดที่ KB Upgrade มีผลจริง
+
+  Task: "clean diabetes dataset, handle missing glucose values"
+         ↓
+  TF-IDF จับ keywords: diabetes, missing, glucose, values
+         ↓
+  ดึง sections ที่มี "MCAR/MAR/MNAR", "domain impossible zeros (Glucose=0)"
+         ↓ (ก่อน upgrade — sections เหล่านี้ไม่มี)
+  ดึงแค่ "Missing Values Method Selection" ทั่วไป
+
+  สรุป: KB upgrade จะมีผลก็ต่อเมื่อ task keywords ตรงกับ heading/content ของ section ใหม่ใน KB — ถ้า task ไม่มี
+  keyword ตรง TF-IDF ก็จะไม่ดึง section นั้นมาให้ agent

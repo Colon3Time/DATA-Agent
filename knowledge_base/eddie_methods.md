@@ -1,9 +1,51 @@
 # Eddie Knowledge Base: Senior Data Scientist Framework
 
 ## 🧠 Core Intelligence & Context
-- **Business Identity**: ผู้เชี่ยวชาญด้านการวิเคราะห์ข้อมูล E-commerce (Olist Project)
-- **Key Insight**: ลูกค้า 97.1% เป็นแบบ Single Purchase ดังนั้นหัวใจคือการวิเคราะห์เพื่อหาทางเพิ่ม Customer Retention
 - **Quality Standard**: ทุกรายงานต้องอยู่ในระดับ Grade A (90/100) โดยเน้นความลึกของ Insight มากกว่าการพรรณนาตัวเลข
+
+## Data Types — เลือก Statistics และ Chart ให้ถูกต้อง
+
+| ประเภท | Scale | ตัวอย่าง | Statistics ที่ใช้ได้ | Chart |
+|--------|-------|---------|---------------------|-------|
+| Categorical | Nominal | เพศ, จังหวัด | Mode, Count, % | Bar, Pie |
+| Categorical | Ordinal | ระดับความพอใจ, ระดับการศึกษา | Median, Mode | Bar (ordered) |
+| Numerical | Interval | อุณหภูมิ, คะแนน | Mean, SD, Correlation | Histogram, Box |
+| Numerical | Ratio | รายได้, น้ำหนัก, ยอดขาย | Mean, Median, SD, Ratio | Histogram, Box, Scatter |
+
+> กฎ: ห้าม Mean กับ Ordinal — ใช้ Median แทน เสมอ
+
+---
+
+## Data Exploration Cycle (5 ขั้นตอน — วนซ้ำได้)
+
+1. **Understanding** — รู้จัก schema, ประเภทข้อมูล, ความหมายของแต่ละ column
+2. **Preparing** — จัดการ missing, outlier, แปลงรูปแบบ (ส่งต่อให้ Dana)
+3. **Analyzing** — Descriptive Statistics, Feature Selection เบื้องต้น, correlation
+4. **Visualizing** — เลือก chart ให้ตรงกับ data type และวัตถุประสงค์
+5. **Interpreting** — ตอบคำถาม, ตั้งคำถามใหม่, **วนกลับขั้น 1 หรือ 3** ถ้าพบประเด็นใหม่
+
+---
+
+## Univariate Analysis — เลือก chart ตาม data type
+
+| Data Type | Chart ที่ถูกต้อง | ดูอะไร |
+|-----------|----------------|-------|
+| Numerical | Histogram + KDE | Distribution shape, Skewness |
+| Numerical | Box Plot | Median, IQR, Outliers |
+| Categorical | Bar Chart (sorted) | Frequency, Top categories |
+
+---
+
+## Bivariate Analysis — เลือก chart ตามคู่ตัวแปร
+
+| คู่ตัวแปร | Chart ที่ถูกต้อง |
+|-----------|----------------|
+| Numerical × Numerical | Scatter Plot + Correlation |
+| Categorical × Numerical | Box Plot per group / Bar (mean/median) |
+| Categorical × Categorical | Stacked Bar / Heatmap (contingency) |
+| Multiple Numerical | Correlation Heatmap |
+
+---
 
 ## 🛠️ Technical Stack & Environment
 - **Required Packages**: `pandas`, `numpy`, `matplotlib`, `seaborn`, `scipy`, `statsmodels`, `scikit-learn`
@@ -37,9 +79,26 @@
 test3: EDA succeeded on retail data - must check actual column names from dana_output.csv, not hardcode. Include sales trend, top products, regional performance.
 
 
-## [2026-04-26 10:45] [DISCOVERY]
-[Notebook ที่มีการวิเคราะห์ interaction 3 มิติ (Pclass x Sex x AgeGroup) โดยใช้ MultiIndex]
+## เทคนิคขั้นสูง
 
+- **Multi-dimensional interaction analysis**: ใช้ MultiIndex + groupby วิเคราะห์ interaction 3 มิติ (เช่น Category × Segment × Region) พบ patterns ที่ univariate ไม่เห็น
+- **Youden Index**: `J = Sensitivity + Specificity - 1` — ใช้หา optimal classification threshold สำหรับ medical / risk screening (แทน default 0.5)
 
-## [2026-04-26 11:02] [DISCOVERY]
-Youden Index สำหรับหา optimal threshold เป็นเทคนิคที่มีประโยชน์มากสำหรับ medical screening
+---
+
+## INSIGHT_QUALITY Block (บังคับใส่ในทุก report — Anna อ่านเพื่อตัดสินใจ loop หรือส่งต่อ)
+
+```
+INSIGHT_QUALITY
+===============
+Criteria Met: X/4
+- [ ] มีตัวเลขหรือสถิติรองรับทุก insight
+- [ ] ตอบ "So what?" ได้ — insight นำไปสู่การตัดสินใจได้
+- [ ] ระบุ business impact ได้ (revenue / cost / risk / growth)
+- [ ] มี action ที่ทำได้จริงในเวลาสมเหตุสมผล
+
+Verdict: SUFFICIENT (≥ 2/4) / INSUFFICIENT (< 2/4)
+Next Angle: [ถ้า INSUFFICIENT — ระบุ angle ถัดไปที่จะวิเคราะห์: interaction / subgroup / time-based / geographic]
+```
+
+> Anna อ่าน Verdict: ถ้า INSUFFICIENT → dispatch Eddie ซ้ำพร้อม Next Angle ที่ระบุ (max 5 รอบ)

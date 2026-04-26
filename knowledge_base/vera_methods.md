@@ -10,6 +10,38 @@
 
 ---
 
+## วัตถุประสงค์ของ Visualization (เลือกก่อนสร้าง chart)
+
+| วัตถุประสงค์ | คำถาม | Chart ที่เหมาะ |
+|-------------|-------|--------------|
+| **Discovery** — ค้นหา pattern ที่ซ่อนอยู่ | มีอะไรผิดปกติ? มี trend ไหม? | Scatter, Heatmap, Box Plot |
+| **Communication** — สื่อสารกับ stakeholder | จะแสดงให้เห็นชัดที่สุดอย่างไร? | Bar, Line, Pie (≤5 slices) |
+| **Verification** — ยืนยันสมมติฐาน | สมมติฐานที่ตั้งไว้ถูกไหม? | Scatter + trendline, Before/After |
+
+---
+
+## Grammar of Graphics — หลักการสร้าง Chart ที่ถูกต้อง
+
+Chart ที่ดีต้องประกอบด้วย 6 ส่วน:
+1. **Data** — DataFrame ที่ใช้
+2. **Aesthetics (aes)** — map ตัวแปรกับ x, y, color, size, shape
+3. **Geometry (geom)** — ประเภท chart (bar, line, scatter, box)
+4. **Statistics** — transformation ก่อนแสดง (count, mean, bin)
+5. **Coordinates** — ระบบแกน (linear, log, polar)
+6. **Facets** — แบ่งกลุ่มแสดงหลาย subplot
+
+```python
+# ตัวอย่าง Grammar of Graphics ใน Python (matplotlib)
+fig, ax = plt.subplots(figsize=(10, 6))          # 1. Data
+ax.scatter(df['x'], df['y'],                      # 2. Aesthetics + 3. Geometry
+           c=df['group'], cmap='tab10', s=50)    # color, size
+ax.set_xlabel('X Variable')                       # Labels
+ax.set_ylabel('Y Variable')
+ax.set_title('Title')
+```
+
+---
+
 ## Chart Selection Guide
 
 | ต้องการสื่ออะไร | Chart ที่เลือก | ห้ามใช้ |

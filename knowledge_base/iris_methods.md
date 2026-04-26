@@ -28,7 +28,7 @@
 | วางกลยุทธ์ระยะสั้น | OKR + KPI Design |
 | ขยายธุรกิจ | TAM/SAM/SOM |
 
-## E-commerce Insight Patterns (จาก Olist Project)
+## E-commerce Insight Patterns (Reference)
 
 - **Customer Retention ตํ่า**: ถ้า single-purchase > 90% → focus on post-purchase experience
 - **Geographic concentration**: ถ้า top 3 รัฐ > 60% → expansion opportunity ในรัฐรอง

@@ -1,0 +1,11 @@
+Agent Report — Quinn
+============================
+รับจาก     : Mo
+Input      : Mo output CSV (Random Forest model, F1=0.8621, AUC=0.9485)
+ทำ         : Quality Check — data leakage, drift, overfitting, feature importance
+พบ         : 
+  - Model performance adequate (F1=0.8621 > 0.8)
+  - No data leakage
+  - No overfitting
+เปลี่ยนแปลง: QC validation completed with 4/4 technical checks passed
+ส่งต่อ     : Iris+Vera+Rex — QC Report

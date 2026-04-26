@@ -11,6 +11,47 @@
 
 ---
 
+## Feature Selection — ทำก่อน Feature Engineering เสมอ
+
+Feature Selection คือการเลือกเฉพาะ features ที่มีประโยชน์จริง ก่อนสร้าง features ใหม่
+
+### 3 วิธีหลัก
+
+| วิธี | แนวคิด | ตัวอย่าง | เหมาะกับ |
+|------|--------|---------|---------|
+| **Filter Methods** | คัดกรองด้วยสถิติก่อนสร้างโมเดล | Correlation, Chi-Square, Mutual Info | Dataset ใหญ่, เร็ว |
+| **Wrapper Methods** | ทดลองสร้างโมเดลซ้ำๆ กับ subset ต่างๆ | RFE (Recursive Feature Elimination) | Dataset กลาง, แม่น |
+| **Embedded Methods** | Feature selection รวมอยู่ใน training | Lasso (L1), Tree feature importance | ใช้ร่วมกับ model |
+
+```python
+# Filter: Correlation
+corr = df.corr()['target'].abs().sort_values(ascending=False)
+selected_features = corr[corr > 0.1].index.tolist()
+
+# Embedded: Tree feature importance
+from sklearn.ensemble import RandomForestClassifier
+rf = RandomForestClassifier(n_estimators=100, random_state=42)
+rf.fit(X_train, y_train)
+importances = pd.Series(rf.feature_importances_, index=X.columns).sort_values(ascending=False)
+selected_features = importances[importances > 0.01].index.tolist()
+```
+
+### ประโยชน์ของ Feature Selection
+- ลด Overfitting (ลบ noise features)
+- เพิ่ม accuracy (โมเดลโฟกัสที่สิ่งสำคัญ)
+- ลดเวลา training
+- Interpretability ดีขึ้น
+
+---
+
+## Tidy Data Principles (ก่อน Engineering)
+
+1. แต่ละ **variable** = 1 column
+2. แต่ละ **observation** = 1 row
+3. แต่ละ **value** = 1 cell (ห้ามรวมค่าหลายค่าในเซลล์เดียว)
+
+---
+
 ## Feature Engineering Principles
 
 | หลักการ | รายละเอียด |
@@ -50,13 +91,9 @@ from sklearn.feature_selection import SelectKBest, f_classif, mutual_info_classi
 ```
 
 
-## [2026-04-25 19:07] [DISCOVERY]
-Task: ใช้ eddie_output.csv หรือ max_output.csv (ถ้ามีแล้ว) เป็น input ทำ feature engineering: สร้าง featur
-Key finding: I'll start by checking the available input files in the projects/E-Commerce directory.
+## เทคนิคที่พิสูจน์แล้วว่าได้ผล
 
-
-## [2026-04-25 19:07] [DISCOVERY]
-Customer activity tiering based on order frequency is effective for segmentation
+- **Customer activity tiering**: แบ่ง customer tier ตาม order frequency → effective สำหรับ segmentation
 
 
 ## [2026-04-25 19:49] [FEEDBACK]
