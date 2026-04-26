@@ -1,0 +1,70 @@
+ ภาพรวมระบบ ณ วันนี้
+
+  ---
+  Engine (orchestrator.py) — 1,687 บรรทัด
+
+  User input
+    ↓
+  Anna (DeepSeek) — รับ CLAUDE.md + Anna KB + Session Memory + Agent Specs (RAG)
+    ↓ parse <DISPATCH> tags
+  run_agent() — load agents/X.md + KB RAG (top 6) + hardcoded rules
+    ↓
+  DeepSeek เขียน script → รัน subprocess → auto-fix 15 รอบ → Claude fix → ASK_USER
+    ↓
+  validate_agent_output() — warn ถ้า output ว่าง
+    ↓ pipeline_write() ส่ง path ต่อ
+  Anna summary → save_session_memory() → auto-continue loop (max 10)
+
+  Features ที่มีแล้ว:
+  - RAG KB retrieval (TF-IDF top 6)
+  - Agent specs RAG (เลือก 6 agents ที่ relevant)
+  - Auto-fix DeepSeek 15 รอบ + Claude fallback
+  - Step mode (ถามยืนยันก่อนรัน agent ถัดไป)
+  - ESC หยุด script กลางคัน
+  - Parallel execution (parallel_group)
+  - Session memory ข้าม session
+  - Output validation
+  - status / resume / kb / claude commands
+  - CRISP-DM loop guard (max 5 iterations/agent)
+  - KB auto-consolidation ทุก 10 projects
+
+  ---
+  Knowledge Base — 13 ไฟล์
+
+  Agent          Lines   สิ่งที่มีใน KB
+  ─────────────────────────────────────────────────────
+  anna           105     Loop-Back Trigger Conditions
+  dana           157     MCAR/MAR/MNAR + Outlier (Likely Error/Real/Uncertain)
+  eddie          104     Data Types + Exploration Cycle + INSIGHT_QUALITY block
+  finn           100     Feature Selection (Filter/Wrapper/Embedded) + Tidy Data
+  max            215     K-Means + DBSCAN + Agglomerative + GMM + FP-Growth + LOF + t-SNE
+  mo             150     PREPROCESSING_REQUIREMENT block + DL (MLP/LSTM/TabNet/FT-Transformer)
+  mo_decision    80      Algorithm Decision Tree (problem type → algorithm → size)
+  scout          155     DATASET_PROFILE format
+  quinn          90      QC checklist (Data Integrity + Model Quality + Business Readiness)
+  vera           107     Grammar of Graphics + Visualization Objectives
+  iris           62      Business Framework Selection + E-commerce patterns
+  rex            62      Storytelling SCQA + Report structure by audience
+  shared         71      Universal ML rules + Windows encoding
+
+  ---
+  Projects — 11 โปรเจค
+
+  สถานะ         Project
+  ──────────────────────────────────────────────────
+  Complete (10)  2026-04-26_titanic, 2026-04-25_test3, Olist, ...
+  Incomplete     2026-04-26_diabetes_risk (Dana output หาย)
+  Legacy         Iris, test1, test2 (pipeline ไม่ครบ)
+
+  ---
+  จุดแข็งของระบบตอนนี้
+
+  ดีมาก:
+  - Auto-fix loop ทำให้ระบบ stable — script fail แล้วแก้เองได้
+  - CRISP-DM loop logic ครบ (Eddie → Dana → Finn ⟷ Mo)
+  - KB ครอบคลุม domain knowledge จาก academic + production
+
+  ยังขาด / ปรับปรุงได้:
+  - diabetes_risk Dana output หาย — ถ้าจะใช้ project นี้ต้อง re-run Dana
+  - Projects เก่า (test1/test2/Iris) ไม่มีโครงสร้างมาตรฐาน — อาจสร้าง confusion ถ้า Anna detect project ผิด
+  - Session memory (anna_session_memory.md) เพิ่งสร้าง — จะมีประโยชน์มากขึ้นเมื่อใช้งานสะสม

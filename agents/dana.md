@@ -108,6 +108,34 @@ from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
 ```
 
+### การจำแนก Outlier (บังคับทุก outlier ที่พบ)
+
+หลังตรวจพบ outlier ต้องตัดสินใจแยก 2 ประเภทพร้อมเหตุผล:
+
+| ประเภท | เกณฑ์ตัดสิน | การจัดการ |
+|--------|-------------|-----------|
+| **Likely Error** | ค่าเป็น 0 ที่ไม่ควรเป็น 0 (Glucose=0, BMI=0, BloodPressure=0), ค่าเกิน domain จริง, น่าจะเป็น typo/sensor fail | Impute / Cap / Remove |
+| **Likely Real (Extreme)** | ค่าสูง/ต่ำแต่เป็นไปได้จริงทางวิทยาศาสตร์/ธุรกิจ (Insulin สูงมากในผู้ป่วยเบาหวาน, ราคาสินค้าสูงมากแต่มีอยู่จริง) | เก็บไว้ + เพิ่ม `is_outlier=1` + บันทึก index |
+
+**Medical domain bounds (ใช้เป็น Likely Error threshold):**
+| Column | Min | Max | หมายเหตุ |
+|--------|-----|-----|---------|
+| Glucose | 0 | 300 | > 300 = sensor error |
+| BloodPressure | 20 | 200 | < 20 หรือ > 200 = impossible |
+| SkinThickness | 0 | 80 | > 80 mm = impossible |
+| Insulin | 0 | 500 | > 500 μU/mL = Likely Error (ปกติผู้ป่วยเบาหวานอยู่ที่ 100-300) |
+| BMI | 10 | 70 | > 70 = extremely rare, likely error |
+| DiabetesPedigreeFunction | 0 | 2.5 | > 2.5 = likely calculation error |
+
+**กฎการตัดสินใจ:**
+```
+ถ้า ค่าเป็น 0 และ domain บอกว่าเป็น 0 ไม่ได้ → Likely Error → impute
+ถ้า ค่าเกิน 3 SD แต่ยังอยู่ใน range ที่เป็นไปได้จริง → Likely Real → flag
+ถ้า ไม่แน่ใจ → default: เก็บไว้ + flag + ระบุในรายงานว่า "uncertain"
+```
+
+**output เพิ่มเติม:** บันทึก row indices ของ Likely Real ใน `outlier_flags.csv` เพื่อให้ agent อื่น (Eddie, Finn, Mo) ใช้ต่อได้
+
 ---
 
 ## การจัดการ Data Types
@@ -162,17 +190,101 @@ Dana สามารถ loop กลับขอข้อมูลเพิ่ม
 
 ---
 
-## ขั้นตอนการทำงาน
+## Mandatory Code Template (คัดลอกและใส่ใน script เสมอ — ห้ามเขียนใหม่เอง)
 
+```python
+# ── STEP 1: Load data (ใช้ --input argument เสมอ ห้าม hardcode path) ──
+import argparse, os, pandas as pd, numpy as np
+from sklearn.impute import KNNImputer
+from sklearn.experimental import enable_iterative_imputer
+from sklearn.impute import IterativeImputer
+from sklearn.ensemble import IsolationForest
+import warnings; warnings.filterwarnings('ignore')
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--input', default='')
+parser.add_argument('--output-dir', default='')
+args, _ = parser.parse_known_args()
+INPUT_PATH = args.input
+OUTPUT_DIR = args.output_dir
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+# ห้ามมี glob หรือ fallback เพื่อหา CSV อื่น — ถ้าไม่มี --input ให้ sys.exit(1)
+if not INPUT_PATH or not os.path.exists(INPUT_PATH):
+    print(f'[ERROR] --input required and must exist: {INPUT_PATH}')
+    import sys; sys.exit(1)
+
+df = pd.read_csv(INPUT_PATH)
+print(f'[STATUS] Loaded: {df.shape} from {INPUT_PATH}')
+df_original = df.copy()
+
+# ── STEP 2: Zero-as-missing (copy code นี้ตรงๆ) ──
+ZERO_INVALID_COLS = [c for c in ['Glucose','BloodPressure','SkinThickness','Insulin','BMI'] if c in df.columns]
+for col in ZERO_INVALID_COLS:
+    n = (df[col] == 0).sum()
+    if n > 0:
+        df[col] = df[col].replace(0, np.nan)
+        print(f'[STATUS] {col}: {n} zeros → NaN')
+
+# ── STEP 3: KNN Imputation ──
+num_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+if df[num_cols].isnull().sum().sum() > 0:
+    imputer = KNNImputer(n_neighbors=5)
+    df[num_cols] = pd.DataFrame(imputer.fit_transform(df[num_cols]), columns=num_cols, index=df.index)
+    print(f'[STATUS] KNN Imputation complete')
+
+# ── STEP 3b: Post-imputation clip (บังคับ — ป้องกัน KNN ให้ค่าติดลบ) ──
+DOMAIN_MIN = {'Glucose':0,'BloodPressure':0,'SkinThickness':0,'Insulin':0,'BMI':0,'Pregnancies':0,'Age':0}
+DOMAIN_MAX = {'Glucose':300,'BloodPressure':200,'SkinThickness':80,'Insulin':500,'BMI':70,'DiabetesPedigreeFunction':2.5}
+for col, lo in DOMAIN_MIN.items():
+    if col in df.columns: df[col] = df[col].clip(lower=lo)
+for col, hi in DOMAIN_MAX.items():
+    if col in df.columns: df[col] = df[col].clip(upper=hi)
+print('[STATUS] Post-imputation domain clip complete')
+
+# ── STEP 4: Outlier Detection (IQR + Isolation Forest) ──
+feat_cols = [c for c in num_cols if c != 'Outcome']
+outlier_records = []
+
+for col in feat_cols:
+    q1, q3 = df[col].quantile(0.25), df[col].quantile(0.75)
+    iqr = q3 - q1
+    lo_b, hi_b = q1 - 1.5*iqr, q3 + 1.5*iqr
+    domain_lo = DOMAIN_MIN.get(col, -np.inf)
+    domain_hi = DOMAIN_MAX.get(col, np.inf)
+    for idx in df[(df[col] < lo_b) | (df[col] > hi_b)].index:
+        val = df.loc[idx, col]
+        if val < domain_lo or val > domain_hi:
+            verdict, action = 'Likely Error', 'capped'
+            df.loc[idx, col] = df[col].median()
+        else:
+            verdict, action = 'Likely Real', 'flagged'
+        outlier_records.append({'row_index':idx,'column_name':col,'value':val,'verdict':verdict,'reason':f'{col}={val:.2f} IQR outlier','action':action})
+
+iso = IsolationForest(contamination=0.05, random_state=42)
+iso_mask = iso.fit_predict(df[feat_cols]) == -1
+for idx in df.index[iso_mask]:
+    if not any(r['row_index']==idx for r in outlier_records):
+        outlier_records.append({'row_index':idx,'column_name':'multivariate','value':None,'verdict':'Uncertain','reason':'Isolation Forest anomaly','action':'flagged'})
+
+df['is_outlier'] = 0
+for r in outlier_records:
+    if r['verdict'] != 'Likely Error': df.loc[r['row_index'], 'is_outlier'] = 1
+
+# ── STEP 5: Data Quality Score ──
+n = len(df)
+missing_after = df.drop(columns=['is_outlier']).isnull().sum().sum()
+likely_error_count = sum(1 for r in outlier_records if r['verdict']=='Likely Error')
+completeness_before = (1 - df_original.isnull().sum().sum() / (len(df_original)*len(df_original.columns))) * 100
+completeness_after  = (1 - missing_after / (n * (len(df.columns)-1))) * 100
+validity_before = (1 - sum(1 for c in DOMAIN_MAX for i in df_original.index if c in df_original.columns and df_original.loc[i,c] > DOMAIN_MAX[c]) / max(n,1)) * 100
+validity_after  = (1 - likely_error_count / max(n,1)) * 100
+overall_before  = 0.5*completeness_before + 0.5*validity_before
+overall_after   = 0.5*completeness_after  + 0.5*validity_after
+print(f'[STATUS] Quality: {overall_before:.1f}% → {overall_after:.1f}%')
 ```
-1. ตรวจสอบ knowledge_base/dana_methods.md — มีอะไรอัพเดตไหม
-2. วิเคราะห์ข้อมูลเบื้องต้น (shape, dtypes, missing %)
-3. รายงานปัญหาที่พบทั้งหมด
-4. เลือกวิธีที่เหมาะสมที่สุดพร้อมอธิบายเหตุผล
-5. ทำความสะอาด
-6. เปรียบเทียบก่อน/หลัง
-7. บันทึก output + lesson learned
-```
+
+> **กฎเหล็ก: คัดลอก code template นี้เป็น skeleton ของ script เสมอ — ห้ามเขียน fallback ที่ glob หา CSV เองหรือเปลี่ยน input path**
 
 ---
 
@@ -182,11 +294,12 @@ Dana สามารถ loop กลับขอข้อมูลเพิ่ม
 > ถ้า task ระบุ `Input file path` ให้โหลดจากที่นั้นทันที ห้ามสมมติ path เอง
 
 **Output**
-- ไฟล์ข้อมูลที่สะอาด → `output/dana/dana_output.csv`
+- ไฟล์ข้อมูลที่สะอาด → `output/dana/dana_output.csv` (มี column `is_outlier` ถ้าพบ Likely Real outliers)
 - รายงานสรุป → `output/dana/dana_report.md`
+- Outlier detail (ถ้าพบ) → `output/dana/outlier_flags.csv` (columns: row_index, column_name, value, verdict, reason)
 - ความรู้ใหม่ (ถ้ามี) → `knowledge_base/dana_methods.md`
 
-## รูปแบบ Report
+## รูปแบบ Report (บังคับทุก section — ถ้าไม่พบให้เขียน "None detected")
 ```
 Dana Cleaning Report
 ====================
@@ -194,12 +307,28 @@ Before: X rows, Y columns
 After:  X rows, Y columns
 
 Missing Values:
-- column_A: ใช้ KNN Imputation (เพราะสัมพันธ์กับ B, C)
-- column_B: ใช้ Median (missing < 5%, random)
+- column_A: X% missing → ใช้ KNN Imputation (เพราะสัมพันธ์กับ B, C)
+- column_B: 0% missing → ไม่ต้องจัดการ
+- (ถ้าไม่มี missing ทั้งหมด): "No missing values detected"
 
-Outliers:
-- column_C: ใช้ Isolation Forest พบ N จุด → handled
+Outlier Detection: [บังคับ — ห้ามข้าม]
+- Method: Isolation Forest (contamination=0.05) + IQR (1.5x)
+- Likely Error (แก้ไขแล้ว):
+  - column_A: N rows → [imputed / capped] เพราะ [ค่าเป็น 0 / เกิน domain จริง — ระบุเหตุผล]
+  - (ถ้าไม่มี): "None"
+- Likely Real / Uncertain (เก็บไว้ + flagged):
+  - column_B: N rows → is_outlier=1 เพราะ [ค่าสูงแต่เป็นไปได้จริง — ระบุเหตุผล]
+  - (ถ้าไม่มี): "None"
+- outlier_flags.csv: N rows รวม (บันทึก row_index, column, value, verdict, reason)
+- (ถ้าไม่มีเลย): "Outliers: 0 rows across all columns — data is clean"
 
-New Method Found: [ถ้ามี]
-Data Quality Score: Before X% → After Y%
+Data Quality Score: [บังคับ — ห้ามข้าม]
+- Completeness: Before X% → After Y%  (missing rows / total)
+- Validity: Before X% → After Y%  (Likely Error count / total — ไม่นับ Likely Real หรือ Uncertain)
+- Overall: Before X% → After Y%  (After ต้องสูงกว่า Before เสมอ ถ้าต่ำกว่าแสดงว่า formula ผิด)
+
+Column Stats (Before → After):
+- column_A: mean X→Y, std X→Y
+
+New Method Found: [ถ้ามี / None]
 ```

@@ -1,85 +1,3 @@
-## Algorithm Decision Tree
-
-### Step 1: Problem Type
-- มี target column ที่ชัดเจน + discrete values → Classification
-- มี target column ที่ชัดเจน + continuous values → Regression
-- ไม่มี target → Unsupervised (clustering / anomaly detection)
-- target คือ sequence เรียงตาม timestamp → Time Series
-
----
-
-## Classification
-
-### rows < 1,000
-- Logistic Regression (interpretable, fast)
-- SVM with RBF kernel (ถ้า non-linear)
-- ห้ามใช้ XGBoost/LightGBM (overfit ง่าย)
-
-### rows 1,000–50,000
-- class imbalance > 20% → XGBoost + class_weight='balanced' หรือ SMOTE
-- ต้องการ interpretability → Random Forest + feature importance
-- default (ไม่มีเงื่อนไขพิเศษ) → LightGBM (เร็ว, แม่น)
-- high cardinality categorical → LightGBM (จัดการได้ดีกว่า)
-
-### rows > 50,000
-- LightGBM (เร็วที่สุด, memory ดี)
-- ถ้า GPU มี → XGBoost GPU mode
-- ถ้า best F1 < 0.85 หลัง tuning → escalate MLP / TabNet
-
-### F1 < 0.85 หลัง Classical ML → Deep Learning
-- Tabular ทั่วไป → MLP (keras/sklearn)
-- ต้องการ interpretability → TabNet
-- Sequential/temporal → LSTM หรือ 1D CNN
-
----
-
-## Regression
-
-- linear relationship (correlation > 0.7) → Ridge หรือ Lasso
-- non-linear, mixed features → XGBoost Regressor
-- time-based → ดู Time Series section
-- outliers มาก → Huber Regression หรือ XGBoost (robust กว่า linear)
-
----
-
-## Unsupervised
-
-### Clustering
-- รู้จำนวน cluster → KMeans + Silhouette validation
-- ไม่รู้จำนวน → DBSCAN (ทนต่อ noise ดี)
-- high-dimensional → PCA ก่อน แล้ว KMeans
-- soft assignment → Gaussian Mixture Model
-
-### Anomaly Detection
-- general purpose → Isolation Forest (contamination=0.05)
-- local density → Local Outlier Factor
-- time series anomaly → เปรียบเทียบกับ rolling mean ± 3σ
-
----
-
-## Time Series
-
-- short-term (< 1 week horizon) → ARIMA หรือ XGBoost + lag features
-- medium-term + seasonality → Prophet
-- long-term dependencies (sequence > 100 steps) → LSTM / GRU
-- multivariate time series → 1D CNN หรือ Transformer
-
----
-
-## Preprocessing ที่ต้องบอก Finn
-
-หลังเลือก algorithm แล้ว ต้องระบุ PREPROCESSING_REQUIREMENT เสมอ:
-
-| Algorithm | Scaling | Encoding |
-|-----------|---------|----------|
-| Logistic, SVM, KNN | StandardScaler (บังคับ) | One-Hot |
-| XGBoost, LightGBM, RF | ไม่จำเป็น | Label หรือ One-Hot |
-| MLP / Neural Net | StandardScaler (บังคับ) | One-Hot |
-| TabNet | StandardScaler | LabelEncoder (ห้าม One-Hot) |
-| LSTM / GRU | MinMaxScaler [0,1] | — |
-| KMeans, DBSCAN | StandardScaler (บังคับ) | One-Hot |
-
-
 # Mo Methods & Knowledge Base
 
 ## กฎสำคัญ — Mo ต้องผลิต Output File จริง
@@ -89,6 +7,36 @@
 2. `mo_script.py` — script train model ที่รันได้จริง
 
 ❌ **ถ้าไม่มี model comparison ถือว่างานยังไม่เสร็จ — ห้ามรายงาน model เดียวโดยไม่เปรียบเทียบ**
+
+---
+
+## PREPROCESSING_REQUIREMENT Block (บังคับใส่ท้าย Phase 1 report)
+
+Anna อ่าน block นี้เพื่อตัดสินใจ loop กลับ Finn หรือไม่
+
+```
+PREPROCESSING_REQUIREMENT
+=========================
+Best Algorithm: [ชื่อ algorithm ที่ชนะ Phase 1]
+Scaling Needed: [StandardScaler / MinMaxScaler / None]
+Encoding Needed: [One-Hot / Label / Target / None]
+Special Transform: [SMOTE / log1p / polynomial / None]
+Loop Back To Finn: [YES / NO]
+Reason: [อธิบายสั้นๆ ว่าทำไม]
+DL_ESCALATE: [YES / NO]
+DL_Reason: [ถ้า YES — ทำไมถึง escalate: best F1 < threshold, sequential data, etc.]
+```
+
+**กฎ Loop Back To Finn: YES เมื่อ:**
+- Algorithm ที่ชนะต้องการ Scaling แต่ current data ยังไม่ได้ scale
+- Algorithm ที่ชนะต้องการ Encoding แบบอื่น (เช่น จาก One-Hot เป็น Label)
+- ต้องการ SMOTE เพราะ imbalance > 3:1
+- มี log-transform หรือ feature ใหม่ที่ต้องสร้าง
+
+**กฎ DL_ESCALATE: YES เมื่อ:**
+- Best classical model F1 < 0.85 (classification)
+- Best classical model RMSE > business threshold (regression)
+- ข้อมูลเป็น sequential/temporal → LSTM/GRU ดีกว่า
 
 ---
 
@@ -149,10 +97,6 @@ feat_imp = pd.DataFrame({
 }).sort_values('importance', ascending=False)
 print(feat_imp.head(10).to_markdown())
 ```
-
-## [2026-04-25 19:09] [DISCOVERY]
-Task: ใช้ finn_output.csv เป็น input สร้าง model เปรียบเทียบหลาย algorithms เลือก best model บันทึก output
-Key finding: I'll create a comprehensive model comparison script for the E-Commerce dataset. Let me first check what data we're working with.
 
 ## [2026-04-25 19:49] [FEEDBACK]
 test3: Model built on finn_output.csv - compare multiple models. Use finn_output.csv directly via pipeline. Watch for missing target column if dataset has no label.

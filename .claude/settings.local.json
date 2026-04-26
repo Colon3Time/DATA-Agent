@@ -6,7 +6,18 @@
       "Bash(git push *)",
       "Bash(pip install *)",
       "Bash(python -c \"import orchestrator; print\\('OK'\\)\")",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(rm \"C:/Users/Amorntep/DATA-Agent/knowledge_base/ชื่อ_methods.md\")",
+      "Bash(sort -k5 -n)",
+      "Bash(dir projects\\\\2026-04-26_diabetes_risk\\\\output\\\\dana *)",
+      "Bash(C:/Users/Amorntep/DATA-Agent/.venv/Scripts/pip install *)",
+      "Bash(C:/Users/Amorntep/DATA-Agent/.venv/Scripts/python.exe -m pip install pymupdf)",
+      "Bash(C:/Users/Amorntep/DATA-Agent/.venv/Scripts/python.exe *)",
+      "Bash(where tesseract *)",
+      "Bash(echo \"\")",
+      "Bash(cat)",
+      "Bash(.venv/Scripts/python.exe -m py_compile orchestrator.py)",
+      "Bash(python -m py_compile \"C:/Users/Amorntep/DATA-Agent/orchestrator.py\")"
     ]
   }
 }

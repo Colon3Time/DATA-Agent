@@ -12,6 +12,7 @@ import subprocess
 import requests
 import sys
 import threading
+import concurrent.futures
 import time
 from pathlib import Path
 from datetime import datetime
@@ -215,7 +216,7 @@ def load_kb(agent_name: str) -> str:
             pass
     return "\n\n".join(parts)
 
-def load_relevant_kb(agent_name: str, task: str, top_n: int = 4) -> str:
+def load_relevant_kb(agent_name: str, task: str, top_n: int = 6) -> str:
     """RAG-style: ดึงเฉพาะ KB sections ที่ตรงกับ task (TF-IDF cosine similarity)"""
     kb = load_kb(agent_name)
     if not kb:
@@ -515,6 +516,30 @@ def auto_extract_kb_learning(agent_name: str, result: str):
     save_kb(agent_name, new_method[:400], entry_type="discovery")
 
 
+def validate_agent_output(agent_name: str, output_path: str) -> tuple[bool, str]:
+    """ตรวจสอบว่า output ของ agent มีอยู่จริงและไม่ว่าง — non-blocking, warn only"""
+    if not output_path:
+        return False, "ไม่มี output path"
+    p = Path(output_path)
+    if not p.exists():
+        return False, f"ไฟล์ไม่มีอยู่: {p.name}"
+    if p.suffix == ".csv":
+        try:
+            import pandas as _pd
+            df = _pd.read_csv(str(p), nrows=2)
+            if df.shape[1] == 0:
+                return False, "CSV ว่าง (0 columns)"
+            return True, f"{p.name} ({df.shape[1]} cols)"
+        except Exception as e:
+            return False, f"อ่าน CSV ไม่ได้: {e}"
+    if p.suffix == ".md":
+        size = p.stat().st_size
+        if size < 50:
+            return False, f"report เล็กเกินไป ({size} bytes)"
+        return True, f"{p.name} ({size:,} bytes)"
+    return True, p.name
+
+
 def resolve_input_path(prev_agent: str, raw_path: str, project_dir: Path | None) -> str:
     """If Scout's pipeline points to a .md report, find actual CSV in project input/ instead."""
     if prev_agent != "scout" or not raw_path or not project_dir:
@@ -620,6 +645,11 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
             log_raw("system", f"input .md fallback: {old_input} → {input_path}", task=agent_name)
 
     output_dir = (project_dir / "output" / agent_name) if project_dir else None
+
+    # ── ลบ script เก่าออกก่อนทุกครั้ง — บังคับให้ LLM สร้างใหม่เสมอ ──────────
+    if output_dir and output_dir.exists():
+        for old_py in output_dir.glob("*.py"):
+            old_py.unlink()
 
     # ── Priority 1: script จริง (+ auto-fix via DeepSeek ถ้า error) ──────────
     script = find_agent_script(agent_name, project_dir)
@@ -1018,6 +1048,26 @@ def execute_anna_actions(response: str) -> str:
         save_kb("anna", f"Research: {topic[:100]}\nKey finding: {first_finding}", entry_type="discovery")
         parts.append(f'[RESEARCH: {topic[:60]}]\n{ans[:1000]}')
 
+    # RUN_PYTHON — รัน Python inline ผ่าน subprocess (ปลอดภัยกว่า exec)
+    for m in re.finditer(r'<RUN_PYTHON>(.*?)</RUN_PYTHON>', response, re.DOTALL):
+        code = m.group(1).strip()
+        preview = code[:60].replace("\n", " ")
+        print(f"\n{CY}  ▶ RUN_PYTHON{RST}  {DIM}{preview}{RST}")
+        log_raw("anna", f"RUN_PYTHON: {code[:80]}", task="full-power")
+        try:
+            r = subprocess.run(
+                [sys.executable, "-c", code],
+                capture_output=True, text=True, encoding="utf-8", timeout=30,
+                cwd=str(BASE_DIR), env={**os.environ, "PYTHONUTF8": "1"},
+            )
+            out = (r.stdout + r.stderr)[:1500]
+            parts.append(f'[RUN_PYTHON]\n{out}')
+            if r.returncode != 0:
+                log_raw("anna", f"RUN_PYTHON error exit={r.returncode}: {r.stderr[:100]}", task="full-power")
+        except Exception as e:
+            parts.append(f'[RUN_PYTHON ERROR: {e}]')
+            log_raw("anna", f"RUN_PYTHON ERROR: {e}", task="full-power")
+
     return "\n\n".join(parts)
 
 
@@ -1055,11 +1105,29 @@ def _anna_autofix_response(original: str, user_input: str, anna_system: str,
 
 # ── Main Pipeline ─────────────────────────────────────────────────────────────
 
-def load_agent_specs() -> str:
-    """โหลด MD ของทุก agent เข้า Anna's context (max 100,000 chars รวม)"""
+def load_agent_specs(user_input: str = "") -> str:
+    """โหลด MD ของ agent ที่เกี่ยวข้อง — TF-IDF เลือก top 6 ถ้ามี user_input, โหลดทั้งหมดถ้าไม่มี"""
+    all_names = sorted(VALID_AGENTS)
+    selected  = all_names  # default: โหลดทั้งหมด
+
+    if user_input:
+        try:
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            from sklearn.metrics.pairwise import cosine_similarity as _cs
+            descs = []
+            for name in all_names:
+                f = AGENTS_DIR / f"{name}.md"
+                descs.append(f.read_text(encoding="utf-8")[:600] if f.exists() else name)
+            mat    = TfidfVectorizer(min_df=1).fit_transform([user_input] + descs)
+            scores = _cs(mat[0:1], mat[1:])[0]
+            top_idx = set(scores.argsort()[::-1][:6])
+            selected = [all_names[i] for i in sorted(top_idx)]
+        except Exception:
+            selected = all_names  # fallback ถ้า sklearn ไม่มี
+
     parts = []
     total = 0
-    for name in sorted(VALID_AGENTS):
+    for name in selected:
         f = AGENTS_DIR / f"{name}.md"
         if not f.exists():
             continue
@@ -1081,11 +1149,19 @@ def run_pipeline(user_input: str):
     projects_list = "\n".join(
         p.name for p in sorted(PROJECTS_DIR.iterdir()) if p.is_dir()
     ) if PROJECTS_DIR.exists() else ""
-    agent_specs = load_agent_specs()
+    agent_specs = load_agent_specs(user_input)
+
+    # Session memory — โหลด recent session summaries ให้ Anna จำได้ข้าม session
+    session_mem = ""
+    _mem_file = KNOWLEDGE_DIR / "anna_session_memory.md"
+    if _mem_file.exists():
+        _raw = _mem_file.read_text(encoding="utf-8")
+        session_mem = _raw[-2000:]  # เอาแค่ 2000 chars ล่าสุด
 
     anna_system = (
         ANNA_SYSTEM
         + (f"\n\n---\n## Anna KB\n{anna_kb}" if anna_kb else "")
+        + (f"\n\n---\n## Session Memory\n{session_mem}" if session_mem else "")
         + (f"\n\n---\n## Available Projects\n{projects_list}" if projects_list else "")
         + (f"\n\n---\n## Agent Specs (อ่านก่อน dispatch ทุกครั้ง)\n{agent_specs}" if agent_specs else "")
     )
@@ -1172,29 +1248,77 @@ def run_pipeline(user_input: str):
     completed  = []
     _stop_pipeline = False
 
-    for i, d in enumerate(dispatches):
-        agent    = d.get("agent", "").lower()
-        task     = d.get("task", "")
-        discover = d.get("discover", False)
-        if not agent or not task:
+    # จัดกลุ่ม dispatches — agents ที่มี parallel_group เดียวกันรันพร้อมกัน
+    def _group_dispatches(dlist):
+        groups, buf, cur_pg = [], [], None
+        for d in dlist:
+            pg = d.get("parallel_group")
+            if pg and pg == cur_pg:
+                buf.append(d)
+            else:
+                if buf:
+                    groups.append(buf)
+                buf, cur_pg = [d], pg
+        if buf:
+            groups.append(buf)
+        return groups
+
+    dispatch_groups = _group_dispatches(dispatches)
+
+    for grp_i, grp in enumerate(dispatch_groups):
+        if not grp:
             continue
 
-        # Step confirmation ก่อนรัน agent แรกไม่ต้องถาม (เพิ่งรับคำสั่งมา)
-        # ถามก่อนรัน agent ที่ 2 เป็นต้นไปเท่านั้น
+        # Step confirmation (ถามทีละกลุ่ม)
         if STEP_MODE and completed:
-            ans = confirm_next_step(prev_agent, agent, task, i, len(dispatches))
+            label = grp[0].get("agent", "")
+            if len(grp) > 1:
+                label = "+".join(d.get("agent","") for d in grp)
+            ans = confirm_next_step(prev_agent, label, grp[0].get("task",""),
+                                    grp_i, len(dispatch_groups))
             if ans == "n":
                 print(f"\n{YL}  หยุด pipeline ตามที่คุณสั่ง{RST}")
                 _stop_pipeline = True
                 break
             elif ans == "s":
-                print(f"\n{YL}  ข้าม {BLD}{agent.upper()}{RST}")
+                print(f"\n{YL}  ข้าม {BLD}{label.upper()}{RST}")
                 continue
 
-        run_agent(agent, task, prev_agent=prev_agent,
-                  project_dir=active_project, discover=discover)
-        completed.append(agent)
-        prev_agent = agent
+        if len(grp) > 1 and grp[0].get("parallel_group"):
+            # ── Parallel execution ────────────────────────────────
+            print(f"\n{CY}  ⟳ Parallel:{RST} {BLD}{'+'.join(d['agent'] for d in grp)}{RST}")
+            with concurrent.futures.ThreadPoolExecutor(max_workers=len(grp)) as _pool:
+                _futs = {
+                    _pool.submit(run_agent, d["agent"], d["task"],
+                                 prev_agent, active_project, d.get("discover", False)): d["agent"]
+                    for d in grp
+                }
+                for _f in concurrent.futures.as_completed(_futs):
+                    _ag = _futs[_f]
+                    try:
+                        _out = _f.result()
+                        ok, msg = validate_agent_output(_ag, _out)
+                        if not ok:
+                            print(f"{YL}  ⚠ {BLD}{_ag.upper()}{RST}{YL} output warning: {msg}{RST}")
+                    except Exception as _e:
+                        print(f"{RD}  ✗ parallel {_ag} error: {_e}{RST}")
+                    completed.append(_ag)
+            prev_agent = grp[-1]["agent"]
+        else:
+            # ── Sequential (เดิม) ─────────────────────────────────
+            d       = grp[0]
+            agent   = d.get("agent", "").lower()
+            task    = d.get("task", "")
+            discover = d.get("discover", False)
+            if not agent or not task:
+                continue
+            out = run_agent(agent, task, prev_agent=prev_agent,
+                            project_dir=active_project, discover=discover)
+            ok, msg = validate_agent_output(agent, out)
+            if not ok:
+                print(f"{YL}  ⚠ {BLD}{agent.upper()}{RST}{YL} output warning: {msg}{RST}")
+            completed.append(agent)
+            prev_agent = agent
 
     if completed:
         print(f"\n{YL}{'═'*55}{RST}")
@@ -1240,6 +1364,13 @@ def run_pipeline(user_input: str):
         summary = call_deepseek(anna_system, summary_msg, label="ANNA summary", history=anna_history)
         anna_history.append({"role": "user",      "content": summary_msg})
         anna_history.append({"role": "assistant", "content": summary})
+
+        # บันทึก session memory
+        save_session_memory(
+            project_name=active_project.name if active_project else "unknown",
+            agents_done=completed,
+            summary_text=summary,
+        )
 
         # Auto-continue: CRISP-DM loop — รันต่อเนื่อง (max 10 รอบ)
         if _stop_pipeline:
@@ -1293,6 +1424,26 @@ def run_pipeline(user_input: str):
             anna_history.append({"role": "assistant", "content": summary})
 
 
+# ── Session Memory ────────────────────────────────────────────────────────────
+
+def save_session_memory(project_name: str, agents_done: list, summary_text: str):
+    """บันทึก session summary ลง KB — Anna อ่านได้ใน session ถัดไป"""
+    mem_file = KNOWLEDGE_DIR / "anna_session_memory.md"
+    KNOWLEDGE_DIR.mkdir(exist_ok=True)
+    ts    = datetime.now().strftime("%Y-%m-%d %H:%M")
+    short = summary_text.strip()[:400].replace("\n", " ")
+    entry = f"\n## [{ts}] {project_name}\nAgents: {', '.join(agents_done)}\n{short}\n"
+    # cap ที่ 50 entries — ตัดส่วนเก่าออก
+    if mem_file.exists():
+        existing = mem_file.read_text(encoding="utf-8")
+        entries  = [e for e in existing.split("\n## [") if e.strip()]
+        if len(entries) >= 50:
+            entries = entries[-49:]  # เก็บแค่ 49 ล่าสุด + อันใหม่
+        mem_file.write_text("\n## [".join([""] + entries) + entry, encoding="utf-8")
+    else:
+        mem_file.write_text(entry, encoding="utf-8")
+
+
 # ── Logging ───────────────────────────────────────────────────────────────────
 
 def log_raw(role: str, content: str, task: str = "", output: str = ""):
@@ -1337,6 +1488,8 @@ def print_help():
 {CY}│{RST}  {BLD}{WH}@<agent> <task>{RST}       {YL}»{RST} dispatch ตรงไป agent ({BL}DeepSeek{RST})
 {CY}│{RST}  {BLD}{WH}@<agent>! <task>{RST}      {YL}»{RST} dispatch ตรงไป agent ({MG}Claude{RST})
 {CY}│{RST}  {BLD}{WH}project <name>{RST}        {YL}»{RST} set active project
+{CY}│{RST}  {BLD}{WH}resume <name>{RST}         {YL}»{RST} ต่อ pipeline ที่ค้างไว้
+{CY}│{RST}  {BLD}{WH}status{RST}                {YL}»{RST} ดู pipeline output + Claude usage
 {CY}│{RST}  {BLD}{WH}kb <agent>{RST}            {YL}»{RST} ดู knowledge base ของ agent
 {CY}│{RST}  {BLD}{WH}claude{RST}                {YL}»{RST} ดู {MG}Claude{RST} usage / calls เหลือ
 {CY}│{RST}  {BLD}{WH}end session{RST}           {YL}»{RST} ล้าง history + reset Claude calls
@@ -1438,6 +1591,63 @@ def main():
                 print(f"{CY}└{'─'*50}┘{RST}")
             else:
                 print(f"{YL}  [{name}]{RST} ยังไม่มี Knowledge Base")
+            continue
+        if user_input.lower() == "status":
+            print(f"\n{CY}┌─ STATUS ─────────────────────────────────────────────┐{RST}")
+            proj = active_project.name if active_project else "ไม่มี"
+            print(f"{CY}│{RST}  Project : {BLD}{proj}{RST}")
+            print(f"{CY}│{RST}  Claude  : {claude_calls}/{CLAUDE_LIMIT} calls")
+            if agent_iter_count:
+                iters = ", ".join(f"{a}×{n}" for a, n in agent_iter_count.items() if n > 1)
+                if iters:
+                    print(f"{CY}│{RST}  Iterations: {iters}")
+            if PIPELINE_DIR.exists():
+                paths = sorted(PIPELINE_DIR.glob("*_path.txt"))
+                if paths:
+                    print(f"{CY}│{RST}  Pipeline outputs:")
+                    for pf in paths:
+                        ag  = pf.stem.replace("_path", "")
+                        val = pf.read_text(encoding="utf-8").strip()
+                        exists_mark = f"{GR}✓{RST}" if Path(val).exists() else f"{RD}✗{RST}"
+                        print(f"{CY}│{RST}    {BLD}{ag:<10}{RST} {exists_mark}  {DIM}{val[-55:]}{RST}")
+                else:
+                    print(f"{CY}│{RST}  {DIM}ยังไม่มี pipeline output{RST}")
+            print(f"{CY}└──────────────────────────────────────────────────────┘{RST}")
+            continue
+        if user_input.lower().startswith("resume "):
+            name = user_input[7:].strip()
+            p = PROJECTS_DIR / name
+            if not p.exists():
+                # partial match
+                matches = [d for d in PROJECTS_DIR.iterdir()
+                           if d.is_dir() and name.lower() in d.name.lower()] if PROJECTS_DIR.exists() else []
+                if len(matches) == 1:
+                    p = matches[0]
+                elif len(matches) > 1:
+                    print(f"{YL}  พบหลาย project:{RST} {', '.join(m.name for m in matches)}")
+                    continue
+                else:
+                    print(f"{RD}  ไม่พบ project: {name}{RST}")
+                    continue
+            active_project = p
+            done = []
+            if PIPELINE_DIR.exists():
+                for pf in PIPELINE_DIR.glob("*_path.txt"):
+                    ag  = pf.stem.replace("_path", "")
+                    val = pf.read_text(encoding="utf-8").strip()
+                    if Path(val).exists():
+                        done.append(ag)
+            print(f"\n{YL}  Resume:{RST} {BLD}{p.name}{RST}")
+            print(f"  เสร็จแล้ว: {GR}{', '.join(done) or 'ไม่มี'}{RST}")
+            resume_msg = (
+                f"Resume project {p.name}. "
+                f"Agents ที่เสร็จแล้ว: {', '.join(done) or 'ไม่มี'}. "
+                f"วิเคราะห์ว่าต้องทำอะไรต่อใน CRISP-DM pipeline แล้ว dispatch ต่อทันที"
+            )
+            try:
+                run_pipeline(resume_msg)
+            except KeyboardInterrupt:
+                print(f"\n{YL}  หยุด resume pipeline{RST}")
             continue
         if user_input.lower() in ("claude", "claude status"):
             used  = claude_calls

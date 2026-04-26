@@ -1,0 +1,8 @@
+{
+  "agent": "max",
+  "status": "waiting_for_eddie",
+  "message": "Max \u0e01\u0e33\u0e25\u0e31\u0e07\u0e23\u0e2d Eddie report \u0e01\u0e48\u0e2d\u0e19\u0e40\u0e23\u0e34\u0e48\u0e21 data mining",
+  "input_path": "C:\\Users\\Amorntep\\DATA-Agent\\projects\\2026-04-26_diabetes_risk\\output\\eddie\\eddie_output.csv",
+  "output_dir": "C:\\Users\\Amorntep\\DATA-Agent\\projects\\2026-04-26_diabetes_risk\\output\\max",
+  "timestamp": "2026-04-26T11:07:47.982761"
+}

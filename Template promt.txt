@@ -1,0 +1,65 @@
+Template การสั่ง Anna
+
+  ---
+  Template 1 — มี Dataset แล้ว (ใช้บ่อยที่สุด)
+
+  dataset: [path หรือชื่อไฟล์]
+  โจทย์: [ต้องการรู้อะไร / ทำอะไร]
+  problem type: [classification / regression / clustering / EDA only]
+  target column: [ชื่อ column ที่ต้องทำนาย หรือ none]
+  pipeline: [full / dana→eddie / eddie only / ระบุ agents]
+  output: [report / model / dashboard / แค่ clean data]
+
+  ตัวอย่าง:
+  dataset: projects/2026-04-26_diabetes_risk/input/diabetes.csv
+  โจทย์: ทำนายความเสี่ยง diabetes — ต้องการ model ที่ใช้งานได้จริง
+  problem type: binary classification
+  target column: Outcome
+  pipeline: full
+  output: model + report สำหรับแพทย์
+
+  ---
+  Template 2 — ยังไม่มี Dataset
+
+  โจทย์: [อธิบายปัญหาธุรกิจ]
+  domain: [healthcare / retail / finance / etc.]
+  ต้องการข้อมูลเกี่ยวกับ: [keyword ที่ Scout จะค้นหา]
+  license: [open only / any]
+  ขนาด: [เล็ก <10K / กลาง / ใหญ่ไม่จำกัด]
+
+  ---
+  Template 3 — สั่ง Agent เดียว
+
+  agent: [dana / eddie / mo / etc.]
+  input: [path ไฟล์]
+  ทำ: [งานเฉพาะที่ต้องการ]
+  context: [ข้อมูล domain ที่ agent ควรรู้ก่อนทำ]
+
+  ตัวอย่าง:
+  agent: dana
+  input: projects/titanic/input/train.csv
+  ทำ: clean missing values — Age missing 20%, Cabin missing 77%
+  context: survival prediction dataset, Cabin missing น่าจะ MNAR (คนไม่รอด ไม่มีข้อมูล)
+
+  ---
+  Template 4 — Quick Question (ไม่รัน pipeline)
+
+  [คำถามตรงๆ]
+  ไม่ต้องมี template — Anna ตอบเองได้เลย
+
+  ---
+  สิ่งที่ ต้องมี vs ดีถ้ามี
+
+  ┌─────────────────────────────┬─────────────────────────────────────────┐
+  │                             		        │                  ผลที่ได้                  │
+  ├─────────────────────────────┼─────────────────────────────────────────┤
+  │ ต้องมี path ไฟล์ชัดเจน                                  │ agent หา input ถูก ไม่ fallback เดาเอง    │
+  ├─────────────────────────────┼─────────────────────────────────────────┤
+  │ ต้องมี problem type        		        │ Mo เลือก algorithm ถูก, Mo เขียน metric ถูก │
+  ├─────────────────────────────┼─────────────────────────────────────────┤
+  │ ดีถ้ามี domain keywords     		        │ TF-IDF ดึง KB sections ที่ตรงมาให้ agent    │
+  ├─────────────────────────────┼─────────────────────────────────────────┤
+  │ ดีถ้ามี ข้อจำกัด/ความผิดปกติ    	        │ Dana/Eddie เตรียมรับมือได้ก่อน               │
+  ├─────────────────────────────┼─────────────────────────────────────────┤
+  │ ไม่จำเป็น บอก pipeline ละเอียด	        │ Anna ตัดสินใจเองได้ตาม CRISP-DM            │
+  └─────────────────────────────┴─────────────────────────────────────────┘
