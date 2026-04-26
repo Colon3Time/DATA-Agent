@@ -1,4 +1,3 @@
-
 # Dana Methods & Knowledge Base
 
 ## กฎสำคัญ — Dana ต้องผลิต Output File จริง
@@ -9,7 +8,6 @@
 3. `dana_report.md` — สรุปการทำงาน
 
 ❌ **report อย่างเดียวไม่พอ** — ถ้าไม่มี `dana_output.csv` ถือว่างานยังไม่เสร็จ
-
 
 ## [2026-04-25] วิธี Join ข้อมูลจาก Olist SQLite → CSV
 
@@ -44,7 +42,6 @@ df.to_csv("output/dana/dana_output.csv", index=False)
 **Columns ที่ Eddie v2 ต้องการ:**
 `order_id, order_purchase_timestamp, payment_value, review_score, customer_state, customer_city, product_category`
 
-
 ## [2026-04-25] การทำความสะอาด Olist Dataset
 
 | ตาราง | ปัญหา | วิธีแก้ |
@@ -56,16 +53,13 @@ df.to_csv("output/dana/dana_output.csv", index=False)
 
 **ข้อสังเกต:** outlier ใน price/weight เป็นของจริง (B2B, heavy items) → **ไม่ต้องตัด**
 
-
 ## [2026-04-25 13:44] [FEEDBACK]
 Feedback จาก DeepSeek เกี่ยวกับการทำ Data Cleaning ด้วย KNN Imputation:
 ⚠️ ต้อง scale features ก่อนใช้ KNN Imputation เสมอ — ถ้า features scale ต่างกัน (เช่น ราคาหลักพัน vs. คะแนน 1-5) ตัวแปรที่มี scale ใหญ่กว่าจะ dominate distance calculation ทำให้ผล imputation เบี้ยว
 ✅ ควร validate distribution ก่อน-หลัง impute ทุกครั้ง เพื่อตรวจสอบว่าข้อมูลเปลี่ยนไปมากเกินไปไหม
 
-
 ## [2026-04-25 13:56] [FEEDBACK]
 เรียนรู้ว่า...
-
 
 ## [2026-04-25 14:05] [FEEDBACK]
 เรียนรู้จาก Olist Project — Benchmark จาก Kaggle Grandmasters:
@@ -76,9 +70,37 @@ Feedback จาก DeepSeek เกี่ยวกับการทำ Data Clea
 5. ต้องมี dana_output.csv ทุกครั้ง — report อย่างเดียวไม่พอ
 6. ต้องรัน script จริง ไม่ใช่แค่เขียน script.then save
 
-
 ## [2026-04-25 14:23] [FEEDBACK]
 เรียนรู้จาก Olist Project — ปัญหา path ซ้ำซาก:
+
+## [CRITICAL] การ connect SQLite — ห้าม connect ด้วย path ว่างเด็ดขาด
+
+ถ้า `INPUT_PATH` ว่างหรือไม่ใช่ไฟล์ sqlite → `sqlite3.connect("")` จะสร้าง database เปล่า ทำให้ไม่เจอตารางเลย
+
+**ต้องใช้ pattern นี้เสมอ:**
+```python
+import glob, os
+from pathlib import Path
+
+INPUT_PATH = args.input
+
+# ถ้า input ว่างหรือไม่ใช่ sqlite → หาเอง
+if not INPUT_PATH or not INPUT_PATH.endswith('.sqlite'):
+    search_dirs = [
+        os.path.join(os.path.dirname(OUTPUT_DIR), '..', 'input'),
+        os.path.join(os.path.dirname(OUTPUT_DIR), '..'),
+    ]
+    for d in search_dirs:
+        found = sorted(Path(d).glob('*.sqlite'))
+        if found:
+            INPUT_PATH = str(found[0])
+            print(f'[STATUS] Found sqlite: {INPUT_PATH}')
+            break
+
+if not INPUT_PATH or not os.path.exists(INPUT_PATH):
+    print(f'[ERROR] ไม่พบ sqlite file: {INPUT_PATH}')
+    exit(1)
+```
 
 ## กฎการใช้ Path — ห้ามละเมิดเด็ดขาด
 
@@ -116,7 +138,6 @@ path = os.path.join(os.path.dirname(DB_PATH), "output", "dana")
 - ห้ามเดา path เอาเอง
 - ห้ามใช้ path เดิมที่เคยใช้แล้ว error
 
-
 ## [2026-04-25 14:52] [FEEDBACK]
 จาก DeepSeek benchmark เทียบ Kaggle Grandmaster — Dana's Olist pipeline ได้คะแนน 4.5/10 จุดอ่อนหลัก:
 
@@ -133,42 +154,6 @@ path = os.path.join(os.path.dirname(DB_PATH), "output", "dana")
 - เก็บ text columns ไว้ใช้ analysis ต่อ
 - เพิ่ม derived features ทุกครั้งที่เป็นไปได้
 - เขียน report ให้สมบูรณ์อธิบายทุก decision
-
-
-## [2026-04-25 15:10] [FEEDBACK]
-**Template script ที่สมบูรณ์ — ต้องมี .to_csv() เสมอ:**
-
-```python
-import sqlite3, pandas as pd, numpy as np
-
-conn = sqlite3.connect("input/olist.sqlite")
-
-# โหลดทุกตาราง
-orders = pd.read_sql("SELECT * FROM orders", conn)
-customers = pd.read_sql("SELECT * FROM customers", conn)
-items = pd.read_sql("SELECT * FROM order_items", conn)
-payments = pd.read_sql("SELECT * FROM order_payments", conn)
-reviews = pd.read_sql("SELECT * FROM order_reviews", conn)
-products = pd.read_sql("SELECT * FROM products", conn)
-sellers = pd.read_sql("SELECT * FROM sellers", conn)
-geo = pd.read_sql("SELECT * FROM geolocation", conn)
-cat_trans = pd.read_sql("SELECT * FROM product_category_name_translation", conn)
-
-# JOIN ทั้งหมดเข้าด้วยกัน
-items_products = items.merge(products, on='product_id', how='left')
-items_products_sellers = items_products.merge(sellers, on='seller_id', how='left')
-order_detail = orders.merge(customers, on='customer_id', how='left')
-order_detail = order_detail.merge(items_products_sellers, on='order_id', how='left')
-order_detail = order_detail.merge(payments, on='order_id', how='left')
-order_detail = order_detail.merge(reviews, on='order_id', how='left')
-
-# ✅ export เป็น CSV
-order_detail.to_csv("output/dana/dana_output.csv", index=False)
-print(f"✅ Exported {len(order_detail)} rows to dana_output.csv")
-```
-
-**กฎสำคัญ — Script ต้องมี .to_csv() เสมอ ถ้าขาด = งานไม่สมบูรณ์**
-
 
 ## [2026-04-25 15:13] [FEEDBACK]
 **Template script ที่สมบูรณ์ — ต้องมี .to_csv() เสมอ:**
@@ -204,7 +189,6 @@ print(f"✅ Exported {len(order_detail)} rows to dana_output.csv")
 
 **กฎสำคัญ — Script ต้องมี .to_csv() เสมอ ถ้าขาด = งานไม่สมบูรณ์**
 
-
 ## [2026-04-25] [BUG] ห้าม self-write script ตัวเอง — script_content ไม่มีอยู่จริง
 
 ❌ **ห้ามเขียน block นี้ในทุก script:**
@@ -220,7 +204,6 @@ with open(SCRIPT_PATH, 'w') as f:
 
 ✅ **วิธีที่ถูก:** ไม่ต้อง export script ตัวเองออกมา — script มีอยู่แล้วในไฟล์
 ถ้าต้องการ backup script จริงๆ ให้ใช้ `shutil.copy(__file__, SCRIPT_PATH)` แทน
-
 
 ## [2026-04-25] [BUG] ห้ามใช้ Unicode พิเศษใน print — terminal cp874 crash
 
@@ -243,7 +226,6 @@ print(f"[STATUS] เสร็จ -> {path}")
 
 **กฎ:** print ทุกบรรทัดใน script ให้ใช้แค่ ASCII ตัวอักษรไทยปกติ + `->`/`<-` เท่านั้น
 
-
 ## [2026-04-25 15:26] [FEEDBACK]
 **กฎสำคัญก่อนเริ่มทำงานทุกครั้ง:**
 
@@ -255,7 +237,6 @@ print(f"[STATUS] เสร็จ -> {path}")
 
 **Failure จะเกิดขึ้นทุกครั้งที่ Dana ไม่ถาม Scout ก่อน — อย่าลืม!**
 
-
 ## [2026-04-25 15:30] [FEEDBACK]
 **ลบกฎนี้ออกแล้ว:**
 ❌ ~~ก่อน Dana เริ่มทำงาน cleaning ต้องถาม Scout ก่อนเสมอ~~
@@ -265,33 +246,26 @@ print(f"[STATUS] เสร็จ -> {path}")
 - ใช้ template ใน KB ที่มี .to_csv() เสมอ
 - ห้ามเขียน .py file
 
-
 ## [2026-04-25 16:14] [FEEDBACK]
 เพิ่มการวิจัย: Grandmaster Olist benchmark — วิธีวัดคุณภาพ Data Cleaning มาตรฐาน Kaggle พร้อมเปรียบเทียบกับงานของ Dana
-
 
 ## [2026-04-25 16:38] [DISCOVERY]
 Task: โปรดทำงานเฉพาะในโปรเจค iris เท่านั้น! path: C:\Users\Amorntep\DATA-Agent\projects\iris\input\iris.cs
 Key finding: I'll clean the Iris dataset for you. Let me first check the input file.
 
-
 ## [2026-04-25 16:49] [DISCOVERY]
 Task: ทำงานในโปรเจค Olist — อ่านข้อมูลจาก olist.sqlite ที่ projects/Olist/input/olist.sqlite ทำความสะอาดข้
 Key finding: I see the confusion. Let me clarify by reading the actual task from the Message Hub.
-
 
 ## [2026-04-25 16:50] [DISCOVERY]
 Task: กลับมาทำงานในโปรเจค iris เท่านั้น! — input: C:\Users\Amorntep\DATA-Agent\projects\iris\input\iris.cs
 Key finding: Working on the Iris project only — as instructed.
 
-
 ## [2026-04-25 19:49] [FEEDBACK]
 test3 retail_sales_600.csv: median impute สำหรับ unit_price/quantity/region (3% missing) → ผ่าน. Script ต้องบันทึก Self-Improvement Report ลง report.md เสมอ ไม่แค่ print. ใช้ argparse + args.input สำเร็จ.
 
-
 ## [2026-04-25 19:49] [FEEDBACK]
 test3 retail_sales_600.csv: median impute for unit_price/quantity/region (3% missing) - passed. Script must save Self-Improvement Report to report.md not just print. argparse + args.input works correctly.
-
 
 ## [2026-04-25 23:53] [FEEDBACK]
 บทเรียนจากการเทียบกับ Kaggle Grandmaster Olist 2024:
@@ -353,7 +327,6 @@ test3 retail_sales_600.csv: median impute for unit_price/quantity/region (3% mis
 อย่ามองว่า cleaning แค่ "ทำให้ข้อมูลสะอาด" — แต่มองว่า:
 "ทุก action ใน cleaning เป็น feature engineering ที่มีผลต่อโมเดล"
 ดังนั้นทุกการตัดสินใจ (drop, fill, transform) ต้องมี business rationale
-
 
 ## [2026-04-26 00:12] [FEEDBACK]
 # Dana Advanced Methods — อัปเดตจาก Grandmaster Benchmark (2026-04-26)
@@ -498,7 +471,6 @@ def haversine(lat1, lon1, lat2, lon2):
 | Accuracy (outlier) | 10% | 16,076 | ~200-500 |
 | **Overall** | **100%** | **97.88%** | **99.5% - 100%** |
 
-
 ## [2026-04-26 00:15] [FEEDBACK]
 # Dana — Grandmaster Principles & Mindset (2026-04-26)
 
@@ -603,7 +575,6 @@ def haversine(lat1, lon1, lat2, lon2):
 
 3. หลั
 
-
 ## [2026-04-26 00:35] [FEEDBACK]
 # Dana — Data Quality Score Policy (2026-04-26)
 
@@ -628,3 +599,50 @@ DQ Score **เป็นแค่ตัวชี้วัดเบื้องต
 - **ไม่ต้องรวมเป็น DQ Score เดียว**
 
 > จำไว้: ข้อมูลที่ clean เกินไป = ข้อมูลที่ถูกทำลาย signal
+
+## [2026-04-26 02:25] [FEEDBACK]
+Olist SQLite Schema — จากการสำรวจของ Scout:
+Tables:
+1. customers
+2. geolocation
+3. leads_closed
+
+⚠️ ข้อควรระวัง: ชื่อตารางต้องใช้แบบ lowercase เท่านั้น (SQLite case-sensitive)
+
+## [2026-04-26 02:27] [FEEDBACK]
+Olist SQLite — ตารางทั้งหมดมี prefix 'olist_' เสมอ: olist_customers, olist_geolocation, olist_order_items, olist_order_payments, olist_order_reviews, olist_orders, olist_products, olist_sellers, product_category_name_translation (อันนี้ไม่มี prefix)
+
+## [2026-04-26 02:29] [FEEDBACK]
+⚠️ UPDATE — ห้าม hardcode table names!
+จากนี้ไปทุกครั้งที่ connect SQLite: 
+1. ใช้ `pd.read_sql("SELECT name FROM sqlite_master WHERE type='table'", conn)` 
+2. ได้ list table names → โหลดทุกตาราง
+3. แก้ไขโค้ดให้ dynamic — ไม่ต้อง hardcode ชื่อตารางอีกต่อไป
+
+## [2026-04-26 02:33] [FEEDBACK]
+เพิ่มกฎ Outlier Detection — ทุกครั้งที่ทำ Data Cleaning ต้อง:
+1. ใช้ IQR method (Q1 - 1.5*IQR, Q3 + 1.5*IQR) หรือ Z-score (|z| > 3)
+2. ตรวจสอบ outliers ใน numeric columns: price, freight_value, review_score, payment_value, delivery_delay_days
+3. รายงาน: มี outliers กี่ %, อยู่ใน column ไหน, จะจัดการอย่างไร (drop / cap / flag)
+4. รวมผลลัพธ์ใน Cleaning Report
+
+## [2026-04-26 02:35] [FEEDBACK]
+📋 มาตรฐาน Data Cleaning — ทุกโปรเจคต้องทำ 3 ขั้นตอนนี้เสมอ:
+
+## 1. Data Profiling Report
+- ใช้ ydata-profiling (เดิม pandas-profiling) สร้าง ProfileReport
+- หรือใช้ pandas describe() + info() + value_counts() + check data types
+- รายงาน: schema overview, missing value matrix, correlation heatmap, distribution ของทุก column
+
+## 2. Outlier Detection
+- ใช้ IQR method: Q1 - 1.5*IQR และ Q3 + 1.5*IQR
+- หรือ Z-score: |z| > 3
+- ตรวจสอบ numeric columns ที่สำคัญ: price, freight_value, review_score, payment_value, delivery_delay_days
+- รายงาน: มี outliers กี่ %, column ไหน, แนะนำการจัดการ (drop / cap / flag)
+
+## 3. Cleaning Report
+- Missing values ก่อน/หลัง
+- Duplicate rows
+- Schema validation (data types ถูกต้องไหม)
+- Feature engineering ที่สร้าง
+- สรุปคุณภาพโดยรวม
