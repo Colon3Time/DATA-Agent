@@ -10,6 +10,55 @@
 
 ---
 
+## กฎบังคับ — Mo ต้องเขียน ALGORITHM_RATIONALE ใน model_results.md ทุกครั้ง
+
+Rex จะดึง reasoning นี้ไปอธิบายใน Final Report — ถ้าไม่มี Rex จะเขียนเองซึ่งอาจผิด
+
+```
+ALGORITHM_RATIONALE
+===================
+Best Algorithm: [ชื่อ]
+Why This Algorithm:
+  - ข้อมูล: [ลักษณะ data ที่ทำให้เลือก — เช่น tabular numerical, n=569, imbalance=37%]
+  - Theory: [เหตุผลเชิง ML theory — เช่น "tree-based ไม่ต้องการ linearity assumption"]
+  - vs ANN: [ทำไมไม่ใช้ deep learning — เช่น "n < 10K → ANN มักแพ้ tree-based"]
+  - vs Linear: [ทำไมไม่ใช้ linear model — เช่น "feature interactions ซับซ้อน correlation heatmap ยืนยัน"]
+
+Why NOT Others:
+  - [Runner-up model]: [เหตุผล — เช่น "XGBoost F1 ต่างกัน 0.01% แต่ train นานกว่า 3x"]
+  - [3rd model]: [เหตุผล — เช่น "Logistic Regression สมมติ linearity ซึ่ง Eddie พบว่าข้อมูลไม่ linear"]
+
+Preprocessing Chosen:
+  - Scaling: [algorithm + เหตุผล — เช่น "StandardScaler เพราะ SVM/KNN sensitive ต่อ scale"]
+  - Encoding: [algorithm + เหตุผล]
+  - Special: [SMOTE/log1p + เหตุผล — เช่น "SMOTE เพราะ imbalance 4:1 > threshold 3:1"]
+```
+
+**ตัวอย่างการเขียนที่ดี:**
+```
+ALGORITHM_RATIONALE
+===================
+Best Algorithm: LightGBM (Tuned)
+Why This Algorithm:
+  - ข้อมูล: tabular numerical 30 features, n=569, imbalance เล็กน้อย (37% minority)
+  - Theory: gradient boosting บน decision trees — ไม่ต้องการ linearity assumption,
+            handle feature interactions ได้โดยตรง, leaf-wise growth เร็วกว่า XGBoost 3-5x
+  - vs ANN: n=569 เล็กเกินไปสำหรับ ANN (ต้องการ >10K) — risk overfit สูง
+  - vs Linear: correlation matrix จาก Eddie แสดง non-linear patterns หลายคู่
+
+Why NOT Others:
+  - XGBoost: F1 ต่างกัน 0.013 แต่ train นานกว่า 2.8x และ overfit gap สูงกว่า (4.1% vs 2.9%)
+  - Random Forest: F1=0.943 ต่ำกว่า 2.9% — ไม่คุ้มสำหรับ medical use case ที่ต้องการ recall สูง
+  - Logistic Regression: F1=0.912 — features มี non-linear interaction ทำให้ linear model ไม่เพียงพอ
+
+Preprocessing Chosen:
+  - Scaling: StandardScaler — feature range ต่างกันมาก (radius 6-28 vs smoothness 0.05-0.16)
+  - Encoding: ไม่จำเป็น (ทุก feature เป็น numerical แล้ว)
+  - Special: ไม่ใช้ SMOTE — imbalance 37:63 ยังอยู่ในเกณฑ์ (<3:1), ใช้ class_weight แทน
+```
+
+---
+
 ## PREPROCESSING_REQUIREMENT Block (บังคับใส่ท้าย Phase 1 report)
 
 Anna อ่าน block นี้เพื่อตัดสินใจ loop กลับ Finn หรือไม่
@@ -266,3 +315,39 @@ enet  = ElasticNetCV(l1_ratio=[0.1, 0.5, 0.9], cv=5)
 ```
 
 **กฎง่าย:** ถ้าไม่แน่ใจ → ลอง Ridge ก่อน, ถ้าต้องการรู้ว่า feature ไหนสำคัญ → Lasso
+## [2026-04-27] [DOMAIN RULE] Medical/High-Stakes Classification — Optimize Recall ไม่ใช่ F1
+
+**บทเรียนจาก Breast Cancer project:**
+
+ถ้า domain = medical / fraud / safety-critical:
+1. **Primary metric = Recall** (ไม่ใช่ Accuracy หรือ F1)
+2. Adjust decision threshold: default 0.5 มักไม่เหมาะ — ใช้ Youden Index หรือ target recall
+
+```python
+from sklearn.metrics import precision_recall_curve
+import numpy as np
+
+# หา threshold ที่ให้ recall >= 0.99
+probs = model.predict_proba(X_test)[:, 1]
+precisions, recalls, thresholds = precision_recall_curve(y_test, probs)
+# เลือก threshold ที่ recall >= target
+target_recall = 0.99
+valid = thresholds[recalls[:-1] >= target_recall]
+best_threshold = valid[0] if len(valid) > 0 else 0.5
+
+y_pred_tuned = (probs >= best_threshold).astype(int)
+```
+
+3. ระบุใน PREPROCESSING_REQUIREMENT:
+```
+Recall_Target: 0.99  # ถ้า domain = medical
+Decision_Threshold: [best_threshold]
+```
+
+**เมื่อไหร่ใช้:**
+| Domain | Primary Metric | Target |
+|--------|---------------|--------|
+| Cancer / disease detection | Recall | ≥ 0.97–0.99 |
+| Fraud detection | Recall | ≥ 0.90 |
+| Credit default | F1-weighted | ≥ 0.85 |
+| General classification | Accuracy + F1 | ≥ 0.85 |

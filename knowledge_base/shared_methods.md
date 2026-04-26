@@ -64,6 +64,79 @@ X_result = scaler.inverse_transform(X_imputed)
 - ตรวจ distribution ก่อนและหลัง impute/transform
 - report ผลการ validate ใน output report เสมอ
 
+## กฎเหล็ก — ทุก Report ต้องอธิบายเหตุผล (Human-Readable Reasoning)
+
+**หลักการ:** คนอ่าน report ไม่ใช่คอมพิวเตอร์ — ทุก decision ต้องอธิบายว่า "ทำไม" ไม่ใช่แค่ "อะไร"
+
+❌ **ห้ามเขียนแบบนี้ (แค่บอกผล):**
+> "ลบ column `id` ออก"
+> "เลือก LightGBM — F1=0.97"
+> "Overfitting check: ✅ PASS"
+> "drop 12 outliers"
+
+✅ **ต้องเขียนแบบนี้ (บอกผล + เหตุผล + ความหมาย):**
+> "ลบ column `id` ออก เพราะเป็น unique identifier ไม่มี predictive value — ถ้าเก็บไว้จะเกิด data leakage"
+> "เลือก LightGBM เพราะข้อมูล tabular numerical ไม่ต้องการ linearity assumption และ n=569 เล็กเกินไปสำหรับ ANN"
+> "Overfitting ผ่าน — train/test gap 2.9% ต่ำกว่าเกณฑ์ 5% หมายความว่า model เรียนรู้ pattern จริง ไม่ใช่จำข้อมูล"
+> "drop 12 outliers (2.1%) เพราะ IQR×3 เกินจริง ตรวจสอบแล้วไม่ใช่ค่าพิเศษทางธุรกิจ"
+
+---
+
+### Reasoning Framework — ทุก Agent ใช้โครงสร้างนี้
+
+**ทุก decision ใน report ต้องตอบ:**
+1. **ทำอะไร** — action ที่ทำ
+2. **เพราะอะไร** — เหตุผล (theory / data evidence / domain knowledge)
+3. **เทียบกับอะไร** — ทางเลือกอื่นที่พิจารณาแล้วไม่เลือก (ถ้ามี)
+4. **ผลที่ได้** — ความหมายต่อ downstream หรือ business
+
+### กฎเฉพาะต่อ Agent
+
+| Agent | สิ่งที่ต้องอธิบายเหตุผล |
+|-------|----------------------|
+| **Dana** | ทำไมถึง drop/impute column นี้, ทำไม outlier นี้ถึง flag, ทำไมใช้ method นี้ไม่ใช้อีก method |
+| **Eddie** | ทำไม insight นี้ถึงสำคัญ, ทำไมถึงเลือก visualize แบบนี้, correlation นี้หมายความว่าอะไรต่อธุรกิจ |
+| **Finn** | ทำไมถึงสร้าง feature นี้, ทำไมถึง drop feature นั้น, scaling method นี้เหมาะกับ algorithm ที่เลือกยังไง |
+| **Mo** | ทำไมถึงเลือก algorithm นี้ (theory), ทำไมไม่เลือก ANN/Linear/อื่น, hyperparameter นี้ tuned ยังไง |
+| **Quinn** | ผ่าน/ไม่ผ่านเพราะ criteria อะไร ตัวเลขเท่าไหร่เทียบกับเกณฑ์ |
+| **Iris** | recommendation นี้มี evidence อะไรรองรับ, business impact ประเมินจากอะไร |
+| **Rex** | สรุป reasoning ของทุก agent ให้ผู้บริหารอ่านเข้าใจได้ในประโยคเดียว |
+
+### ตัวอย่างต่อ Agent
+
+**Dana:**
+```
+ลบ column `customer_id` (เหตุผล: unique ID ทุก row — ไม่มี predictive value, ถ้าเก็บไว้ model จะ memorize แทนที่จะเรียนรู้ pattern)
+impute `age` ด้วย median=34 (เหตุผล: missing 3.2% + distribution skewed right → median ดีกว่า mean ที่จะถูกดึงโดย outlier)
+flag 8 outliers ใน `purchase_amount` (เหตุผล: > IQR×3 = 4,200 บาท ตรวจสอบแล้วไม่ใช่สินค้า premium — น่าจะเป็น data entry error)
+```
+
+**Finn:**
+```
+สร้าง feature `price_per_sqm` = price/area (เหตุผล: Eddie พบ correlation ทั้งสองตัวกับ target แต่ ratio น่าจะมี predictive power มากกว่าแยก เพราะ normalize ขนาดบ้าน)
+drop `street_name` (เหตุผล: cardinality สูงมาก 847 unique values → One-Hot จะสร้าง 847 columns ทำให้ curse of dimensionality)
+StandardScaler (เหตุผล: Mo Phase 1 เลือก SVM เป็น baseline — SVM sensitive ต่อ scale มาก feature ที่ไม่ scale จะ dominate kernel)
+```
+
+**Mo:**
+```
+เลือก LightGBM เพราะ:
+- ข้อมูล tabular numerical 30 features — tree-based ไม่ต้องการ linearity assumption
+- n=569 เล็กเกินไปสำหรับ ANN (ต้องการ >10K จึงจะชนะ tree-based)
+- gradient boosting handle imbalance ได้ดีกว่า Random Forest ด้วย scale_pos_weight
+ไม่เลือก XGBoost เพราะ F1 ต่างกัน 0.013 แต่ LightGBM train เร็วกว่า 3x
+ไม่เลือก Logistic Regression เพราะ Eddie พบ non-linear patterns ใน correlation heatmap
+```
+
+**Quinn:**
+```
+Overfitting: ✅ ผ่าน — gap=2.9% < เกณฑ์ 5% → model เรียนรู้ pattern จริง ไม่ใช่จำ training data
+CV Stability: ✅ ผ่าน — std=0.025 < เกณฑ์ 0.05 → ผลสม่ำเสมอข้าม fold ไม่ผันผวนตาม data split
+Recall: ⚠️ ควรปรับ — recall=0.94 ต่ำกว่า medical threshold 0.97 → missed 6% ของ malignant cases = ผู้ป่วยที่พลาดการรักษา
+```
+
+---
+
 ## กฎ Output File
 
 - **script ที่เขียนต้องผลิตไฟล์จริงเสมอ** — report .md อย่างเดียวไม่พอ

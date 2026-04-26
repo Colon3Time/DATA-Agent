@@ -140,3 +140,22 @@ def psi(expected, actual, buckets=10):
 
 ## [2026-04-25 19:49] [FEEDBACK]
 QC passed 10/11 checks — validated CSV shape, missing values, data types for all agent outputs. Saved quinn_qc_results.csv.
+
+## [2026-04-27] [DOMAIN RULE] Medical Dataset — ต้องตรวจ FN Rate ก่อน Accuracy
+
+**บทเรียนจาก Breast Cancer project:**
+
+Medical/Healthcare classification มี cost asymmetry:
+- False Negative (FN) = พลาดผู้ป่วยมะเร็ง → อันตรายถึงชีวิต
+- False Positive (FP) = biopsy ที่ไม่จำเป็น → เสียเงิน/เวลา
+
+**กฎ Quinn สำหรับ medical domain:**
+1. ตรวจ Confusion Matrix บังคับ (ไม่ใช่แค่ Accuracy)
+2. Recall ≥ 0.97 สำหรับ cancer detection — ถ้าต่ำกว่า → RESTART_CYCLE: YES
+3. รายงาน FN count จริง: "X patients would be missed per 1,000 screenings"
+4. ถ้า problem_type มีคำว่า cancer / fraud / default / churn → ใช้กฎนี้อัตโนมัติ
+
+**Severity escalation:**
+- Recall < 0.95 → CRITICAL — RESTART_CYCLE: YES
+- Recall 0.95–0.97 → WARNING — แนะนำ threshold tuning
+- Recall ≥ 0.97 → PASS

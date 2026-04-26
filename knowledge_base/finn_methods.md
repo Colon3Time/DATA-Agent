@@ -98,3 +98,7 @@ from sklearn.feature_selection import SelectKBest, f_classif, mutual_info_classi
 
 ## [2026-04-25 19:49] [FEEDBACK]
 test3 retail: Feature Engineering succeeded - revenue_per_unit, discount_impact, regional_flag, month/day features. Input from eddie_output.csv via pipeline handoff.
+
+
+## [2026-04-27 05:17] [DISCOVERY]
+การใช้ target encoding อาจเหมาะสมสำหรับ cancer datasets ที่มี high cardinality แต่ dataset นี้เป็น numeric ทั้งหมด เลยไม่จำเป็น
