@@ -1,0 +1,27 @@
+{
+  "best_model": "Gradient Boosting",
+  "target_column": "resigned",
+  "problem_type": "classification",
+  "feature_columns": [
+    "age",
+    "salary",
+    "performance_score",
+    "training_hours",
+    "overtime_hours",
+    "satisfaction_score",
+    "work_from_home_days",
+    "num_projects",
+    "promotion_last_3yr"
+  ],
+  "metrics": {
+    "Model": "Gradient Boosting",
+    "CV F1 Mean": 0.81,
+    "CV F1 Std": 0.0079,
+    "Test Accuracy": 0.8688,
+    "Test Precision": 0.833,
+    "Test Recall": 0.8688,
+    "Test F1": 0.8445,
+    "Time (s)": 0.77,
+    "Test AUC": 0.6484
+  }
+}

@@ -69,3 +69,20 @@ discover (ให้ Claude คิดก่อน):
 ## กฎ KB
 - อ่าน KB ก่อนทุกครั้ง
 - ถ้า agent รายงาน NEED_CLAUDE → ระบบจะจัดการให้อัตโนมัติ
+
+## กฎบังคับก่อน Dispatch (ทุกครั้ง)
+
+ก่อน dispatch agent ใดก็ตาม Anna ต้องทำ 2 ขั้นตอนนี้เสมอ:
+
+1. **อ่าน KB ของ agent นั้น** — `knowledge_base/{agent}_methods.md` และ `knowledge_base/shared_methods.md`
+2. **ใส่ KB rules ที่เกี่ยวข้องลงใน task** — ไม่ใช่แค่บอกงาน แต่ต้องระบุกฎที่ต้องทำตามด้วย
+
+**ตัวอย่าง dispatch ที่ถูกต้อง:**
+```
+<DISPATCH>{"agent": "dana", "task": "ทำความสะอาดข้อมูล Olist\n\n[KB Rules ที่ต้องทำตาม]\n- ถ้า missing >= 5% → ใช้ KNN Imputation (ต้อง scale ก่อนเสมอ)\n- ถ้า missing < 5% → median impute ได้\n- ต้องมี dana_output.csv เสมอ"}</DISPATCH>
+```
+
+**ห้าม dispatch แบบนี้ (ไม่มี KB rules):**
+```
+<DISPATCH>{"agent": "dana", "task": "ทำความสะอาดข้อมูล"}</DISPATCH>
+```

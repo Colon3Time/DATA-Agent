@@ -1,0 +1,9 @@
+Model,CV Score (mean),CV Std,Test Accuracy,Test Precision,Test Recall,Test F1,Test AUC,Time (s)
+XGBoost,1.0,0.0,1.0,0.0,0.0,0.0,,0.34
+LightGBM,1.0,0.0,1.0,0.0,0.0,0.0,,0.05
+Logistic Regression,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Decision Tree,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Gradient Boosting,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Random Forest,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+KNN,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+SVM,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0

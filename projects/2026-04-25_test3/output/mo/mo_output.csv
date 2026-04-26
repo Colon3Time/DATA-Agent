@@ -1,0 +1,5 @@
+model,accuracy,precision,recall,f1,auc,cv_mean,cv_std
+Logistic Regression,1.0,1.0,1.0,1.0,1.0,0.9983734222433913,0.0032531555132174093
+Random Forest,1.0,1.0,1.0,1.0,1.0,1.0,0.0
+XGBoost,1.0,1.0,1.0,1.0,1.0,1.0,0.0
+LightGBM,1.0,1.0,1.0,1.0,1.0,1.0,0.0

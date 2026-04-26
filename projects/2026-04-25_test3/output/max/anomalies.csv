@@ -1,0 +1,31 @@
+date,product,category,unit_price,quantity,discount_pct,total_amount,region,sales_channel,sales_rep,customer_segment,return_flag,_month,is_anomaly,anomaly_scores,cluster,date_hour,date_dayofweek,date_month
+2024-01-01,Headphones,Audio,3868.0,14.0,0.1,48737.0,Hat Yai,Online,Nattapong,SMB,1,2024-01,Anomaly,-0.6394455157387022,2,0.0,0.0,1.0
+2024-01-08,Tablet,Mobile,13605.0,12.0,0.2,130608.0,Chiang Mai,Online,Nattapong,Enterprise,0,2024-01,Anomaly,-0.6205780562728122,1,0.0,0.0,1.0
+2024-01-16,Tablet,Mobile,11131.0,13.0,0.05,137468.0,Hat Yai,In-Store,Somchai,Consumer,1,2024-01,Anomaly,-0.6419305392172401,2,0.0,1.0,1.0
+2024-01-19,Tablet,Mobile,12070.0,9.0,0.0,108630.0,Phuket,Online,Pichit,Consumer,1,2024-01,Anomaly,-0.6286707704328871,2,0.0,4.0,1.0
+2024-01-22,Headphones,Audio,3265.5,1.0,0.15,2932.0,Chiang Mai,In-Store,Somchai,Enterprise,1,2024-01,Anomaly,-0.6403981158143214,2,0.0,0.0,1.0
+2024-01-28,Phone,Mobile,15870.0,8.0,0.0,126960.0,Bangkok,Online,Pichit,Enterprise,1,2024-01,Anomaly,-0.655534654887235,2,0.0,6.0,1.0
+2024-01-30,Tablet,Mobile,12992.0,3.0,0.0,38976.0,Bangkok,In-Store,Somchai,SMB,1,2024-01,Anomaly,-0.6438417055492267,2,0.0,1.0,1.0
+2024-03-20,Keyboard,Accessories,1564.0,13.0,0.15,17282.0,Phuket,Reseller,Nattapong,Enterprise,1,2024-03,Anomaly,-0.6293697909512238,2,0.0,2.0,3.0
+2024-03-31,Keyboard,Accessories,1476.0,13.0,0.0,19188.0,Hat Yai,Online,Pichit,SMB,1,2024-03,Anomaly,-0.6162908010668599,2,0.0,6.0,3.0
+2024-04-16,Laptop,Computer,27393.0,7.0,0.05,181740.375,Chiang Mai,In-Store,Nattapong,Consumer,1,2024-04,Anomaly,-0.6674309725797242,2,0.0,1.0,4.0
+2024-04-30,Tablet,Mobile,13193.0,12.0,0.1,142484.0,Khon Kaen,Reseller,Wanlaya,Consumer,1,2024-04,Anomaly,-0.6524612826713493,2,0.0,1.0,4.0
+2024-05-12,Tablet,Mobile,12330.0,2.0,0.0,24660.0,Phuket,Online,Pichit,Consumer,1,2024-05,Anomaly,-0.6418077402004638,2,0.0,6.0,5.0
+2024-05-23,Laptop,Computer,3265.5,8.0,0.15,181740.375,Bangkok,Online,Somchai,Enterprise,0,2024-05,Anomaly,-0.6193794392846074,1,0.0,3.0,5.0
+2024-05-26,Monitor,Computer,7474.0,12.0,0.0,89688.0,Chiang Mai,Online,Pichit,Consumer,1,2024-05,Anomaly,-0.626061588529989,2,0.0,6.0,5.0
+2024-05-31,Phone,Mobile,17130.0,12.0,0.2,164448.0,Khon Kaen,Reseller,Somsri,SMB,0,2024-05,Anomaly,-0.6310642015650137,1,0.0,4.0,5.0
+2024-06-10,Laptop,Computer,27393.0,8.0,0.2,181740.375,Chiang Mai,Reseller,Wanlaya,Consumer,0,2024-06,Anomaly,-0.6263852768783847,1,0.0,0.0,6.0
+2024-06-17,Laptop,Computer,27393.0,13.0,0.15,181740.375,Phuket,Online,Somchai,SMB,1,2024-06,Anomaly,-0.7100479082307495,2,0.0,0.0,6.0
+2024-06-29,Laptop,Computer,3265.5,4.0,0.0,119424.0,Hat Yai,Online,Wanlaya,Consumer,1,2024-06,Anomaly,-0.6611431774906261,2,0.0,5.0,6.0
+2024-07-05,Mouse,Accessories,683.0,5.0,0.2,2732.0,Chiang Mai,Online,Somsri,SMB,1,2024-07,Anomaly,-0.6300655458902357,2,0.0,4.0,7.0
+2024-07-22,Phone,Mobile,19110.0,7.0,0.1,120393.0,Khon Kaen,In-Store,Somchai,Enterprise,1,2024-07,Anomaly,-0.6635043850360564,2,0.0,0.0,7.0
+2024-07-22,Phone,Mobile,19017.0,11.0,0.0,181740.375,,Reseller,Somsri,SMB,1,2024-07,Anomaly,-0.6703026635024069,2,0.0,0.0,7.0
+2024-07-26,Cable,Accessories,269.0,1.0,0.0,269.0,Khon Kaen,Online,Somsri,Consumer,1,2024-07,Anomaly,-0.6237233634474706,2,0.0,4.0,7.0
+2024-08-09,Laptop,Computer,27393.0,2.0,0.2,50288.0,Khon Kaen,In-Store,Somsri,Consumer,0,2024-08,Anomaly,-0.6386222010765006,1,0.0,4.0,8.0
+2024-08-25,Tablet,Mobile,11134.0,8.0,0.15,75711.0,Chiang Mai,Reseller,Somchai,Consumer,1,2024-08,Anomaly,-0.6344797207774385,2,0.0,6.0,8.0
+2024-09-02,Laptop,Computer,27393.0,5.0,0.2,155972.0,Phuket,Online,Wanlaya,Consumer,0,2024-09,Anomaly,-0.634342708812997,1,0.0,0.0,9.0
+2024-09-09,Cable,Accessories,337.0,8.0,0.2,2157.0,Phuket,Online,Wanlaya,Consumer,1,2024-09,Anomaly,-0.6361808570972177,2,0.0,0.0,9.0
+2024-10-19,Laptop,Computer,27393.0,10.0,0.1,181740.375,Phuket,Reseller,Pichit,Consumer,1,2024-10,Anomaly,-0.666799108097106,2,0.0,5.0,10.0
+2024-10-21,Mouse,Accessories,797.0,14.0,0.1,10042.0,Hat Yai,In-Store,Nattapong,Consumer,1,2024-10,Anomaly,-0.6182794076973279,2,0.0,0.0,10.0
+2024-11-25,Cable,Accessories,301.0,1.0,0.2,241.0,Bangkok,In-Store,Wanlaya,SMB,1,2024-11,Anomaly,-0.6665980871834852,2,0.0,0.0,11.0
+2024-12-12,Monitor,Computer,8511.0,3.0,0.1,22980.0,Khon Kaen,Reseller,Somchai,Enterprise,1,2024-12,Anomaly,-0.6196264192618807,2,0.0,3.0,12.0

@@ -1,0 +1,801 @@
+employee_id,name,department,position,age,gender,hire_date,salary,performance_score,training_hours,overtime_hours,satisfaction_score,work_from_home_days,num_projects,promotion_last_3yr,resigned,region
+E001,William Jones,Sales,Senior,44,Male,2024-04-12,64200.0,2.9,3,128,1.0,3,14,0,0,Bangkok
+E002,John Rodriguez,Marketing,Junior,39,Male,2021-07-24,26969.0,3.1,80,138,5.0,5,12,1,0,Khon Kaen
+E003,Alex Williams,Operations,Senior,52,Female,2016-03-18,65053.0,2.0,15,118,6.0,5,14,0,1,Bangkok
+E004,Isabella Brown,Finance,Senior,33,Male,2022-11-20,68197.0,2.7,14,84,6.0,1,1,0,0,Rayong
+E005,Jane Rodriguez,IT,Mid,22,Male,2016-08-02,39343.0,4.1,98,3,5.0,3,12,0,0,Bangkok
+E006,David Davis,IT,Senior,30,Female,2024-11-20,72216.0,4.6,120,70,3.0,1,10,0,0,Bangkok
+E007,Matthew Garcia,IT,Manager,24,Female,2015-10-09,96103.0,2.3,51,153,5.0,3,12,1,0,Bangkok
+E008,William Martinez,Marketing,Manager,47,Female,2021-08-04,124313.0,2.8,68,110,,5,1,0,0,Khon Kaen
+E009,John Garcia,Finance,Mid,30,Female,2023-02-10,41930.0,3.3,118,49,2.0,2,13,1,0,Khon Kaen
+E010,Robert Williams,Operations,Junior,37,Female,2017-04-02,29092.0,3.5,4,139,6.0,0,14,0,0,Bangkok
+E011,James Williams,IT,Director,45,Female,2023-01-18,231605.0,2.7,19,94,9.0,2,8,0,0,Bangkok
+E012,Matthew Martinez,Marketing,Manager,35,Male,2023-03-20,118558.0,3.6,78,91,8.0,0,14,0,0,Phuket
+E013,William Martinez,Operations,Junior,24,Female,2019-07-28,29022.0,2.9,17,64,8.0,5,2,0,0,Bangkok
+E014,Robert Jones,IT,Manager,55,Female,2016-10-02,105986.0,3.3,110,46,8.0,2,12,0,0,Bangkok
+E015,Sarah Rodriguez,IT,Manager,54,Male,2017-10-28,106320.0,3.7,1,180,7.0,2,10,0,0,Bangkok
+E016,Daniel Johnson,IT,Mid,45,Male,2020-07-09,48794.0,3.3,92,105,8.0,1,5,0,0,Bangkok
+E017,Mike Miller,Sales,Senior,30,Male,2016-07-16,83856.0,3.0,12,198,6.0,4,12,1,0,Bangkok
+E018,John Martinez,HR,Mid,34,Female,2021-12-13,48673.0,3.2,3,129,2.0,5,4,0,0,Bangkok
+E019,Emily Jones,Sales,Junior,23,Male,2015-12-07,29266.0,3.2,41,105,2.0,3,8,0,0,Bangkok
+E020,James Williams,Sales,Mid,28,Female,2016-04-16,49757.0,3.0,108,23,8.0,5,2,0,0,Khon Kaen
+E021,Emily Johnson,Finance,Manager,42,Female,2019-09-07,111410.0,3.1,73,3,1.0,3,10,0,0,Bangkok
+E022,Jane Rodriguez,IT,Junior,40,Female,2021-04-15,24389.0,4.6,60,107,6.0,3,9,0,0,Phuket
+E023,Sarah Brown,Sales,Mid,46,Female,2015-08-23,47106.0,3.7,94,18,6.0,0,7,0,0,Bangkok
+E024,Sophia Martinez,Sales,Mid,43,Male,2018-01-11,53332.0,3.1,104,153,4.0,3,15,0,1,Phuket
+E025,Robert Johnson,HR,Mid,32,Male,2018-01-21,41011.0,3.9,7,39,10.0,3,13,0,0,Bangkok
+E026,Alex Williams,Operations,Manager,54,Male,2020-03-23,120065.0,3.0,66,49,3.0,1,7,0,0,Phuket
+E027,Emma Williams,IT,Mid,53,Female,2018-11-18,41414.0,4.2,111,170,3.0,2,1,0,1,Bangkok
+E028,Mia Williams,HR,Mid,42,Male,2017-04-03,46689.0,3.6,62,74,1.0,5,14,0,1,Khon Kaen
+E029,Lisa Martinez,Finance,Senior,60,Male,2018-07-15,61868.0,3.2,109,194,3.0,5,12,1,0,Bangkok
+E030,Alex Garcia,IT,Mid,41,Male,2024-07-20,45343.0,3.7,8,11,4.0,3,2,0,0,Bangkok
+E031,William Miller,Finance,Mid,29,Female,2016-09-23,50159.0,2.0,93,194,5.0,4,4,0,0,Rayong
+E032,Isabella Williams,IT,Mid,58,Male,2016-06-12,43724.0,2.4,116,26,3.0,5,4,0,0,Chiang Mai
+E033,Anna Brown,IT,Junior,30,Female,2024-02-07,30316.0,2.3,10,112,6.0,3,11,0,0,Bangkok
+E034,Jane Williams,Marketing,Junior,46,Male,2020-06-03,31595.0,3.4,98,181,5.0,0,14,1,1,Rayong
+E035,David Miller,Marketing,Mid,46,Female,2020-12-09,52853.0,4.7,100,193,3.0,0,3,0,0,Bangkok
+E036,Sophia Martinez,Operations,Mid,54,Male,2023-01-18,41945.0,5.0,41,48,6.0,0,7,0,0,Bangkok
+E037,Matthew Smith,Sales,Manager,23,Female,2020-08-19,108873.0,3.8,12,143,,3,12,1,0,Rayong
+E038,Matthew Jones,IT,Mid,40,Female,2018-09-01,40650.0,3.7,35,129,8.0,1,8,1,0,Bangkok
+E039,Mia Smith,Finance,Senior,41,Male,2022-11-25,83815.0,1.9,119,59,2.0,4,2,0,0,Khon Kaen
+E040,Isabella Williams,Sales,Senior,50,Female,2018-07-20,82211.0,2.9,12,181,1.0,3,4,0,1,Bangkok
+E041,Sarah Garcia,IT,Junior,27,Female,2018-08-22,,2.7,11,29,4.0,1,14,1,1,Phuket
+E042,Mike Miller,HR,Senior,38,Female,2018-05-18,80129.0,2.8,36,83,,1,3,0,0,Chiang Mai
+E043,Jane Smith,IT,Junior,46,Female,2020-06-04,28905.0,3.2,73,165,10.0,5,2,0,0,Rayong
+E044,Emily Martinez,Marketing,Director,59,Male,2019-10-20,213650.0,,119,27,3.0,3,12,0,0,Chiang Mai
+E045,Lisa Smith,Sales,Junior,25,Female,2022-09-01,24673.0,1.7,72,24,3.0,3,13,0,0,Bangkok
+E046,Emily Johnson,Finance,Mid,51,Female,2023-01-12,50145.0,,51,95,5.0,1,14,0,0,Chiang Mai
+E047,Anna Garcia,Sales,Junior,41,Female,2021-11-16,25051.0,2.4,70,124,5.0,1,6,0,0,Bangkok
+E048,Daniel Martinez,HR,Director,24,Female,2022-07-22,227824.0,3.5,1,9,10.0,1,13,0,0,Phuket
+E049,Alex Miller,HR,Mid,44,Male,2022-08-07,50566.0,5.0,117,187,3.0,5,4,0,1,Khon Kaen
+E050,Emily Davis,IT,Senior,39,Female,2022-07-27,76864.0,2.6,55,41,9.0,3,6,0,0,Chiang Mai
+E051,Mia Williams,Marketing,Junior,47,Female,2020-05-02,24154.0,1.3,59,39,4.0,1,2,0,0,Phuket
+E052,Daniel Rodriguez,Operations,Senior,57,Male,2024-07-19,66926.0,3.1,22,76,3.0,0,12,0,0,Bangkok
+E053,Anna Garcia,Marketing,Junior,29,Female,2024-01-01,26378.0,4.2,102,104,2.0,3,4,0,0,Chiang Mai
+E054,Emma Rodriguez,Marketing,Manager,38,Female,2020-10-28,,4.9,39,117,10.0,5,11,1,0,Bangkok
+E055,John Garcia,Finance,Junior,52,Male,2021-12-02,24658.0,2.3,63,41,9.0,0,6,0,0,Chiang Mai
+E056,Emily Jones,Marketing,Junior,58,Male,2017-06-20,32982.0,3.7,102,46,4.0,2,14,0,0,Bangkok
+E057,Robert Garcia,IT,Junior,54,Female,2017-06-09,29227.0,2.9,84,164,3.0,3,5,0,1,Phuket
+E058,James Davis,IT,Mid,48,Male,2019-04-20,43062.0,3.2,22,21,7.0,2,3,0,0,Bangkok
+E059,Mike Johnson,IT,Senior,25,Male,2019-12-30,,5.0,28,184,8.0,1,8,0,0,Phuket
+E060,Emily Johnson,Sales,Junior,43,Male,2020-08-27,28182.0,,77,106,2.0,5,7,0,1,Bangkok
+E061,Sophia Jones,Sales,Senior,47,Male,2018-04-03,74214.0,3.5,89,26,7.0,1,3,0,0,Khon Kaen
+E062,Alex Martinez,Sales,Mid,53,Female,2019-03-29,46371.0,3.7,50,40,5.0,5,6,0,0,Bangkok
+E063,Matthew Davis,Operations,Mid,45,Male,2015-07-21,52730.0,4.2,68,79,5.0,4,4,1,0,Chiang Mai
+E064,David Smith,Sales,Mid,56,Female,2017-01-10,46077.0,3.4,118,161,3.0,1,11,1,0,Bangkok
+E065,Emily Jones,Sales,Mid,58,Female,2018-10-01,53876.0,3.5,94,159,5.0,2,5,0,0,Phuket
+E066,Sophia Rodriguez,HR,Senior,53,Female,2018-10-21,80359.0,3.0,88,88,2.0,5,11,0,1,Bangkok
+E067,Sarah Smith,IT,Junior,28,Male,2020-06-23,25843.0,3.5,30,65,4.0,1,5,0,0,Phuket
+E068,Jane Smith,Operations,Junior,54,Female,2019-01-11,32919.0,3.0,49,11,6.0,3,7,1,0,Bangkok
+E069,Emily Williams,IT,Manager,52,Male,2019-03-17,97980.0,3.8,19,167,1.0,5,11,0,0,Phuket
+E070,Daniel Brown,Marketing,Manager,33,Male,2015-11-15,124971.0,,107,72,10.0,5,5,1,0,Bangkok
+E071,James Davis,Operations,Mid,32,Female,2021-03-14,44244.0,3.6,54,75,4.0,1,11,1,0,Bangkok
+E072,Anna Davis,IT,Mid,45,Female,2017-11-23,52078.0,3.3,80,89,6.0,4,15,1,0,Chiang Mai
+E073,Mia Davis,IT,Senior,29,Female,2020-03-09,80767.0,4.2,108,200,9.0,1,3,0,0,Bangkok
+E074,Chris Miller,Operations,Mid,53,Female,2021-05-02,50943.0,3.3,1,9,2.0,2,10,0,0,Bangkok
+E075,Olivia Johnson,Operations,Junior,59,Female,2016-12-24,31542.0,1.9,24,95,7.0,2,5,0,0,Rayong
+E076,James Davis,Operations,Junior,43,Female,2022-09-23,26785.0,4.3,12,175,6.0,5,7,0,0,Rayong
+E077,Robert Jones,Operations,Senior,55,Female,2023-08-18,61482.0,2.6,102,19,2.0,5,5,1,0,Phuket
+E078,William Williams,IT,Senior,40,Male,2019-08-28,69373.0,2.8,91,38,8.0,1,5,0,0,Bangkok
+E079,Olivia Johnson,Sales,Junior,41,Male,2016-02-17,25500.0,2.8,105,59,7.0,2,9,0,0,Bangkok
+E080,Matthew Rodriguez,IT,Mid,35,Female,2018-06-29,49195.0,4.4,118,65,,2,15,0,0,Chiang Mai
+E081,Mia Brown,Marketing,Mid,54,Female,2023-06-11,,1.6,69,64,5.0,4,3,1,0,Bangkok
+E082,Alex Jones,Finance,Senior,31,Male,2016-02-05,83402.0,5.0,66,178,7.0,3,13,0,0,Rayong
+E083,Alex Rodriguez,Sales,Junior,37,Male,2020-01-14,30081.0,4.1,57,123,9.0,4,6,0,0,Bangkok
+E084,William Williams,IT,Junior,25,Male,2016-12-24,31860.0,3.5,98,163,9.0,0,1,0,0,Rayong
+E085,Jane Jones,Sales,Senior,48,Female,2021-05-18,62746.0,3.3,81,151,9.0,4,10,0,1,Chiang Mai
+E086,Daniel Garcia,Sales,Junior,49,Female,2018-02-09,32247.0,3.5,74,154,6.0,1,5,1,0,Phuket
+E087,Anna Williams,Operations,Senior,37,Female,2022-08-02,82107.0,3.7,117,129,10.0,3,8,0,0,Bangkok
+E088,Sarah Garcia,Finance,Mid,54,Female,2024-06-11,45921.0,3.8,83,158,6.0,1,5,1,1,Khon Kaen
+E089,Sophia Miller,Marketing,Junior,40,Female,2017-01-20,29741.0,3.7,63,56,3.0,0,9,0,0,Bangkok
+E090,William Jones,HR,Mid,42,Male,2015-09-25,50295.0,3.4,68,77,1.0,3,11,0,0,Phuket
+E091,Mia Martinez,IT,Senior,43,Male,2021-06-03,63783.0,3.1,82,193,7.0,5,6,1,0,Khon Kaen
+E092,James Garcia,Operations,Manager,30,Male,2018-09-02,112848.0,3.2,85,28,4.0,2,8,0,0,Bangkok
+E093,John Jones,Operations,Manager,30,Female,2016-07-23,108848.0,3.1,58,14,1.0,4,10,0,0,Bangkok
+E094,Robert Jones,Finance,Mid,30,Male,2021-12-31,,4.2,59,11,8.0,1,8,1,0,Chiang Mai
+E095,Olivia Rodriguez,Operations,Senior,48,Female,2020-05-27,68504.0,3.8,82,100,6.0,0,13,0,0,Bangkok
+E096,Daniel Jones,HR,Junior,38,Female,2016-06-29,24468.0,1.0,110,155,6.0,2,3,0,0,Chiang Mai
+E097,David Garcia,HR,Mid,29,Male,2022-09-23,38656.0,3.8,61,83,2.0,4,7,0,0,Bangkok
+E098,Emily Miller,Sales,Manager,37,Female,2015-12-31,98703.0,3.5,15,124,1.0,2,14,0,1,Bangkok
+E099,Emma Jones,IT,Junior,39,Female,2016-06-30,33238.0,3.3,87,102,2.0,4,7,0,1,Phuket
+E100,Sophia Martinez,IT,Junior,54,Male,2015-09-28,29185.0,3.0,104,23,4.0,5,14,0,0,Chiang Mai
+E101,Mike Rodriguez,IT,Junior,22,Male,2024-09-15,33265.0,4.2,67,148,,3,10,0,0,Bangkok
+E102,Olivia Davis,Finance,Junior,33,Female,2017-01-08,28038.0,4.1,14,137,1.0,2,12,0,1,Khon Kaen
+E103,Olivia Martinez,Sales,Junior,27,Male,2022-01-28,26855.0,2.7,88,109,7.0,2,6,1,0,Khon Kaen
+E104,Mia Brown,HR,Senior,26,Male,2018-06-11,71900.0,3.6,107,77,8.0,2,12,0,0,Chiang Mai
+E105,Robert Williams,Marketing,Mid,37,Female,2015-02-28,45172.0,2.5,54,100,6.0,3,7,0,0,Bangkok
+E106,William Davis,IT,Manager,39,Female,2018-06-28,97568.0,2.2,34,145,4.0,0,14,1,0,Bangkok
+E107,Anna Williams,Sales,Manager,39,Male,2020-02-14,118171.0,2.8,54,141,6.0,4,2,0,0,Phuket
+E108,Alex Martinez,Operations,Mid,22,Female,2015-03-27,41652.0,4.0,13,161,3.0,5,9,0,0,Phuket
+E109,Mike Smith,IT,Mid,40,Female,2017-02-01,48008.0,4.1,48,127,8.0,2,10,0,0,Bangkok
+E110,Emma Martinez,IT,Mid,29,Male,2016-01-25,48490.0,3.7,82,57,10.0,3,10,1,0,Phuket
+E111,Mia Brown,Sales,Senior,24,Female,2018-04-18,63224.0,3.9,101,75,2.0,0,1,1,0,Bangkok
+E112,Sophia Davis,IT,Mid,46,Male,2016-12-19,39216.0,3.7,99,149,5.0,4,1,0,0,Bangkok
+E113,Jane Brown,Marketing,Senior,26,Male,2022-12-13,78628.0,2.8,6,197,1.0,3,3,0,1,Phuket
+E114,William Johnson,Operations,Mid,40,Female,2015-05-29,45491.0,3.6,29,35,6.0,5,14,1,0,Chiang Mai
+E115,John Martinez,Finance,Senior,39,Female,2016-08-05,60925.0,3.9,82,172,,5,15,0,0,Bangkok
+E116,Matthew Davis,Marketing,Mid,52,Male,2015-05-01,53919.0,3.9,48,163,4.0,4,3,1,0,Chiang Mai
+E117,Emma Miller,Operations,Mid,54,Female,2022-09-13,39160.0,4.3,88,21,6.0,2,1,0,0,Rayong
+E118,Isabella Garcia,IT,Manager,39,Female,2022-04-06,120258.0,3.9,15,126,10.0,5,12,0,0,Chiang Mai
+E119,Olivia Davis,Marketing,Senior,60,Female,2021-04-22,83600.0,3.6,110,79,8.0,0,7,0,0,Phuket
+E120,Mia Garcia,HR,Junior,37,Male,2017-02-04,26143.0,4.2,117,188,8.0,3,4,0,0,Bangkok
+E121,Olivia Jones,Operations,Manager,37,Female,2022-12-21,98976.0,3.3,103,99,6.0,0,10,0,0,Bangkok
+E122,Chris Davis,Marketing,Mid,59,Male,2017-03-10,40161.0,2.6,50,183,4.0,2,13,0,1,Bangkok
+E123,Jane Miller,Sales,Manager,28,Male,2024-04-03,105176.0,3.2,71,95,8.0,0,2,0,0,Chiang Mai
+E124,Sophia Miller,IT,Senior,35,Female,2020-10-07,61975.0,2.7,81,160,8.0,0,10,0,0,Phuket
+E125,Olivia Smith,IT,Mid,46,Female,2017-10-18,49151.0,2.8,91,172,10.0,1,5,1,0,Bangkok
+E126,John Brown,Sales,Junior,53,Female,2023-08-07,24410.0,3.2,79,163,1.0,0,6,0,0,Bangkok
+E127,William Brown,Operations,Mid,59,Male,2019-01-09,46273.0,2.7,115,147,4.0,4,9,0,0,Bangkok
+E128,David Williams,Marketing,Senior,43,Male,2021-09-01,83919.0,3.1,82,17,4.0,3,4,1,0,Bangkok
+E129,David Davis,IT,Senior,37,Female,2018-01-14,79442.0,1.8,41,37,7.0,1,2,0,1,Rayong
+E130,Emma Davis,HR,Mid,50,Male,2022-10-04,47939.0,3.5,16,194,7.0,3,5,1,1,Chiang Mai
+E131,Lisa Miller,Sales,Junior,37,Female,2018-06-04,26801.0,3.3,62,150,8.0,3,3,0,0,Bangkok
+E132,Emma Martinez,IT,Manager,33,Male,2022-03-25,117519.0,2.6,44,108,,2,2,0,0,Phuket
+E133,Sophia Garcia,IT,Director,38,Female,2019-07-08,206892.0,3.8,76,122,7.0,2,12,1,0,Phuket
+E134,John Jones,Sales,Mid,58,Female,2023-11-30,44960.0,4.1,6,143,8.0,1,1,0,0,Phuket
+E135,Matthew Davis,Marketing,Junior,48,Female,2019-12-21,25080.0,2.0,26,186,9.0,5,10,0,0,Bangkok
+E136,Emma Johnson,Sales,Mid,46,Female,2018-09-07,52214.0,2.7,9,196,3.0,2,2,0,1,Bangkok
+E137,Robert Miller,HR,Junior,34,Female,2023-02-04,28207.0,2.7,33,195,3.0,2,6,0,1,Bangkok
+E138,Robert Jones,Operations,Manager,29,Male,2018-09-03,100992.0,2.5,35,148,4.0,2,8,0,0,Khon Kaen
+E139,Lisa Jones,Sales,Junior,26,Male,2022-02-26,27404.0,4.0,24,103,5.0,3,13,0,0,Phuket
+E140,Daniel Rodriguez,Marketing,Senior,33,Female,2021-09-12,69646.0,3.1,5,197,10.0,1,3,0,0,Chiang Mai
+E141,Mia Johnson,Marketing,Mid,24,Male,2019-09-29,51283.0,3.1,23,139,,3,11,0,1,Bangkok
+E142,Sarah Rodriguez,Sales,Senior,56,Female,2017-06-17,,1.7,17,143,7.0,4,15,0,0,Bangkok
+E143,Jane Brown,HR,Senior,54,Male,2024-03-18,78347.0,3.8,86,80,9.0,3,9,0,0,Bangkok
+E144,Isabella Jones,Sales,Manager,43,Male,2021-05-29,93924.0,2.3,5,86,8.0,4,15,0,0,Rayong
+E145,Matthew Martinez,Sales,Junior,30,Male,2016-04-29,27878.0,3.3,28,141,5.0,0,12,0,0,Bangkok
+E146,Isabella Rodriguez,IT,Junior,39,Female,2024-08-19,28517.0,3.5,24,60,4.0,0,9,0,0,Bangkok
+E147,Anna Jones,Finance,Junior,50,Female,2017-03-13,23988.0,4.4,54,198,7.0,4,2,0,1,Rayong
+E148,Daniel Garcia,HR,Manager,60,Female,2019-09-12,103502.0,2.3,80,45,5.0,4,8,0,0,Chiang Mai
+E149,Robert Miller,IT,Manager,48,Female,2020-03-30,122771.0,1.0,45,31,7.0,3,10,0,0,Phuket
+E150,Daniel Rodriguez,Sales,Senior,57,Male,2024-07-15,62859.0,3.4,23,14,1.0,4,11,0,1,Bangkok
+E151,Emily Davis,Marketing,Senior,38,Male,2024-10-19,72615.0,4.7,74,43,1.0,1,12,0,0,Chiang Mai
+E152,Mike Williams,IT,Senior,55,Female,2019-10-24,64772.0,4.3,25,144,10.0,0,5,0,0,Bangkok
+E153,Olivia Rodriguez,IT,Junior,24,Female,2019-12-15,23918.0,3.5,114,168,3.0,0,4,0,0,Phuket
+E154,David Martinez,HR,Manager,26,Male,2023-01-16,102786.0,2.9,97,53,2.0,5,10,0,0,Bangkok
+E155,Lisa Garcia,Marketing,Mid,35,Female,2021-04-10,53620.0,,27,43,2.0,4,5,1,0,Bangkok
+E156,Olivia Jones,IT,Mid,24,Male,2018-12-14,50874.0,2.5,2,97,7.0,2,4,0,0,Phuket
+E157,Lisa Williams,Finance,Mid,44,Male,2020-05-06,53363.0,3.7,74,4,10.0,2,8,0,0,Chiang Mai
+E158,Isabella Williams,Operations,Junior,60,Female,2023-03-27,28580.0,3.7,37,108,2.0,4,4,0,1,Chiang Mai
+E159,Robert Johnson,IT,Junior,51,Male,2023-10-31,24875.0,4.1,60,26,4.0,1,13,1,0,Bangkok
+E160,Mike Miller,Operations,Senior,44,Male,2022-11-03,72925.0,5.0,77,115,2.0,2,10,0,0,Bangkok
+E161,James Martinez,Sales,Junior,48,Male,2024-07-27,28252.0,3.6,50,86,6.0,5,12,0,0,Phuket
+E162,James Martinez,Finance,Senior,31,Male,2021-05-09,80186.0,2.9,89,103,8.0,4,13,1,0,Phuket
+E163,William Smith,Finance,Mid,46,Female,2019-07-29,39794.0,3.3,47,122,10.0,1,14,0,0,Rayong
+E164,Robert Martinez,HR,Mid,34,Female,2020-01-23,45939.0,1.9,20,78,4.0,1,6,0,1,Phuket
+E165,John Smith,IT,Mid,37,Female,2016-06-03,40613.0,2.7,53,42,5.0,3,2,0,0,Chiang Mai
+E166,William Martinez,Operations,Mid,55,Female,2018-02-25,43363.0,3.0,55,96,4.0,1,5,0,0,Khon Kaen
+E167,Emma Garcia,Sales,Senior,58,Male,2018-10-28,77565.0,2.9,102,30,3.0,2,6,0,0,Bangkok
+E168,Emily Rodriguez,IT,Mid,43,Male,2022-02-28,45747.0,3.4,93,98,5.0,2,5,0,0,Bangkok
+E169,William Brown,IT,Senior,38,Male,2022-05-09,68709.0,2.6,58,16,9.0,4,12,0,0,Bangkok
+E170,Sarah Johnson,Finance,Mid,44,Male,2021-01-15,44463.0,4.2,71,82,8.0,4,2,0,0,Bangkok
+E171,Emily Miller,Finance,Senior,57,Male,2024-12-21,70756.0,3.3,50,109,8.0,1,14,0,0,Phuket
+E172,Mia Rodriguez,IT,Manager,30,Female,2024-12-20,123723.0,3.3,19,181,8.0,5,7,0,0,Chiang Mai
+E173,Chris Davis,HR,Senior,23,Female,2016-10-13,81356.0,3.0,111,189,8.0,0,4,0,0,Chiang Mai
+E174,Olivia Smith,IT,Junior,53,Female,2021-02-01,33162.0,,95,31,7.0,3,8,0,0,Bangkok
+E175,Emily Rodriguez,Finance,Junior,43,Female,2020-05-04,31511.0,4.0,85,167,8.0,0,7,0,0,Chiang Mai
+E176,Jane Brown,IT,Mid,34,Male,2022-04-21,43217.0,2.6,58,140,8.0,1,7,1,0,Bangkok
+E177,Mia Johnson,Finance,Senior,29,Female,2015-07-30,76359.0,2.8,70,34,8.0,1,9,0,0,Phuket
+E178,Matthew Davis,Sales,Junior,22,Female,2021-10-30,28088.0,3.1,8,132,10.0,0,1,0,0,Bangkok
+E179,Emily Rodriguez,Marketing,Mid,38,Male,2016-08-08,42261.0,2.2,108,200,7.0,3,10,0,0,Khon Kaen
+E180,Emma Martinez,IT,Senior,33,Male,2015-06-16,80101.0,2.6,0,28,1.0,0,6,0,0,Bangkok
+E181,Isabella Johnson,Sales,Mid,25,Female,2021-11-12,38855.0,,28,69,4.0,4,6,0,0,Bangkok
+E182,Lisa Davis,IT,Senior,34,Female,2023-02-11,81593.0,4.0,62,152,4.0,2,6,0,0,Chiang Mai
+E183,Olivia Garcia,Marketing,Junior,52,Female,2024-05-21,28322.0,3.5,71,94,5.0,5,13,1,0,Khon Kaen
+E184,Anna Davis,Marketing,Junior,28,Female,2024-03-29,30044.0,3.5,55,21,,4,12,0,1,Chiang Mai
+E185,Daniel Rodriguez,Sales,Senior,44,Female,2018-06-10,75654.0,4.0,117,193,6.0,2,6,0,0,Phuket
+E186,Emily Smith,Finance,Mid,45,Male,2024-04-21,52348.0,3.2,67,172,4.0,5,12,0,0,Rayong
+E187,Robert Williams,Operations,Senior,26,Male,2018-04-20,75098.0,3.6,34,68,2.0,5,10,0,0,Rayong
+E188,Emily Rodriguez,Finance,Mid,26,Male,2024-04-28,47919.0,3.2,2,88,6.0,5,7,0,0,Phuket
+E189,Mike Rodriguez,HR,Mid,38,Male,2019-10-05,39299.0,3.5,117,71,8.0,1,14,0,1,Phuket
+E190,Sophia Rodriguez,IT,Manager,51,Female,2017-11-18,113458.0,2.8,108,128,,5,10,0,0,Bangkok
+E191,Emma Smith,IT,Senior,30,Female,2016-12-14,63179.0,1.3,103,171,7.0,3,6,1,0,Khon Kaen
+E192,Olivia Garcia,Marketing,Senior,27,Female,2023-08-31,77567.0,3.2,6,86,6.0,0,1,1,0,Bangkok
+E193,James Brown,Marketing,Mid,46,Male,2022-11-28,46317.0,4.4,26,95,2.0,3,3,0,0,Rayong
+E194,David Johnson,Finance,Senior,40,Female,2022-12-25,76165.0,4.0,0,74,7.0,0,2,1,0,Bangkok
+E195,Emma Garcia,Sales,Mid,37,Male,2016-11-18,38906.0,4.1,90,166,5.0,4,6,0,0,Bangkok
+E196,Isabella Brown,Sales,Junior,42,Male,2015-11-26,24630.0,4.3,79,53,6.0,4,8,0,0,Chiang Mai
+E197,Lisa Davis,Operations,Manager,23,Female,2019-10-13,121078.0,3.4,101,87,10.0,0,3,0,0,Bangkok
+E198,Lisa Davis,Marketing,Junior,31,Female,2018-04-22,24506.0,3.5,70,156,8.0,3,10,0,0,Bangkok
+E199,John Johnson,Marketing,Director,37,Male,2020-11-12,174987.0,2.8,43,53,8.0,0,8,0,0,Chiang Mai
+E200,Emily Brown,Operations,Mid,58,Male,2017-02-23,38440.0,3.0,86,15,3.0,5,8,0,0,Phuket
+E201,Alex Garcia,Finance,Junior,36,Female,2022-05-20,33173.0,3.8,40,98,7.0,1,5,0,0,Chiang Mai
+E202,Lisa Miller,IT,Senior,34,Male,2021-07-28,77568.0,4.3,74,19,1.0,4,8,0,0,Bangkok
+E203,Matthew Garcia,IT,Manager,34,Male,2023-02-25,107100.0,,41,45,1.0,1,6,0,0,Phuket
+E204,Mike Martinez,Marketing,Senior,53,Female,2017-07-29,66765.0,2.9,116,194,7.0,5,5,0,0,Bangkok
+E205,Mia Smith,Finance,Manager,29,Male,2023-04-20,106963.0,,32,192,10.0,5,9,0,0,Bangkok
+E206,Sophia Miller,IT,Senior,39,Male,2018-07-12,78479.0,3.8,49,126,9.0,4,14,0,0,Phuket
+E207,Jane Miller,IT,Senior,57,Male,2019-08-07,75703.0,2.1,62,57,7.0,4,7,1,0,Khon Kaen
+E208,Emma Jones,Finance,Manager,47,Female,2023-06-18,100630.0,1.5,99,180,10.0,5,8,1,1,Chiang Mai
+E209,Sarah Johnson,IT,Mid,31,Female,2022-05-17,40992.0,2.9,36,110,5.0,2,1,1,0,Chiang Mai
+E210,Anna Garcia,IT,Mid,52,Male,2016-09-17,39799.0,2.3,104,128,8.0,1,11,0,0,Bangkok
+E211,Mike Johnson,HR,Mid,54,Male,2024-10-10,48649.0,2.9,58,80,2.0,1,2,0,0,Chiang Mai
+E212,Anna Miller,Finance,Director,50,Male,2015-05-19,223506.0,3.2,80,193,9.0,2,8,0,1,Bangkok
+E213,William Rodriguez,Finance,Manager,26,Male,2022-07-26,103704.0,2.9,98,156,6.0,3,12,0,0,Rayong
+E214,James Martinez,IT,Junior,34,Female,2024-12-23,24005.0,4.5,47,83,9.0,1,9,0,0,Khon Kaen
+E215,Daniel Jones,Operations,Senior,22,Female,2017-01-31,61513.0,3.6,4,69,2.0,0,4,1,0,Phuket
+E216,Chris Miller,IT,Manager,44,Male,2020-01-08,130762.0,3.5,47,7,3.0,5,12,0,0,Chiang Mai
+E217,Sophia Garcia,Sales,Junior,24,Male,2024-11-05,26695.0,3.8,95,28,8.0,5,10,0,0,Phuket
+E218,James Miller,Operations,Senior,24,Male,2021-04-21,78345.0,2.4,2,111,1.0,2,11,0,1,Chiang Mai
+E219,Daniel Brown,Finance,Manager,28,Male,2023-08-23,117549.0,4.1,115,178,10.0,1,10,0,0,Bangkok
+E220,William Smith,Operations,Junior,57,Male,2024-08-30,27543.0,3.2,46,160,7.0,3,14,1,0,Bangkok
+E221,Mia Smith,Finance,Senior,56,Female,2019-04-05,64539.0,3.8,61,130,7.0,1,9,1,0,Chiang Mai
+E222,Chris Brown,Finance,Mid,36,Female,2024-12-12,40161.0,2.4,98,187,1.0,5,4,1,0,Rayong
+E223,Robert Miller,IT,Manager,24,Female,2016-11-06,117177.0,2.1,115,162,9.0,4,10,0,0,Bangkok
+E224,Lisa Rodriguez,Sales,Director,50,Male,2015-04-02,224224.0,4.0,13,196,8.0,0,10,0,0,Bangkok
+E225,Sophia Martinez,Sales,Manager,51,Female,2017-12-28,118290.0,3.6,62,107,4.0,2,10,0,0,Bangkok
+E226,James Williams,IT,Mid,60,Male,2015-02-06,46602.0,2.6,111,108,10.0,4,9,0,0,Khon Kaen
+E227,Emily Johnson,Marketing,Manager,39,Male,2019-11-23,95115.0,2.6,60,19,5.0,3,11,0,0,Bangkok
+E228,Daniel Williams,Sales,Manager,32,Female,2020-12-27,130786.0,4.2,30,72,2.0,4,7,0,0,Bangkok
+E229,John Williams,Marketing,Mid,59,Male,2022-12-24,50829.0,2.3,94,166,9.0,4,2,1,0,Chiang Mai
+E230,Sarah Miller,Finance,Manager,22,Female,2022-06-20,,4.6,16,3,6.0,3,9,0,0,Chiang Mai
+E231,Sophia Jones,Operations,Junior,50,Female,2024-12-16,33403.0,2.6,23,18,3.0,4,4,0,0,Bangkok
+E232,Robert Smith,HR,Senior,31,Female,2018-04-16,74246.0,3.8,115,101,7.0,2,8,1,0,Bangkok
+E233,Lisa Brown,Finance,Mid,49,Female,2020-01-11,47423.0,3.0,22,172,9.0,5,14,0,0,Chiang Mai
+E234,Mike Johnson,HR,Junior,52,Male,2020-03-09,31131.0,3.8,81,170,3.0,1,7,0,1,Chiang Mai
+E235,William Smith,IT,Junior,40,Female,2015-05-17,31755.0,2.9,49,140,2.0,4,13,0,0,Rayong
+E236,William Johnson,Operations,Senior,24,Female,2021-02-15,75583.0,3.2,117,140,7.0,2,15,0,1,Phuket
+E237,Emma Smith,Sales,Mid,57,Female,2019-07-22,40267.0,3.3,77,187,7.0,1,7,0,0,Bangkok
+E238,Sophia Smith,IT,Senior,36,Male,2021-07-17,67787.0,2.5,113,184,4.0,1,8,0,0,Chiang Mai
+E239,Mia Rodriguez,Finance,Junior,54,Female,2019-05-02,32895.0,3.9,78,85,9.0,4,1,1,0,Bangkok
+E240,Mike Miller,IT,Mid,47,Male,2023-06-04,41787.0,2.9,78,51,8.0,2,5,1,1,Bangkok
+E241,John Garcia,Marketing,Mid,37,Female,2017-08-29,44111.0,3.1,69,110,1.0,5,2,0,0,Rayong
+E242,Olivia Smith,Marketing,Senior,57,Male,2024-02-11,70085.0,2.5,26,180,1.0,4,2,1,0,Khon Kaen
+E243,Matthew Smith,Marketing,Mid,54,Female,2016-10-23,45170.0,1.3,14,108,5.0,3,15,0,0,Bangkok
+E244,John Garcia,Sales,Senior,41,Male,2021-04-09,74517.0,3.1,49,85,6.0,1,1,0,0,Bangkok
+E245,Emma Smith,IT,Manager,34,Male,2019-12-16,129808.0,5.0,35,42,3.0,4,5,1,0,Bangkok
+E246,Olivia Williams,Marketing,Senior,54,Male,2016-02-19,65396.0,3.9,118,199,9.0,1,2,0,0,Bangkok
+E247,Anna Williams,Sales,Mid,26,Male,2022-07-17,40163.0,3.3,7,199,10.0,2,4,1,0,Chiang Mai
+E248,Matthew Williams,Marketing,Junior,58,Male,2015-12-09,25735.0,3.1,78,41,6.0,0,3,0,0,Bangkok
+E249,Sarah Brown,Marketing,Manager,35,Male,2022-06-22,127646.0,3.3,2,89,4.0,4,3,0,0,Rayong
+E250,Matthew Martinez,Marketing,Junior,48,Female,2024-06-12,30128.0,3.7,61,114,7.0,5,2,0,0,Bangkok
+E251,Jane Brown,Sales,Manager,44,Female,2022-05-24,104507.0,2.4,46,25,8.0,4,13,0,0,Chiang Mai
+E252,Emma Miller,Sales,Mid,35,Female,2015-05-26,51101.0,4.2,76,150,9.0,1,6,0,0,Khon Kaen
+E253,Sophia Miller,Marketing,Manager,25,Male,2015-11-19,126662.0,3.9,104,42,,2,2,0,0,Chiang Mai
+E254,Isabella Brown,Sales,Senior,60,Male,2020-12-09,80239.0,3.9,97,76,6.0,3,14,0,0,Bangkok
+E255,Matthew Rodriguez,IT,Director,40,Male,2018-06-29,234324.0,3.7,87,155,8.0,5,14,1,0,Bangkok
+E256,Mia Martinez,Finance,Mid,25,Female,2020-02-22,42222.0,3.3,103,136,5.0,2,8,1,0,Bangkok
+E257,Robert Johnson,Marketing,Senior,51,Female,2021-06-16,77998.0,3.8,95,19,3.0,4,8,1,0,Rayong
+E258,Sophia Garcia,Finance,Mid,40,Male,2016-08-23,45503.0,3.8,60,183,3.0,3,13,0,0,Rayong
+E259,Daniel Garcia,Finance,Mid,52,Male,2016-04-19,51511.0,3.0,31,38,6.0,2,14,1,0,Rayong
+E260,Robert Martinez,IT,Senior,52,Female,2022-03-02,77348.0,2.8,93,178,2.0,0,12,0,0,Khon Kaen
+E261,John Davis,Finance,Manager,30,Female,2019-02-24,123393.0,3.4,115,11,6.0,5,5,0,0,Bangkok
+E262,Isabella Johnson,Marketing,Director,34,Female,2016-07-28,215931.0,4.5,112,182,6.0,1,10,0,0,Rayong
+E263,Sophia Rodriguez,IT,Senior,35,Female,2015-12-13,,2.3,12,10,8.0,2,7,0,0,Rayong
+E264,Alex Garcia,HR,Mid,31,Male,2022-11-07,46834.0,2.1,0,153,7.0,2,4,1,0,Bangkok
+E265,Sarah Martinez,Marketing,Mid,52,Male,2019-02-19,53758.0,3.4,33,41,8.0,0,1,0,0,Bangkok
+E266,Jane Davis,Operations,Senior,58,Male,2024-09-14,82466.0,3.3,61,154,9.0,4,11,0,1,Chiang Mai
+E267,Anna Miller,Finance,Mid,44,Male,2016-01-17,38929.0,3.4,78,10,6.0,5,2,0,0,Bangkok
+E268,James Johnson,Operations,Junior,48,Male,2018-07-27,25415.0,3.5,107,37,3.0,5,10,0,0,Bangkok
+E269,Olivia Davis,Sales,Mid,27,Female,2015-03-13,40324.0,3.1,77,97,10.0,1,10,1,0,Rayong
+E270,William Smith,Sales,Mid,47,Male,2022-01-12,49684.0,4.5,120,170,3.0,2,4,0,0,Rayong
+E271,Isabella Garcia,Operations,Mid,23,Male,2024-05-30,51130.0,2.0,92,18,1.0,3,1,1,0,Bangkok
+E272,Olivia Miller,Operations,Mid,34,Male,2023-02-28,41612.0,2.6,97,191,5.0,2,15,0,0,Bangkok
+E273,Alex Miller,Marketing,Junior,40,Male,2018-01-22,28757.0,3.2,81,133,4.0,1,13,0,0,Khon Kaen
+E274,William Jones,Marketing,Junior,22,Male,2018-10-28,32038.0,2.0,117,173,9.0,2,8,0,0,Phuket
+E275,Sophia Davis,HR,Director,53,Female,2021-07-14,221296.0,3.2,70,115,9.0,0,9,1,0,Bangkok
+E276,David Garcia,HR,Mid,43,Female,2024-08-09,46790.0,4.6,92,112,5.0,2,4,1,1,Phuket
+E277,Jane Garcia,Operations,Mid,50,Male,2018-09-21,47547.0,3.3,118,169,10.0,2,10,0,0,Khon Kaen
+E278,Robert Rodriguez,Finance,Senior,23,Male,2016-10-25,71954.0,3.5,30,64,4.0,3,3,0,0,Rayong
+E279,Jane Smith,Operations,Junior,59,Male,2019-02-24,26715.0,2.3,63,98,7.0,0,2,0,0,Bangkok
+E280,Mike Garcia,Operations,Manager,32,Female,2020-03-06,115253.0,2.8,24,71,6.0,0,5,0,0,Bangkok
+E281,Matthew Davis,Marketing,Senior,38,Male,2015-02-09,76377.0,3.0,37,186,4.0,2,14,0,0,Rayong
+E282,David Johnson,Sales,Junior,29,Male,2018-10-14,32358.0,3.0,13,51,10.0,5,3,1,0,Bangkok
+E283,Sophia Miller,Sales,Mid,43,Female,2020-07-23,48271.0,4.3,7,117,2.0,3,10,0,0,Phuket
+E284,William Smith,IT,Manager,25,Male,2022-03-06,122803.0,3.7,90,174,1.0,2,7,0,0,Bangkok
+E285,Robert Miller,Finance,Manager,32,Male,2018-07-01,99662.0,2.4,53,119,4.0,2,11,0,0,Bangkok
+E286,Emma Johnson,IT,Mid,29,Male,2017-08-23,45519.0,3.5,1,6,4.0,1,6,1,0,Bangkok
+E287,Alex Smith,HR,Senior,30,Male,2022-03-13,59728.0,3.7,80,10,1.0,1,1,0,1,Bangkok
+E288,William Martinez,HR,Junior,47,Male,2024-07-01,26217.0,4.2,100,102,,5,12,0,0,Rayong
+E289,Robert Jones,Sales,Director,23,Female,2020-03-15,220852.0,4.6,77,60,4.0,3,8,0,0,Bangkok
+E290,Robert Garcia,Finance,Mid,37,Female,2021-01-26,53871.0,2.5,88,67,1.0,4,2,0,0,Khon Kaen
+E291,Mike Williams,IT,Manager,52,Female,2016-12-01,97318.0,2.7,55,152,,1,5,1,0,Khon Kaen
+E292,Isabella Jones,IT,Senior,27,Male,2016-05-25,69336.0,2.3,93,139,1.0,4,9,0,0,Bangkok
+E293,Anna Davis,Operations,Senior,42,Male,2018-07-07,79101.0,3.1,92,153,8.0,0,8,0,0,Phuket
+E294,Lisa Jones,Sales,Mid,47,Male,2016-08-06,41463.0,3.7,83,101,10.0,1,2,0,1,Bangkok
+E295,Mia Rodriguez,IT,Mid,40,Male,2017-09-10,46992.0,4.1,84,109,8.0,1,9,0,0,Phuket
+E296,Sarah Johnson,HR,Junior,49,Female,2016-04-03,30984.0,,60,139,2.0,3,5,1,0,Chiang Mai
+E297,Emma Williams,Operations,Mid,29,Male,2022-01-20,,3.0,116,170,7.0,5,10,0,0,Bangkok
+E298,David Martinez,IT,Junior,35,Female,2020-03-20,25642.0,3.4,21,50,8.0,4,14,1,0,Bangkok
+E299,Emma Johnson,Finance,Senior,45,Male,2021-07-16,68206.0,2.6,34,116,8.0,1,6,0,0,Phuket
+E300,Daniel Smith,IT,Mid,58,Male,2020-10-05,50594.0,5.0,100,164,10.0,1,13,0,0,Rayong
+E301,Emma Jones,IT,Junior,47,Male,2021-03-15,29231.0,2.0,15,45,7.0,3,3,0,0,Bangkok
+E302,Robert Miller,HR,Director,52,Male,2022-04-20,170366.0,3.4,49,52,5.0,3,13,0,0,Chiang Mai
+E303,Isabella Miller,HR,Manager,53,Male,2017-03-26,122798.0,4.9,112,87,1.0,5,3,1,0,Bangkok
+E304,William Williams,Finance,Manager,23,Male,2022-08-10,94859.0,3.3,42,120,,4,10,0,0,Khon Kaen
+E305,Sophia Smith,Operations,Director,46,Male,2021-11-16,222201.0,3.1,16,12,7.0,0,8,0,0,Bangkok
+E306,Sophia Davis,Marketing,Junior,23,Female,2015-09-04,,,79,88,2.0,5,11,1,0,Phuket
+E307,Emily Williams,HR,Mid,22,Female,2016-12-30,53339.0,3.2,57,124,6.0,0,10,0,0,Bangkok
+E308,Lisa Miller,Sales,Senior,57,Male,2021-08-17,68514.0,4.4,118,117,2.0,2,10,0,0,Chiang Mai
+E309,Emily Johnson,Operations,Senior,33,Male,2016-02-21,67509.0,1.5,1,53,1.0,1,15,0,0,Khon Kaen
+E310,Daniel Miller,Sales,Junior,30,Female,2017-11-20,25259.0,4.5,3,184,7.0,4,12,0,0,Phuket
+E311,Robert Smith,Sales,Manager,57,Female,2016-01-03,105265.0,2.2,84,115,2.0,5,2,1,0,Phuket
+E312,Emma Martinez,IT,Mid,49,Female,2022-02-19,52057.0,3.1,38,117,2.0,1,11,0,0,Chiang Mai
+E313,Sophia Martinez,IT,Mid,59,Male,2015-04-18,53942.0,3.0,97,3,5.0,4,12,1,0,Khon Kaen
+E314,Mia Smith,Marketing,Mid,54,Female,2022-03-16,44050.0,3.8,93,74,5.0,4,12,0,0,Chiang Mai
+E315,Daniel Brown,Operations,Senior,43,Female,2017-04-18,70490.0,2.0,5,48,7.0,4,2,0,0,Rayong
+E316,Mike Miller,Finance,Senior,46,Male,2016-02-22,77190.0,3.7,80,6,1.0,1,13,0,1,Chiang Mai
+E317,Olivia Brown,Sales,Junior,39,Female,2019-07-02,32484.0,4.9,102,109,8.0,5,5,0,0,Chiang Mai
+E318,Anna Smith,IT,Manager,27,Male,2017-03-31,116332.0,,88,121,3.0,3,6,0,0,Bangkok
+E319,James Martinez,IT,Mid,39,Female,2018-11-22,44416.0,3.5,68,10,4.0,1,12,0,0,Chiang Mai
+E320,Isabella Johnson,Sales,Junior,37,Female,2024-02-26,27843.0,2.8,68,91,9.0,4,2,1,0,Bangkok
+E321,Lisa Martinez,HR,Manager,36,Female,2016-11-13,120281.0,3.6,19,181,4.0,5,15,0,0,Khon Kaen
+E322,Anna Jones,Operations,Director,29,Female,2023-09-23,170225.0,3.3,63,172,10.0,2,5,0,0,Phuket
+E323,Anna Johnson,Finance,Manager,34,Male,2015-09-13,117354.0,,15,22,5.0,0,7,0,0,Rayong
+E324,Emma Williams,Sales,Manager,28,Male,2023-08-19,107186.0,3.7,50,27,7.0,4,10,0,0,Bangkok
+E325,Lisa Rodriguez,Marketing,Senior,38,Female,2022-09-28,78957.0,4.7,104,110,4.0,2,10,0,0,Bangkok
+E326,Mike Johnson,Operations,Senior,53,Female,2023-10-05,61778.0,,36,56,1.0,3,8,0,0,Khon Kaen
+E327,Jane Miller,Finance,Junior,43,Female,2017-04-17,29564.0,3.9,103,25,9.0,4,12,0,0,Bangkok
+E328,Daniel Martinez,Finance,Mid,34,Female,2023-02-10,45825.0,2.3,72,152,4.0,2,7,1,0,Chiang Mai
+E329,Emily Johnson,Sales,Mid,44,Female,2021-04-01,48366.0,2.5,68,53,9.0,4,8,0,0,Khon Kaen
+E330,Anna Brown,IT,Mid,50,Female,2016-07-06,39271.0,3.7,41,28,6.0,1,14,0,0,Chiang Mai
+E331,John Brown,Sales,Senior,43,Male,2015-06-30,73709.0,4.5,56,96,1.0,5,12,0,0,Bangkok
+E332,Robert Martinez,Operations,Mid,22,Male,2015-06-06,47093.0,3.6,65,163,3.0,2,9,0,0,Khon Kaen
+E333,William Jones,IT,Junior,50,Female,2019-01-17,29294.0,3.0,8,13,2.0,5,15,1,0,Bangkok
+E334,Daniel Jones,IT,Mid,26,Male,2016-07-24,47754.0,3.3,106,77,9.0,1,5,0,1,Khon Kaen
+E335,Jane Rodriguez,IT,Senior,56,Male,2017-05-06,76073.0,2.3,99,34,1.0,1,13,0,1,Bangkok
+E336,Emma Johnson,IT,Junior,31,Male,2019-11-20,31688.0,3.8,85,29,9.0,5,5,1,0,Phuket
+E337,Olivia Williams,Marketing,Manager,40,Female,2019-09-24,103888.0,,63,91,9.0,2,11,0,0,Bangkok
+E338,Olivia Davis,Operations,Mid,58,Female,2017-11-13,,2.9,85,16,8.0,5,10,1,0,Phuket
+E339,Daniel Williams,HR,Mid,28,Female,2019-02-05,46097.0,2.9,21,194,8.0,5,4,0,0,Bangkok
+E340,Anna Smith,IT,Senior,56,Male,2018-11-24,61387.0,3.5,33,157,1.0,0,13,1,0,Khon Kaen
+E341,James Davis,HR,Manager,34,Female,2023-03-15,95754.0,3.0,54,92,8.0,2,9,0,0,Chiang Mai
+E342,John Jones,HR,Mid,31,Female,2016-08-14,43514.0,3.2,28,172,10.0,0,5,0,1,Bangkok
+E343,Sarah Miller,IT,Senior,23,Male,2020-12-21,78729.0,5.0,37,78,3.0,4,14,0,0,Phuket
+E344,Olivia Jones,Sales,Senior,27,Male,2016-02-25,76838.0,3.1,109,109,7.0,5,2,0,0,Chiang Mai
+E345,James Smith,Sales,Mid,29,Male,2021-03-10,50670.0,3.0,96,178,1.0,4,15,0,0,Bangkok
+E346,Mike Brown,Finance,Manager,57,Female,2023-01-26,113414.0,2.8,17,101,1.0,2,10,0,0,Bangkok
+E347,Alex Jones,Finance,Senior,46,Female,2021-12-04,70284.0,3.9,70,105,10.0,5,8,1,0,Bangkok
+E348,William Williams,IT,Senior,28,Male,2015-12-14,63112.0,3.2,64,46,5.0,4,15,0,0,Bangkok
+E349,Sophia Davis,Sales,Manager,44,Female,2015-06-15,106135.0,2.8,96,180,5.0,3,7,1,0,Bangkok
+E350,Robert Williams,Finance,Manager,40,Male,2017-07-25,110209.0,4.4,0,63,8.0,1,8,0,0,Bangkok
+E351,John Rodriguez,HR,Senior,43,Male,2015-12-14,61670.0,4.4,87,165,7.0,5,12,0,0,Chiang Mai
+E352,Chris Garcia,Marketing,Manager,34,Male,2022-12-06,101993.0,2.8,3,63,8.0,1,3,0,0,Chiang Mai
+E353,Daniel Davis,Finance,Senior,42,Male,2016-02-02,74156.0,1.8,3,86,6.0,0,15,0,1,Bangkok
+E354,Jane Rodriguez,IT,Senior,22,Male,2016-08-05,77523.0,4.1,81,6,6.0,4,15,1,0,Rayong
+E355,Matthew Jones,IT,Senior,40,Male,2022-08-05,83959.0,2.8,26,21,2.0,0,4,0,1,Khon Kaen
+E356,Chris Smith,Finance,Senior,54,Male,2024-08-07,82361.0,3.9,42,80,6.0,5,5,0,0,Bangkok
+E357,William Brown,IT,Junior,25,Male,2019-05-20,,1.7,58,168,,1,6,0,0,Bangkok
+E358,Sarah Brown,Finance,Manager,24,Female,2024-01-06,109718.0,,31,73,3.0,1,1,0,0,Rayong
+E359,Anna Rodriguez,Marketing,Manager,48,Male,2015-11-04,117992.0,2.3,32,137,6.0,4,4,1,0,Chiang Mai
+E360,Emma Davis,Finance,Junior,56,Male,2023-04-27,31499.0,3.9,27,184,8.0,5,11,0,1,Bangkok
+E361,Emily Brown,Sales,Manager,49,Female,2022-10-16,98055.0,,105,134,9.0,3,12,0,0,Chiang Mai
+E362,Sophia Williams,Finance,Junior,27,Male,2022-07-29,27817.0,2.5,104,124,1.0,3,10,0,0,Phuket
+E363,Olivia Smith,HR,Mid,27,Female,2021-11-18,51476.0,3.0,54,49,3.0,4,13,0,0,Bangkok
+E364,Anna Miller,HR,Senior,44,Female,2015-04-09,68903.0,3.8,99,51,3.0,5,5,0,0,Phuket
+E365,Sarah Davis,Marketing,Junior,54,Male,2018-06-19,29404.0,3.4,59,160,8.0,4,7,0,0,Phuket
+E366,Sophia Williams,Sales,Manager,37,Female,2015-06-07,116129.0,3.8,69,0,1.0,5,13,0,0,Chiang Mai
+E367,Daniel Jones,Marketing,Manager,45,Female,2022-04-11,100602.0,4.9,61,180,5.0,0,5,0,0,Khon Kaen
+E368,Olivia Johnson,Marketing,Mid,26,Female,2016-07-07,43955.0,2.0,79,187,3.0,4,13,0,0,Bangkok
+E369,Alex Garcia,IT,Junior,34,Female,2016-10-12,27078.0,4.6,33,161,2.0,5,13,0,0,Chiang Mai
+E370,Matthew Williams,IT,Mid,33,Male,2023-02-15,38662.0,3.4,86,3,8.0,3,1,0,0,Bangkok
+E371,Emily Garcia,IT,Senior,26,Female,2021-03-24,,2.6,113,144,3.0,5,11,0,0,Bangkok
+E372,Mike Martinez,IT,Director,58,Male,2021-10-06,228218.0,2.2,105,131,7.0,5,7,0,1,Bangkok
+E373,Chris Smith,IT,Senior,52,Male,2023-08-10,66190.0,3.1,87,170,1.0,4,8,0,0,Bangkok
+E374,Robert Williams,Finance,Mid,49,Male,2021-04-09,46409.0,4.0,55,3,6.0,0,13,0,0,Bangkok
+E375,Matthew Garcia,IT,Senior,49,Male,2022-01-21,66818.0,3.2,112,0,3.0,0,7,0,0,Bangkok
+E376,Alex Williams,Sales,Mid,51,Male,2017-12-04,53065.0,4.5,12,70,8.0,0,11,0,0,Bangkok
+E377,Emma Davis,Operations,Senior,39,Female,2019-02-04,65852.0,2.1,55,177,6.0,0,14,1,1,Phuket
+E378,Robert Martinez,IT,Junior,48,Female,2021-08-15,28010.0,3.3,17,200,2.0,2,13,0,0,Bangkok
+E379,Alex Brown,Operations,Senior,56,Male,2020-02-22,80881.0,2.3,53,188,6.0,4,15,0,0,Phuket
+E380,John Davis,Sales,Senior,47,Female,2022-05-23,80127.0,3.6,76,34,7.0,1,4,0,0,Bangkok
+E381,Sarah Garcia,IT,Director,60,Female,2022-06-29,183027.0,4.0,112,7,5.0,4,8,0,0,Bangkok
+E382,James Williams,Finance,Mid,39,Male,2017-01-03,50891.0,3.0,100,151,3.0,2,15,0,0,Bangkok
+E383,James Garcia,Finance,Senior,54,Male,2020-05-04,70725.0,1.2,42,35,4.0,0,5,0,0,Bangkok
+E384,Emily Rodriguez,Marketing,Manager,46,Female,2015-04-02,112094.0,3.5,38,177,4.0,2,10,1,1,Chiang Mai
+E385,Anna Williams,Operations,Junior,52,Female,2023-06-21,25108.0,3.6,60,122,6.0,3,9,0,0,Bangkok
+E386,Alex Brown,Operations,Manager,58,Female,2021-01-28,96603.0,3.6,41,42,10.0,3,12,0,0,Rayong
+E387,Sophia Williams,Sales,Senior,23,Female,2019-06-16,77334.0,4.3,80,26,1.0,4,12,0,1,Rayong
+E388,Anna Davis,IT,Junior,54,Male,2018-04-30,28665.0,2.4,78,31,4.0,4,10,0,1,Bangkok
+E389,James Davis,Operations,Mid,60,Male,2018-01-05,45130.0,3.8,17,77,10.0,1,5,0,0,Phuket
+E390,Emma Brown,Operations,Senior,53,Female,2018-07-28,77372.0,4.3,22,120,4.0,1,1,0,0,Bangkok
+E391,James Jones,Marketing,Junior,39,Male,2018-10-19,31302.0,1.9,53,145,10.0,3,12,0,0,Chiang Mai
+E392,Emily Johnson,Sales,Senior,38,Female,2015-06-28,63393.0,3.6,114,155,1.0,0,9,0,1,Phuket
+E393,Robert Garcia,Sales,Mid,55,Female,2021-04-04,47861.0,2.9,29,156,9.0,2,12,0,1,Bangkok
+E394,Alex Garcia,Operations,Senior,60,Female,2023-10-12,62816.0,3.2,97,15,4.0,1,5,0,0,Bangkok
+E395,Olivia Johnson,Sales,Junior,28,Female,2023-01-03,31163.0,3.6,57,98,7.0,5,6,0,0,Bangkok
+E396,Olivia Jones,Marketing,Manager,56,Male,2023-01-28,118792.0,2.9,67,46,3.0,1,4,0,0,Bangkok
+E397,Olivia Rodriguez,Marketing,Director,51,Female,2015-10-07,236963.0,2.8,66,186,10.0,0,6,0,0,Chiang Mai
+E398,Lisa Miller,Sales,Director,33,Female,2017-11-08,174827.0,3.3,70,30,3.0,0,12,0,0,Bangkok
+E399,William Williams,Operations,Senior,56,Female,2019-06-07,60897.0,2.4,119,3,8.0,4,8,0,0,Bangkok
+E400,Mia Garcia,Operations,Junior,32,Female,2022-08-19,26565.0,2.4,17,164,8.0,2,3,0,1,Chiang Mai
+E401,Matthew Rodriguez,IT,Senior,25,Male,2016-01-06,65911.0,3.8,105,16,1.0,0,5,0,0,Phuket
+E402,Lisa Garcia,Marketing,Junior,46,Female,2019-12-06,26220.0,2.4,6,38,10.0,1,2,0,0,Bangkok
+E403,Mia Miller,HR,Junior,53,Female,2023-09-19,32681.0,3.8,39,47,2.0,1,14,0,0,Phuket
+E404,William Williams,Operations,Mid,41,Male,2022-12-27,42180.0,3.7,69,173,,3,2,0,1,Phuket
+E405,Anna Davis,Sales,Mid,52,Female,2019-08-31,42533.0,1.9,85,175,1.0,0,13,0,0,Phuket
+E406,Sophia Smith,Marketing,Senior,25,Female,2023-05-25,78105.0,2.8,64,38,8.0,5,7,1,0,Phuket
+E407,Matthew Jones,Sales,Senior,59,Female,2021-03-18,70518.0,4.3,67,131,8.0,4,10,0,0,Chiang Mai
+E408,Mike Martinez,IT,Mid,22,Male,2023-02-15,50483.0,2.5,109,29,2.0,2,13,0,1,Bangkok
+E409,Olivia Johnson,Marketing,Mid,24,Female,2015-10-31,39279.0,2.9,48,157,4.0,5,10,0,0,Chiang Mai
+E410,Lisa Jones,IT,Director,58,Female,2018-09-10,204129.0,3.7,51,21,6.0,4,14,0,0,Rayong
+E411,David Miller,Sales,Mid,43,Female,2018-12-31,38779.0,3.9,113,65,9.0,1,11,1,0,Chiang Mai
+E412,Olivia Jones,Marketing,Mid,38,Male,2021-10-21,39236.0,3.1,106,107,8.0,5,10,0,0,Bangkok
+E413,Chris Brown,Marketing,Junior,35,Male,2018-04-08,32683.0,2.8,28,11,8.0,4,6,0,0,Bangkok
+E414,Sarah Davis,Finance,Senior,56,Female,2021-08-19,62911.0,4.4,20,35,7.0,1,4,0,0,Rayong
+E415,Daniel Brown,Finance,Senior,34,Female,2024-12-07,72544.0,4.7,89,17,9.0,1,5,0,0,Bangkok
+E416,Emma Brown,Sales,Mid,56,Male,2021-08-25,44724.0,4.1,77,89,2.0,1,1,1,0,Bangkok
+E417,Emma Jones,Sales,Junior,23,Male,2023-04-22,27203.0,3.4,8,180,3.0,1,7,1,0,Bangkok
+E418,Sophia Rodriguez,Sales,Senior,34,Male,2020-08-23,81545.0,2.7,46,198,10.0,1,8,0,0,Rayong
+E419,Sophia Martinez,Finance,Senior,37,Female,2022-08-22,60034.0,2.6,75,0,8.0,3,9,0,0,Bangkok
+E420,Chris Brown,Operations,Mid,39,Male,2016-10-30,48704.0,3.7,41,126,6.0,5,8,0,0,Bangkok
+E421,Olivia Brown,Operations,Director,28,Male,2016-05-14,237437.0,3.6,50,185,,4,5,0,0,Chiang Mai
+E422,Emily Davis,Operations,Junior,57,Male,2018-11-15,29289.0,4.4,55,89,9.0,3,3,0,0,Bangkok
+E423,Anna Brown,IT,Mid,51,Female,2019-04-22,53004.0,3.8,50,86,,3,10,1,0,Khon Kaen
+E424,Isabella Johnson,HR,Manager,28,Male,2022-02-25,95511.0,2.1,69,89,4.0,0,11,0,0,Chiang Mai
+E425,John Jones,IT,Mid,36,Male,2016-06-13,44845.0,4.1,19,133,8.0,0,9,0,0,Chiang Mai
+E426,Sophia Garcia,HR,Senior,40,Female,2020-06-29,65873.0,2.5,87,69,10.0,0,15,0,0,Khon Kaen
+E427,Mike Garcia,Sales,Mid,58,Male,2021-12-14,49760.0,3.0,26,43,3.0,2,6,0,0,Rayong
+E428,Emma Williams,Marketing,Mid,23,Male,2024-11-30,53705.0,3.5,37,199,3.0,0,15,0,1,Bangkok
+E429,Sophia Brown,Sales,Director,34,Female,2024-06-18,187957.0,4.9,71,151,8.0,4,5,0,0,Bangkok
+E430,John Brown,IT,Mid,52,Male,2018-05-04,48553.0,5.0,64,85,5.0,3,13,0,0,Khon Kaen
+E431,John Jones,IT,Manager,37,Female,2017-01-24,101126.0,3.8,53,18,3.0,4,3,0,0,Bangkok
+E432,Lisa Davis,Operations,Mid,27,Male,2021-06-05,47153.0,3.2,112,100,10.0,5,6,1,0,Rayong
+E433,Mike Martinez,Finance,Junior,49,Female,2017-03-25,28346.0,3.7,112,145,1.0,0,3,0,0,Rayong
+E434,Jane Garcia,IT,Junior,53,Male,2022-02-07,33325.0,4.0,23,94,3.0,2,10,0,0,Bangkok
+E435,Daniel Miller,IT,Senior,31,Female,2016-12-27,74408.0,3.0,46,100,9.0,5,12,0,0,Rayong
+E436,James Brown,Operations,Mid,39,Male,2016-12-31,43754.0,4.7,70,29,5.0,2,6,0,0,Bangkok
+E437,Mike Garcia,IT,Manager,25,Male,2017-04-07,,3.5,82,169,10.0,5,4,1,0,Chiang Mai
+E438,James Smith,Operations,Mid,30,Female,2022-04-03,40632.0,3.7,85,32,2.0,3,15,0,1,Bangkok
+E439,Anna Brown,Operations,Director,28,Female,2018-08-24,185772.0,3.8,62,11,7.0,4,2,1,0,Khon Kaen
+E440,James Davis,IT,Junior,29,Male,2020-08-08,26259.0,3.6,56,117,2.0,1,8,0,0,Chiang Mai
+E441,Daniel Davis,IT,Manager,28,Female,2024-02-06,,4.0,54,93,4.0,4,4,0,0,Chiang Mai
+E442,Robert Brown,Marketing,Senior,24,Male,2023-06-07,73249.0,2.8,59,154,7.0,0,9,0,0,Rayong
+E443,Isabella Garcia,Sales,Senior,38,Female,2022-09-16,72323.0,2.9,98,166,4.0,1,7,0,0,Chiang Mai
+E444,Sophia Johnson,Sales,Manager,23,Male,2017-05-24,97918.0,2.4,61,136,7.0,2,12,0,0,Bangkok
+E445,Mike Johnson,Operations,Senior,36,Female,2023-12-24,80573.0,3.7,29,148,7.0,3,2,0,0,Khon Kaen
+E446,Alex Garcia,Marketing,Senior,50,Male,2023-03-04,77208.0,3.9,92,75,1.0,3,4,0,0,Phuket
+E447,Daniel Garcia,Marketing,Junior,43,Male,2020-12-18,24463.0,3.7,21,28,6.0,2,5,1,0,Rayong
+E448,Matthew Miller,Operations,Junior,25,Male,2020-06-26,30736.0,4.6,74,160,9.0,0,3,0,0,Rayong
+E449,Isabella Garcia,Sales,Manager,27,Male,2019-08-05,114426.0,3.3,83,189,2.0,2,9,0,0,Bangkok
+E450,Lisa Smith,IT,Senior,59,Female,2016-08-30,61502.0,,28,116,3.0,5,13,0,0,Bangkok
+E451,James Rodriguez,Operations,Senior,47,Female,2020-09-04,70728.0,2.4,114,14,10.0,0,5,0,0,Bangkok
+E452,Mike Jones,Finance,Mid,32,Female,2019-01-17,45883.0,3.0,40,1,5.0,1,2,0,0,Phuket
+E453,Emma Johnson,Sales,Junior,47,Male,2016-09-26,25424.0,3.9,41,179,9.0,2,11,0,0,Bangkok
+E454,Emma Brown,Marketing,Junior,38,Male,2018-04-24,33067.0,4.0,97,116,4.0,0,3,1,0,Phuket
+E455,Chris Davis,IT,Senior,45,Female,2016-04-28,80324.0,3.1,64,171,1.0,1,14,0,0,Bangkok
+E456,Alex Martinez,HR,Mid,49,Female,2022-06-20,48787.0,3.2,30,181,4.0,2,15,0,0,Bangkok
+E457,Sophia Brown,IT,Junior,56,Male,2017-12-10,28330.0,2.1,29,17,6.0,3,9,0,0,Bangkok
+E458,John Rodriguez,HR,Mid,52,Female,2020-03-29,44735.0,3.0,111,2,5.0,2,7,0,0,Bangkok
+E459,Sophia Williams,IT,Junior,34,Female,2020-08-14,30179.0,4.0,17,134,1.0,4,2,0,0,Chiang Mai
+E460,Sophia Martinez,IT,Senior,56,Female,2016-08-11,72863.0,3.8,118,170,4.0,2,9,0,0,Bangkok
+E461,Lisa Miller,IT,Mid,37,Male,2023-11-06,39230.0,3.7,16,165,6.0,4,14,0,1,Bangkok
+E462,John Martinez,Finance,Senior,36,Male,2021-03-05,,3.3,37,164,10.0,1,4,1,0,Bangkok
+E463,Chris Garcia,Operations,Mid,39,Male,2021-04-23,50950.0,3.3,13,185,10.0,2,13,0,0,Phuket
+E464,Lisa Martinez,Finance,Mid,58,Female,2018-05-13,45483.0,2.8,86,160,4.0,1,9,0,0,Khon Kaen
+E465,Daniel Martinez,Marketing,Junior,48,Male,2020-05-27,24309.0,,88,107,9.0,1,15,0,0,Bangkok
+E466,David Williams,Sales,Junior,56,Male,2020-08-20,31505.0,3.6,78,186,5.0,0,13,0,0,Phuket
+E467,Emma Jones,Sales,Mid,56,Female,2017-08-06,41421.0,3.7,109,94,8.0,1,2,0,0,Bangkok
+E468,Matthew Johnson,Marketing,Mid,49,Male,2020-08-17,42323.0,2.9,55,121,9.0,1,15,0,0,Bangkok
+E469,William Johnson,IT,Senior,60,Male,2024-07-12,63535.0,1.6,21,10,,2,12,1,0,Chiang Mai
+E470,Olivia Jones,Marketing,Mid,59,Female,2023-03-03,43450.0,4.2,66,67,5.0,2,10,0,0,Bangkok
+E471,Anna Miller,IT,Senior,30,Female,2020-09-10,78040.0,2.9,55,122,6.0,3,12,0,0,Phuket
+E472,Lisa Martinez,Marketing,Manager,33,Female,2020-06-30,113496.0,2.6,118,195,1.0,0,4,0,0,Bangkok
+E473,William Davis,IT,Senior,36,Male,2022-01-31,64519.0,3.9,18,112,7.0,1,5,0,0,Rayong
+E474,Robert Davis,Marketing,Junior,42,Female,2019-10-08,32402.0,3.0,56,97,4.0,0,2,0,0,Bangkok
+E475,William Martinez,HR,Mid,56,Female,2023-05-11,52103.0,4.1,43,92,2.0,4,10,0,0,Chiang Mai
+E476,Emily Williams,Marketing,Junior,54,Male,2016-01-22,32331.0,3.8,97,21,5.0,1,1,0,0,Rayong
+E477,Olivia Johnson,IT,Mid,40,Female,2018-06-05,42011.0,3.8,34,193,3.0,0,7,1,0,Bangkok
+E478,Robert Brown,Finance,Director,44,Male,2022-05-11,201586.0,2.2,113,171,6.0,3,10,0,0,Chiang Mai
+E479,Daniel Williams,Marketing,Junior,34,Male,2019-11-26,33452.0,4.3,0,126,8.0,3,1,0,0,Bangkok
+E480,Chris Miller,HR,Mid,22,Male,2019-02-07,50409.0,3.5,51,133,7.0,1,11,0,0,Chiang Mai
+E481,David Smith,Finance,Senior,50,Male,2015-07-26,60165.0,3.0,84,169,3.0,4,11,0,0,Bangkok
+E482,David Martinez,Finance,Senior,45,Male,2024-04-12,61097.0,3.4,92,24,8.0,3,8,0,0,Bangkok
+E483,David Brown,HR,Senior,37,Female,2019-12-24,70866.0,1.9,69,184,2.0,3,3,0,1,Chiang Mai
+E484,David Davis,Finance,Junior,46,Male,2019-11-16,32710.0,3.6,36,84,10.0,4,14,0,0,Bangkok
+E485,Sophia Williams,Finance,Mid,44,Female,2022-02-17,46734.0,2.5,64,54,9.0,0,10,0,0,Chiang Mai
+E486,Robert Martinez,Marketing,Mid,49,Female,2021-07-23,46090.0,2.2,50,143,4.0,3,6,0,0,Bangkok
+E487,Isabella Miller,IT,Junior,37,Male,2017-03-03,24833.0,2.1,0,94,1.0,2,7,0,0,Bangkok
+E488,Mike Miller,Sales,Mid,59,Male,2021-03-31,48594.0,4.2,90,141,8.0,5,10,0,0,Chiang Mai
+E489,David Rodriguez,Marketing,Junior,32,Female,2019-09-21,,2.8,20,166,7.0,5,1,0,0,Chiang Mai
+E490,Daniel Brown,Marketing,Junior,24,Female,2023-07-13,27528.0,4.5,52,155,5.0,3,14,0,1,Bangkok
+E491,Sophia Williams,HR,Mid,36,Male,2017-10-02,50465.0,2.9,15,178,10.0,0,6,1,0,Bangkok
+E492,Anna Williams,Finance,Junior,22,Male,2022-08-16,33251.0,,107,118,5.0,0,7,0,0,Bangkok
+E493,Alex Smith,Sales,Senior,28,Female,2017-07-30,64492.0,2.4,60,176,7.0,1,6,0,0,Bangkok
+E494,Anna Smith,IT,Senior,22,Male,2018-03-11,72321.0,4.3,53,8,5.0,2,4,0,0,Bangkok
+E495,Daniel Jones,HR,Manager,53,Female,2021-02-01,104554.0,3.2,39,185,8.0,0,1,0,0,Bangkok
+E496,Sarah Jones,Sales,Junior,30,Female,2019-08-05,31569.0,2.9,25,172,6.0,4,11,0,0,Chiang Mai
+E497,Emma Rodriguez,Finance,Junior,50,Male,2016-03-24,29460.0,3.4,79,149,5.0,2,9,1,0,Chiang Mai
+E498,Mia Smith,IT,Junior,47,Male,2016-08-14,30018.0,3.7,91,159,9.0,5,4,0,0,Bangkok
+E499,Daniel Martinez,Marketing,Senior,44,Male,2015-03-23,79048.0,4.2,64,196,2.0,2,7,0,0,Bangkok
+E500,David Williams,Marketing,Senior,50,Female,2020-12-22,69201.0,4.5,99,196,1.0,4,7,0,0,Bangkok
+E501,Jane Garcia,Finance,Junior,59,Male,2022-12-13,32767.0,3.0,73,41,8.0,3,2,0,0,Chiang Mai
+E502,Emma Miller,HR,Manager,54,Male,2023-11-23,114021.0,2.2,63,52,3.0,4,1,0,0,Rayong
+E503,Mike Davis,Sales,Junior,28,Female,2018-11-07,25347.0,3.0,42,186,7.0,4,8,0,0,Phuket
+E504,David Johnson,Operations,Senior,33,Male,2024-01-28,76549.0,3.5,16,73,10.0,3,8,0,0,Phuket
+E505,Daniel Rodriguez,Finance,Senior,52,Male,2024-12-17,78934.0,2.5,120,38,8.0,3,7,0,0,Khon Kaen
+E506,Sophia Martinez,IT,Manager,53,Female,2023-10-18,105695.0,2.5,58,121,6.0,3,14,0,0,Bangkok
+E507,Mia Johnson,Marketing,Senior,41,Male,2019-01-20,80500.0,3.6,22,14,10.0,3,15,0,0,Bangkok
+E508,Mike Johnson,Operations,Manager,38,Female,2021-10-23,128386.0,3.3,6,198,,3,15,0,0,Chiang Mai
+E509,David Rodriguez,Marketing,Mid,57,Female,2017-12-15,42611.0,3.3,43,156,7.0,4,15,1,0,Bangkok
+E510,James Garcia,Operations,Manager,24,Male,2024-11-07,131365.0,2.7,52,122,10.0,1,15,0,0,Chiang Mai
+E511,Daniel Garcia,Finance,Junior,22,Male,2022-07-07,25178.0,3.1,70,110,5.0,1,8,0,0,Phuket
+E512,Mike Brown,Sales,Manager,48,Male,2016-02-23,101277.0,2.6,107,130,8.0,0,3,1,0,Phuket
+E513,Sophia Garcia,Marketing,Senior,54,Female,2015-03-29,64013.0,4.0,78,82,2.0,1,11,0,0,Bangkok
+E514,Sophia Garcia,Marketing,Manager,41,Male,2022-05-27,127918.0,4.1,33,9,7.0,5,2,0,0,Chiang Mai
+E515,Jane Miller,IT,Mid,35,Female,2023-06-07,48555.0,1.8,45,91,4.0,1,7,0,0,Chiang Mai
+E516,Mia Rodriguez,IT,Senior,57,Female,2024-09-18,63226.0,2.6,108,28,9.0,4,8,0,0,Khon Kaen
+E517,Isabella Jones,Sales,Mid,26,Male,2015-08-03,45185.0,2.1,67,34,1.0,3,1,0,1,Phuket
+E518,Olivia Brown,Operations,Senior,44,Female,2019-10-25,74574.0,2.8,77,5,7.0,3,12,0,0,Rayong
+E519,Sarah Davis,Marketing,Junior,36,Male,2022-02-12,24617.0,3.2,77,139,6.0,4,10,0,0,Bangkok
+E520,Lisa Garcia,IT,Junior,27,Female,2019-03-01,32447.0,2.1,15,110,8.0,5,9,0,0,Bangkok
+E521,Sophia Davis,Finance,Mid,54,Female,2019-09-14,50906.0,2.6,70,37,5.0,1,15,0,0,Bangkok
+E522,Anna Rodriguez,Sales,Junior,40,Male,2021-12-25,28751.0,2.5,95,76,1.0,4,13,0,0,Bangkok
+E523,Daniel Smith,Marketing,Manager,34,Male,2022-07-09,130734.0,3.5,18,92,1.0,0,15,0,0,Rayong
+E524,Isabella Martinez,Operations,Junior,50,Female,2021-04-11,27894.0,3.4,1,146,9.0,3,11,1,0,Rayong
+E525,Sarah Smith,Operations,Director,27,Female,2019-02-10,,2.7,9,66,10.0,2,4,1,0,Bangkok
+E526,Sarah Brown,HR,Mid,36,Female,2015-11-05,48769.0,3.4,49,135,6.0,0,14,0,0,Bangkok
+E527,Sarah Smith,Sales,Junior,37,Male,2015-08-19,30019.0,2.9,80,7,10.0,5,12,0,0,Bangkok
+E528,Chris Williams,Sales,Senior,45,Male,2024-06-16,63565.0,3.1,100,121,5.0,0,14,1,0,Khon Kaen
+E529,Robert Brown,IT,Senior,44,Male,2015-06-04,81107.0,4.6,11,83,1.0,4,4,0,1,Bangkok
+E530,Mike Miller,Marketing,Mid,31,Female,2018-04-13,44982.0,4.4,69,174,6.0,1,3,1,0,Bangkok
+E531,Sophia Garcia,Operations,Senior,38,Male,2022-12-05,63474.0,2.3,21,131,6.0,3,6,0,0,Bangkok
+E532,Mike Davis,Marketing,Senior,51,Male,2015-04-25,59808.0,4.0,31,178,,5,1,0,1,Bangkok
+E533,Sophia Smith,Marketing,Mid,31,Female,2018-11-14,47066.0,3.9,104,84,8.0,5,6,0,0,Rayong
+E534,Emma Jones,Finance,Director,40,Female,2015-11-07,206917.0,2.4,83,194,1.0,2,2,0,0,Bangkok
+E535,Sophia Miller,Operations,Director,50,Male,2017-09-19,220354.0,4.0,0,44,1.0,0,9,1,0,Bangkok
+E536,Matthew Smith,Marketing,Senior,23,Male,2021-06-05,81311.0,4.5,53,135,6.0,2,2,0,0,Bangkok
+E537,Chris Johnson,Operations,Junior,57,Female,2017-11-07,24578.0,2.4,110,86,10.0,1,7,0,0,Chiang Mai
+E538,Robert Martinez,IT,Senior,40,Male,2022-10-02,77421.0,2.6,116,15,1.0,1,12,0,0,Phuket
+E539,William Williams,HR,Junior,28,Male,2015-01-12,25636.0,4.1,57,76,6.0,2,1,0,0,Bangkok
+E540,Anna Rodriguez,IT,Junior,47,Male,2018-11-28,32210.0,,69,194,1.0,3,12,0,0,Bangkok
+E541,Robert Williams,Marketing,Mid,36,Female,2021-03-29,51150.0,3.7,82,8,6.0,1,7,0,0,Khon Kaen
+E542,William Smith,Finance,Mid,59,Female,2023-03-22,46767.0,3.6,17,59,3.0,2,5,0,0,Bangkok
+E543,Olivia Miller,IT,Manager,24,Male,2020-07-06,120844.0,3.6,5,77,8.0,0,8,0,0,Chiang Mai
+E544,Mia Jones,Finance,Senior,59,Male,2016-12-30,67201.0,2.2,44,76,6.0,2,4,0,1,Bangkok
+E545,Lisa Brown,Finance,Senior,37,Female,2018-07-25,71043.0,4.1,96,70,1.0,2,15,1,0,Bangkok
+E546,Mia Davis,Sales,Mid,23,Female,2018-10-08,51190.0,4.2,22,14,5.0,4,12,0,0,Phuket
+E547,William Jones,IT,Mid,52,Female,2023-05-24,45483.0,3.1,22,70,8.0,1,15,0,0,Khon Kaen
+E548,Robert Garcia,Finance,Mid,49,Female,2020-07-29,43885.0,3.3,25,101,3.0,3,10,0,0,Chiang Mai
+E549,Mike Smith,HR,Director,28,Female,2023-05-05,204594.0,2.1,76,168,6.0,3,7,0,0,Bangkok
+E550,David Garcia,Operations,Junior,51,Female,2021-06-08,,3.7,6,21,5.0,4,6,0,1,Chiang Mai
+E551,Jane Miller,HR,Manager,28,Male,2016-06-24,106405.0,3.8,78,151,6.0,5,5,0,0,Chiang Mai
+E552,Lisa Jones,Marketing,Senior,57,Male,2021-11-22,63757.0,3.3,43,112,10.0,3,4,1,0,Chiang Mai
+E553,Isabella Garcia,Finance,Mid,50,Male,2022-10-31,49464.0,4.2,26,171,1.0,2,15,0,1,Phuket
+E554,Sophia Smith,Finance,Senior,45,Female,2015-03-18,79736.0,3.0,25,0,7.0,4,7,1,0,Bangkok
+E555,Mike Garcia,Marketing,Mid,60,Female,2023-05-26,39835.0,3.8,96,9,9.0,0,12,0,0,Chiang Mai
+E556,William Miller,Sales,Manager,25,Female,2024-11-01,102735.0,2.5,78,109,2.0,1,5,0,0,Chiang Mai
+E557,Olivia Johnson,IT,Manager,50,Male,2015-01-24,98965.0,3.3,35,199,10.0,1,5,0,0,Bangkok
+E558,John Garcia,IT,Mid,26,Male,2017-11-04,43730.0,3.2,108,183,5.0,1,15,0,0,Phuket
+E559,Alex Jones,Operations,Mid,50,Male,2016-11-06,45343.0,3.5,54,112,10.0,2,1,0,0,Bangkok
+E560,Emily Johnson,Finance,Senior,51,Male,2022-01-16,77846.0,3.0,63,49,4.0,0,2,0,1,Bangkok
+E561,Daniel Smith,Operations,Manager,50,Female,2021-07-22,118569.0,3.2,90,11,6.0,4,5,0,0,Rayong
+E562,James Brown,IT,Junior,47,Female,2015-06-21,29885.0,4.0,56,88,6.0,4,13,0,0,Bangkok
+E563,Anna Johnson,IT,Senior,40,Male,2020-03-07,68133.0,3.0,68,187,2.0,1,3,0,0,Bangkok
+E564,Daniel Garcia,IT,Senior,47,Male,2024-04-21,80115.0,2.0,60,153,2.0,0,14,1,1,Chiang Mai
+E565,Mia Martinez,Sales,Senior,58,Female,2022-07-22,71046.0,4.7,1,111,4.0,0,13,0,0,Rayong
+E566,Robert Miller,Finance,Junior,48,Male,2024-09-26,33395.0,4.4,54,77,1.0,0,2,1,0,Rayong
+E567,Robert Johnson,Sales,Senior,51,Female,2016-05-03,75036.0,2.3,96,168,9.0,3,14,0,0,Chiang Mai
+E568,Mike Rodriguez,Sales,Manager,51,Male,2019-01-25,98361.0,3.9,79,163,7.0,3,14,0,1,Bangkok
+E569,Jane Miller,Marketing,Junior,24,Male,2021-08-22,30426.0,2.9,86,120,7.0,1,4,0,0,Rayong
+E570,Mia Williams,Sales,Mid,28,Male,2023-11-10,43370.0,3.5,37,22,3.0,0,4,1,0,Chiang Mai
+E571,James Smith,HR,Director,30,Male,2021-08-16,218042.0,3.5,118,170,3.0,5,4,0,1,Bangkok
+E572,Matthew Rodriguez,Operations,Junior,34,Female,2024-12-23,24482.0,3.1,79,133,1.0,0,4,0,0,Khon Kaen
+E573,Olivia Rodriguez,Sales,Manager,36,Male,2023-05-06,100232.0,2.7,77,196,3.0,4,3,0,0,Bangkok
+E574,David Williams,Finance,Mid,26,Male,2023-04-13,51727.0,2.7,28,170,3.0,4,13,0,0,Bangkok
+E575,Matthew Brown,Marketing,Mid,50,Male,2024-07-27,41828.0,2.6,25,24,,1,12,0,0,Khon Kaen
+E576,David Miller,Marketing,Manager,56,Male,2017-01-26,125726.0,2.6,34,17,4.0,5,7,0,0,Chiang Mai
+E577,Emily Johnson,IT,Mid,48,Male,2021-11-29,42648.0,3.2,78,189,3.0,0,9,0,0,Bangkok
+E578,Mike Miller,Marketing,Mid,48,Female,2021-08-26,48375.0,2.7,66,140,10.0,5,12,0,0,Bangkok
+E579,Anna Davis,HR,Mid,29,Female,2015-06-04,49182.0,3.8,86,42,8.0,1,5,0,0,Chiang Mai
+E580,Matthew Smith,Sales,Senior,53,Female,2015-09-14,72060.0,4.5,28,77,8.0,4,4,0,0,Bangkok
+E581,Alex Johnson,HR,Junior,41,Male,2019-11-15,26792.0,2.8,33,27,1.0,4,11,0,0,Bangkok
+E582,Isabella Johnson,Marketing,Mid,31,Male,2016-11-04,41599.0,3.5,96,145,7.0,3,2,1,0,Chiang Mai
+E583,Mike Smith,HR,Director,34,Male,2020-10-16,172323.0,3.7,40,58,2.0,1,2,0,1,Khon Kaen
+E584,Anna Brown,Sales,Mid,50,Male,2021-07-19,43037.0,3.7,40,187,1.0,1,5,1,0,Chiang Mai
+E585,Anna Jones,Finance,Senior,56,Female,2024-03-02,,3.4,22,62,3.0,0,7,0,0,Phuket
+E586,Isabella Jones,IT,Mid,29,Female,2016-11-03,53028.0,3.9,70,184,4.0,0,10,0,0,Phuket
+E587,William Brown,IT,Senior,50,Female,2021-09-04,80844.0,3.7,2,91,6.0,3,10,0,0,Phuket
+E588,Lisa Smith,IT,Junior,52,Male,2019-01-12,31307.0,2.3,57,178,10.0,2,9,1,0,Bangkok
+E589,Emily Jones,IT,Director,51,Male,2015-09-16,225191.0,4.0,31,55,5.0,5,13,0,0,Khon Kaen
+E590,Emily Martinez,IT,Mid,43,Female,2015-11-03,48723.0,4.0,30,154,4.0,2,7,1,0,Bangkok
+E591,John Martinez,IT,Mid,42,Male,2018-01-23,42349.0,2.7,81,159,8.0,2,5,1,1,Bangkok
+E592,Sarah Davis,Finance,Junior,33,Male,2023-03-17,32690.0,3.3,42,110,4.0,1,10,0,0,Bangkok
+E593,John Johnson,IT,Junior,32,Female,2024-09-05,30373.0,3.8,6,136,10.0,5,10,0,0,Phuket
+E594,John Miller,Sales,Mid,23,Female,2023-04-06,47076.0,3.1,104,67,2.0,1,10,0,0,Bangkok
+E595,Jane Smith,Marketing,Mid,23,Female,2015-09-03,39998.0,4.2,0,45,3.0,5,6,0,0,Bangkok
+E596,Emily Garcia,HR,Manager,55,Male,2022-08-12,110711.0,5.0,60,66,6.0,4,11,0,1,Phuket
+E597,Anna Johnson,Finance,Mid,24,Male,2019-07-17,45500.0,2.7,13,153,8.0,1,12,1,0,Khon Kaen
+E598,William Smith,IT,Mid,37,Male,2015-07-06,51866.0,2.2,51,135,8.0,1,3,0,0,Chiang Mai
+E599,Anna Williams,IT,Senior,25,Female,2019-12-03,72892.0,3.5,95,5,9.0,1,5,0,0,Bangkok
+E600,Sophia Garcia,IT,Senior,44,Male,2017-07-13,68819.0,3.9,5,23,7.0,3,8,0,0,Bangkok
+E601,Alex Rodriguez,IT,Junior,41,Female,2017-02-23,33372.0,3.1,102,175,2.0,1,1,0,1,Chiang Mai
+E602,James Jones,Sales,Junior,46,Female,2024-06-06,,4.5,9,93,8.0,0,12,0,0,Bangkok
+E603,Robert Johnson,IT,Junior,51,Female,2019-05-15,27940.0,2.2,70,172,7.0,0,1,0,1,Chiang Mai
+E604,Sarah Garcia,IT,Senior,39,Male,2024-07-09,60529.0,3.9,89,12,8.0,5,7,0,0,Bangkok
+E605,Lisa Martinez,IT,Senior,32,Male,2021-09-21,77627.0,2.8,97,196,3.0,4,14,0,0,Rayong
+E606,Jane Davis,HR,Mid,50,Female,2023-10-02,52709.0,4.7,29,24,7.0,3,5,1,0,Chiang Mai
+E607,Emma Johnson,IT,Manager,38,Female,2018-09-22,104281.0,4.9,99,147,10.0,5,14,0,0,Bangkok
+E608,Daniel Garcia,Sales,Manager,47,Female,2015-12-07,126546.0,2.7,20,117,9.0,0,5,0,0,Khon Kaen
+E609,Robert Miller,HR,Senior,44,Male,2016-07-16,66659.0,2.9,59,81,3.0,3,1,0,0,Bangkok
+E610,Olivia Martinez,Finance,Manager,41,Male,2023-11-24,128564.0,4.0,80,110,10.0,3,9,0,0,Bangkok
+E611,Anna Davis,IT,Junior,23,Female,2016-10-12,31188.0,3.0,96,81,6.0,4,1,1,0,Khon Kaen
+E612,James Rodriguez,Operations,Junior,45,Male,2023-03-19,31688.0,,73,65,2.0,3,5,0,0,Bangkok
+E613,Sarah Miller,Finance,Mid,52,Female,2018-04-08,38533.0,3.3,114,44,2.0,1,10,1,0,Bangkok
+E614,Jane Miller,IT,Junior,48,Female,2023-07-08,33235.0,1.8,62,113,5.0,3,9,0,0,Bangkok
+E615,Chris Jones,Marketing,Mid,23,Male,2015-03-10,49695.0,3.3,110,174,5.0,4,14,0,0,Bangkok
+E616,William Johnson,Marketing,Manager,35,Male,2024-01-21,105232.0,2.7,41,62,7.0,5,15,0,0,Bangkok
+E617,Sarah Williams,IT,Junior,25,Female,2019-05-03,31928.0,2.9,50,75,2.0,4,4,0,0,Phuket
+E618,Mia Martinez,Sales,Junior,34,Male,2021-08-25,26558.0,4.5,63,113,7.0,4,13,0,0,Chiang Mai
+E619,David Martinez,Operations,Mid,57,Female,2020-10-05,51995.0,2.3,75,110,5.0,0,8,0,0,Bangkok
+E620,Lisa Smith,Operations,Manager,56,Female,2018-07-24,97834.0,4.0,55,182,6.0,1,6,1,0,Bangkok
+E621,Robert Davis,IT,Mid,29,Female,2022-12-07,49333.0,3.1,79,146,8.0,0,11,1,0,Rayong
+E622,James Smith,IT,Mid,23,Female,2018-01-27,46766.0,3.1,40,34,10.0,5,15,0,0,Rayong
+E623,Jane Smith,Sales,Junior,27,Male,2017-07-04,24746.0,3.9,31,52,4.0,2,3,0,1,Chiang Mai
+E624,Mike Garcia,HR,Junior,52,Male,2024-11-07,26170.0,3.6,14,25,7.0,5,4,0,0,Khon Kaen
+E625,David Jones,Finance,Director,31,Female,2021-06-30,170868.0,3.8,61,13,6.0,1,2,0,0,Phuket
+E626,William Williams,Sales,Director,42,Male,2016-04-05,202813.0,4.1,26,117,10.0,3,1,0,0,Bangkok
+E627,Sophia Rodriguez,HR,Junior,31,Female,2021-02-04,26752.0,3.0,27,44,2.0,4,13,0,0,Bangkok
+E628,Robert Jones,Operations,Director,44,Female,2017-04-23,211885.0,2.8,80,171,8.0,2,14,0,0,Bangkok
+E629,Alex Williams,IT,Senior,24,Male,2016-07-27,66782.0,2.4,63,192,10.0,1,8,0,0,Khon Kaen
+E630,Matthew Garcia,Sales,Manager,53,Male,2015-04-29,105046.0,2.6,109,50,9.0,0,1,0,0,Phuket
+E631,Daniel Brown,Operations,Mid,41,Female,2024-09-10,49955.0,5.0,58,170,5.0,4,14,0,0,Phuket
+E632,Robert Davis,Marketing,Mid,31,Female,2022-02-09,39008.0,4.3,113,118,10.0,5,13,1,0,Bangkok
+E633,Matthew Jones,HR,Mid,50,Male,2016-10-07,52470.0,2.2,57,150,4.0,0,11,0,0,Chiang Mai
+E634,Jane Johnson,HR,Senior,55,Female,2019-01-18,80380.0,2.2,1,183,6.0,1,1,0,0,Phuket
+E635,James Miller,IT,Junior,58,Female,2020-09-04,30344.0,3.7,35,18,8.0,1,4,1,0,Khon Kaen
+E636,Anna Williams,Sales,Junior,41,Female,2019-02-22,29613.0,3.7,113,81,3.0,5,10,0,0,Bangkok
+E637,Mike Williams,HR,Mid,29,Male,2020-07-24,52303.0,3.7,70,75,10.0,2,12,0,0,Phuket
+E638,Emma Martinez,IT,Senior,28,Male,2017-10-28,64040.0,3.1,12,182,1.0,5,10,0,1,Bangkok
+E639,Matthew Davis,Sales,Junior,27,Female,2017-08-26,24573.0,3.2,14,91,4.0,3,15,0,0,Phuket
+E640,Isabella Williams,Sales,Senior,32,Female,2020-07-03,65367.0,3.6,88,187,4.0,0,6,1,0,Chiang Mai
+E641,Daniel Davis,IT,Director,39,Male,2019-03-20,225620.0,3.4,86,186,1.0,2,9,0,1,Bangkok
+E642,Anna Johnson,Sales,Junior,50,Female,2022-01-24,24139.0,1.5,59,32,9.0,4,1,0,0,Phuket
+E643,Emily Miller,IT,Senior,46,Female,2021-01-05,73778.0,3.1,21,146,3.0,3,7,0,0,Bangkok
+E644,Emma Johnson,Sales,Mid,42,Male,2019-02-20,53928.0,2.6,62,27,5.0,2,10,1,0,Khon Kaen
+E645,Alex Smith,IT,Manager,24,Female,2017-11-14,126444.0,3.4,89,122,6.0,0,11,0,0,Bangkok
+E646,David Jones,Marketing,Junior,39,Female,2016-10-16,28910.0,5.0,96,179,8.0,1,5,0,0,Phuket
+E647,Mike Miller,Finance,Senior,45,Male,2020-05-08,61059.0,3.6,74,125,6.0,4,12,0,0,Rayong
+E648,John Davis,Finance,Manager,59,Male,2023-03-12,125507.0,3.0,73,176,3.0,5,15,0,0,Bangkok
+E649,Emily Martinez,Operations,Manager,31,Female,2016-07-08,116560.0,4.0,24,36,6.0,0,8,0,0,Chiang Mai
+E650,William Jones,HR,Senior,48,Male,2016-02-29,62315.0,3.7,100,153,1.0,3,14,0,0,Chiang Mai
+E651,William Martinez,IT,Mid,33,Male,2015-10-20,39728.0,3.6,47,98,4.0,3,7,1,0,Bangkok
+E652,David Martinez,HR,Senior,28,Female,2018-04-23,81785.0,3.8,42,97,,1,4,0,0,Chiang Mai
+E653,Alex Johnson,Finance,Manager,38,Female,2022-02-14,119264.0,4.9,116,126,7.0,1,4,0,0,Phuket
+E654,Emma Jones,Operations,Senior,22,Female,2016-03-06,79817.0,2.4,37,167,10.0,4,6,0,0,Rayong
+E655,Chris Martinez,Sales,Junior,47,Female,2022-04-05,32413.0,3.7,40,79,3.0,5,6,0,0,Khon Kaen
+E656,Sarah Williams,IT,Manager,36,Male,2015-11-13,115513.0,2.6,44,37,,4,9,0,0,Chiang Mai
+E657,Chris Davis,Sales,Senior,54,Male,2016-02-02,72177.0,3.7,87,76,7.0,1,12,0,0,Phuket
+E658,Daniel Martinez,Sales,Senior,58,Male,2018-09-09,70045.0,2.6,39,125,1.0,1,5,1,0,Khon Kaen
+E659,Robert Smith,Finance,Junior,52,Male,2019-05-08,26906.0,3.0,109,86,2.0,3,8,1,1,Chiang Mai
+E660,Matthew Williams,Finance,Senior,56,Female,2016-08-18,70147.0,3.1,119,53,1.0,1,5,0,0,Bangkok
+E661,Emma Williams,Sales,Mid,22,Female,2022-02-06,50438.0,4.1,96,149,9.0,2,2,1,0,Bangkok
+E662,Robert Martinez,Marketing,Senior,29,Male,2020-10-24,74247.0,4.0,16,15,9.0,0,15,0,0,Khon Kaen
+E663,Sarah Davis,Finance,Junior,33,Male,2022-12-22,32546.0,2.3,87,27,7.0,1,6,0,0,Chiang Mai
+E664,Jane Miller,IT,Senior,40,Male,2020-04-27,70362.0,3.3,100,162,10.0,4,9,0,0,Phuket
+E665,Mia Johnson,IT,Director,46,Female,2017-07-04,212496.0,2.7,56,187,3.0,5,13,0,0,Bangkok
+E666,Robert Smith,IT,Junior,53,Male,2022-07-19,29986.0,2.3,1,172,5.0,5,3,0,1,Rayong
+E667,Sarah Rodriguez,IT,Director,33,Male,2021-12-08,211418.0,3.1,95,45,4.0,5,1,0,0,Bangkok
+E668,Olivia Brown,IT,Mid,34,Female,2023-08-26,49316.0,3.1,120,71,7.0,2,1,0,0,Phuket
+E669,Robert Williams,IT,Manager,49,Male,2022-08-26,102641.0,5.0,61,182,9.0,4,13,0,0,Bangkok
+E670,Isabella Williams,Sales,Senior,22,Male,2018-06-09,72052.0,3.6,87,84,2.0,2,3,1,0,Bangkok
+E671,John Martinez,IT,Senior,27,Female,2023-06-06,62053.0,2.2,8,25,8.0,1,10,0,0,Phuket
+E672,Daniel Williams,Marketing,Senior,29,Male,2022-02-10,68920.0,,67,84,9.0,0,5,0,0,Rayong
+E673,Olivia Williams,IT,Manager,25,Female,2017-09-02,112275.0,4.1,80,152,10.0,5,3,0,1,Bangkok
+E674,Robert Johnson,HR,Mid,26,Male,2017-12-11,48522.0,5.0,16,64,10.0,4,9,1,0,Bangkok
+E675,Olivia Jones,Sales,Mid,46,Male,2023-03-09,53220.0,2.0,116,133,9.0,5,8,0,0,Bangkok
+E676,Alex Williams,Marketing,Senior,43,Male,2023-02-14,74215.0,1.8,49,150,10.0,2,3,0,0,Bangkok
+E677,Lisa Brown,IT,Manager,49,Female,2024-06-29,122128.0,4.8,111,114,7.0,3,9,0,0,Bangkok
+E678,Sarah Williams,Sales,Senior,60,Female,2018-05-29,71903.0,3.6,93,63,9.0,1,15,0,1,Phuket
+E679,James Smith,Marketing,Senior,44,Female,2018-12-22,75035.0,2.6,39,86,9.0,0,13,0,0,Rayong
+E680,Lisa Smith,Marketing,Mid,25,Female,2018-03-12,39367.0,3.7,57,170,3.0,1,6,0,0,Bangkok
+E681,David Jones,Operations,Manager,25,Female,2020-07-21,103294.0,1.2,74,106,4.0,3,13,0,0,Chiang Mai
+E682,Mia Brown,Sales,Junior,42,Male,2015-12-29,27346.0,3.3,84,150,2.0,0,7,0,1,Bangkok
+E683,James Garcia,IT,Senior,58,Male,2021-08-26,71076.0,3.6,20,95,10.0,3,4,1,0,Bangkok
+E684,Sophia Smith,Finance,Junior,23,Male,2024-12-11,24247.0,4.0,17,157,3.0,1,4,0,0,Bangkok
+E685,Olivia Martinez,Marketing,Mid,28,Male,2024-03-02,40455.0,2.5,54,76,5.0,2,12,0,0,Chiang Mai
+E686,Olivia Johnson,Finance,Mid,37,Male,2021-05-07,42609.0,3.4,28,145,5.0,1,13,0,0,Bangkok
+E687,Chris Smith,Finance,Mid,38,Male,2023-06-13,53551.0,2.6,23,86,6.0,1,2,0,0,Bangkok
+E688,Emma Davis,Sales,Senior,41,Male,2021-06-03,67618.0,3.5,73,148,7.0,1,5,0,0,Bangkok
+E689,Robert Johnson,Operations,Mid,44,Male,2023-05-10,45842.0,2.6,108,56,7.0,4,8,0,0,Bangkok
+E690,Mike Garcia,IT,Mid,55,Male,2024-09-05,41338.0,3.0,16,102,1.0,3,7,0,0,Bangkok
+E691,Matthew Brown,Sales,Mid,32,Female,2024-11-07,47869.0,2.5,17,150,2.0,3,7,0,0,Khon Kaen
+E692,David Brown,Sales,Mid,55,Female,2015-08-22,42670.0,3.8,41,90,9.0,5,6,1,0,Phuket
+E693,James Martinez,HR,Mid,54,Male,2022-03-07,41510.0,4.0,111,44,10.0,3,3,1,0,Khon Kaen
+E694,Isabella Jones,IT,Junior,47,Male,2019-09-28,28862.0,3.1,83,171,2.0,5,5,0,0,Bangkok
+E695,Lisa Jones,IT,Senior,23,Male,2015-01-27,59634.0,3.3,100,87,6.0,4,13,0,0,Bangkok
+E696,Lisa Rodriguez,Finance,Senior,44,Female,2019-02-03,59687.0,2.1,44,114,1.0,2,1,0,0,Bangkok
+E697,Emma Brown,Sales,Senior,43,Male,2015-04-03,64867.0,3.1,81,46,3.0,5,7,0,0,Bangkok
+E698,Emily Williams,Finance,Mid,55,Female,2022-04-18,38828.0,3.3,16,167,2.0,1,9,0,0,Phuket
+E699,Emily Jones,IT,Mid,36,Male,2015-11-05,39951.0,5.0,72,178,3.0,2,1,0,0,Bangkok
+E700,Emma Williams,HR,Manager,31,Male,2015-02-21,106546.0,2.4,13,169,5.0,4,13,1,0,Bangkok
+E701,Isabella Miller,HR,Mid,36,Male,2015-11-15,50890.0,4.5,48,134,10.0,3,2,1,0,Chiang Mai
+E702,James Jones,IT,Mid,50,Male,2020-06-15,47259.0,4.1,28,49,6.0,5,3,0,0,Bangkok
+E703,Chris Williams,Sales,Junior,44,Female,2015-06-30,28824.0,3.5,94,175,9.0,1,3,0,0,Rayong
+E704,Lisa Garcia,IT,Mid,38,Male,2019-05-12,42872.0,4.7,3,83,10.0,0,8,0,0,Bangkok
+E705,Sarah Rodriguez,IT,Mid,30,Female,2023-09-27,52925.0,3.6,81,90,4.0,0,7,0,1,Chiang Mai
+E706,Sophia Martinez,Marketing,Mid,57,Female,2023-01-01,44502.0,3.6,19,133,7.0,2,6,0,0,Bangkok
+E707,Olivia Rodriguez,Sales,Senior,30,Female,2023-07-12,61633.0,3.3,119,90,6.0,3,15,1,0,Rayong
+E708,David Jones,Operations,Mid,37,Male,2016-10-08,47968.0,4.3,119,136,2.0,0,10,0,0,Bangkok
+E709,Isabella Brown,Sales,Senior,57,Male,2020-05-15,62289.0,4.2,46,108,10.0,2,10,0,0,Chiang Mai
+E710,Jane Williams,Finance,Senior,54,Male,2018-07-07,67957.0,2.8,106,56,8.0,4,11,0,0,Bangkok
+E711,Emily Williams,Operations,Manager,52,Male,2021-02-22,113035.0,2.2,107,30,7.0,2,4,0,0,Phuket
+E712,Sarah Garcia,Finance,Senior,27,Female,2022-05-16,80918.0,3.1,8,20,7.0,2,9,1,0,Bangkok
+E713,Emily Williams,HR,Director,31,Male,2023-04-07,204548.0,2.7,76,89,8.0,2,1,0,0,Bangkok
+E714,Anna Smith,Sales,Junior,37,Female,2021-04-21,30682.0,3.2,78,39,1.0,1,11,0,0,Khon Kaen
+E715,Daniel Rodriguez,Sales,Junior,25,Male,2020-07-17,33529.0,,26,111,1.0,2,15,0,0,Rayong
+E716,Chris Miller,Marketing,Junior,43,Female,2022-08-11,25088.0,2.9,14,44,8.0,5,2,0,0,Bangkok
+E717,Chris Miller,Operations,Senior,34,Male,2015-12-02,66230.0,3.3,91,76,4.0,2,15,0,0,Khon Kaen
+E718,Chris Johnson,Marketing,Manager,37,Male,2019-04-26,108691.0,3.3,100,176,5.0,1,14,1,0,Bangkok
+E719,James Davis,IT,Mid,50,Female,2019-03-06,44893.0,4.0,118,86,8.0,1,4,0,0,Khon Kaen
+E720,Emma Jones,Operations,Manager,27,Male,2017-09-16,109324.0,1.5,18,147,5.0,4,3,0,0,Chiang Mai
+E721,Mia Miller,Marketing,Junior,47,Female,2023-01-26,32694.0,2.8,89,100,10.0,3,1,0,1,Chiang Mai
+E722,Alex Davis,IT,Manager,32,Male,2018-07-02,120990.0,3.5,51,116,4.0,0,5,0,0,Khon Kaen
+E723,Isabella Smith,IT,Mid,45,Male,2016-05-28,47824.0,4.3,25,91,6.0,0,7,0,0,Khon Kaen
+E724,James Johnson,Operations,Junior,50,Female,2020-07-22,26831.0,2.9,88,144,5.0,2,2,0,0,Bangkok
+E725,Matthew Miller,Finance,Mid,24,Female,2015-08-30,51224.0,1.8,25,27,7.0,4,5,1,0,Phuket
+E726,Isabella Davis,Operations,Mid,31,Male,2021-01-05,53292.0,3.8,25,168,10.0,2,6,0,0,Bangkok
+E727,Olivia Miller,IT,Mid,22,Female,2019-09-30,51183.0,2.8,45,193,7.0,0,11,0,0,Khon Kaen
+E728,Sarah Smith,Operations,Mid,47,Female,2024-03-24,38274.0,2.3,91,24,4.0,1,7,0,1,Phuket
+E729,Mike Rodriguez,IT,Manager,33,Female,2022-09-05,118001.0,2.8,48,57,5.0,3,1,0,0,Bangkok
+E730,Mia Rodriguez,IT,Mid,35,Male,2022-04-21,39055.0,3.2,81,40,3.0,4,7,0,0,Phuket
+E731,Isabella Brown,IT,Mid,46,Male,2021-11-05,42307.0,2.8,95,133,4.0,1,4,0,0,Chiang Mai
+E732,Chris Brown,Operations,Senior,29,Female,2024-06-26,60958.0,1.5,52,74,4.0,3,8,0,0,Chiang Mai
+E733,Lisa Smith,Finance,Senior,25,Female,2021-03-09,74292.0,4.0,2,37,3.0,4,13,0,0,Bangkok
+E734,Daniel Rodriguez,HR,Mid,49,Male,2016-10-29,49063.0,4.3,65,133,10.0,4,4,0,0,Bangkok
+E735,Chris Brown,Sales,Mid,28,Male,2024-11-18,40053.0,3.8,96,172,5.0,0,6,0,0,Phuket
+E736,Robert Johnson,Marketing,Junior,31,Male,2016-08-16,27561.0,2.4,41,74,5.0,1,9,0,1,Bangkok
+E737,Robert Rodriguez,Sales,Junior,57,Female,2020-12-18,28271.0,3.1,18,141,7.0,4,5,1,0,Bangkok
+E738,Mia Garcia,Operations,Senior,23,Male,2024-04-23,68541.0,3.3,16,65,4.0,5,14,0,0,Phuket
+E739,John Rodriguez,Sales,Junior,47,Male,2022-04-13,24986.0,3.8,107,167,4.0,4,12,0,0,Bangkok
+E740,Mike Williams,Sales,Mid,35,Male,2015-09-13,44848.0,3.8,32,2,9.0,3,4,1,0,Chiang Mai
+E741,Sarah Smith,HR,Senior,37,Female,2019-02-11,77903.0,2.7,75,116,6.0,0,8,0,0,Chiang Mai
+E742,Olivia Rodriguez,Sales,Junior,38,Male,2016-07-14,24495.0,3.4,48,98,4.0,2,13,0,0,Phuket
+E743,Sarah Johnson,Operations,Senior,43,Male,2020-10-11,61464.0,3.7,55,151,2.0,0,9,0,0,Bangkok
+E744,Olivia Rodriguez,HR,Mid,25,Female,2018-08-27,43837.0,4.5,62,18,6.0,2,4,0,0,Bangkok
+E745,Sarah Rodriguez,IT,Director,40,Female,2016-02-11,235920.0,3.9,2,145,2.0,1,3,1,0,Bangkok
+E746,Anna Williams,Marketing,Mid,23,Male,2022-10-20,48780.0,3.9,106,191,5.0,1,8,0,0,Khon Kaen
+E747,David Martinez,Sales,Manager,60,Male,2023-09-12,119628.0,3.4,48,115,6.0,4,14,0,0,Bangkok
+E748,Robert Brown,HR,Senior,30,Female,2020-02-04,68367.0,4.4,54,124,4.0,5,5,0,0,Rayong
+E749,Isabella Rodriguez,Marketing,Junior,40,Female,2020-08-24,29617.0,3.6,25,87,3.0,1,2,0,0,Chiang Mai
+E750,Sarah Davis,Finance,Senior,37,Female,2019-09-07,59748.0,2.6,98,34,7.0,4,10,0,0,Khon Kaen
+E751,Olivia Johnson,IT,Director,46,Female,2015-09-16,214526.0,4.4,71,189,2.0,0,9,0,0,Bangkok
+E752,Lisa Martinez,Marketing,Senior,39,Female,2016-12-23,,3.9,51,0,6.0,1,3,0,0,Bangkok
+E753,Mike Miller,Finance,Manager,44,Female,2024-07-15,117084.0,2.9,99,152,4.0,0,12,0,0,Rayong
+E754,David Rodriguez,Sales,Manager,42,Male,2018-07-06,127137.0,2.9,116,172,6.0,0,2,0,0,Bangkok
+E755,Alex Martinez,IT,Mid,32,Male,2016-09-05,49652.0,3.5,117,176,4.0,5,1,1,0,Bangkok
+E756,Sarah Martinez,Operations,Junior,60,Male,2024-02-14,24981.0,3.7,6,125,4.0,1,14,1,0,Bangkok
+E757,Sarah Martinez,Finance,Senior,25,Male,2019-08-22,81610.0,3.5,45,88,4.0,0,8,0,0,Rayong
+E758,Sophia Williams,HR,Mid,46,Female,2023-07-14,39296.0,3.5,45,143,9.0,5,11,0,1,Chiang Mai
+E759,Mia Williams,Marketing,Manager,53,Male,2020-06-01,114057.0,4.7,99,146,7.0,5,3,0,0,Chiang Mai
+E760,Isabella Martinez,Operations,Manager,51,Female,2017-03-23,98972.0,4.2,15,150,3.0,1,7,1,0,Phuket
+E761,Emily Rodriguez,IT,Mid,47,Male,2019-11-22,38434.0,3.5,23,24,3.0,5,1,1,0,Bangkok
+E762,Sophia Smith,Sales,Mid,57,Male,2015-11-27,44897.0,4.1,60,15,6.0,1,1,0,0,Phuket
+E763,Sophia Johnson,IT,Senior,55,Female,2021-01-21,66728.0,2.5,53,181,6.0,1,15,0,0,Bangkok
+E764,William Miller,Operations,Mid,30,Male,2018-05-01,45904.0,3.6,61,72,4.0,2,12,0,1,Khon Kaen
+E765,John Jones,IT,Manager,33,Male,2019-03-25,115722.0,4.7,0,128,9.0,0,9,0,0,Bangkok
+E766,Anna Garcia,Finance,Mid,23,Male,2024-07-04,38938.0,3.1,48,41,4.0,3,15,0,0,Bangkok
+E767,Sarah Smith,Operations,Senior,59,Female,2018-10-29,62513.0,2.6,24,146,9.0,1,12,0,0,Chiang Mai
+E768,Sophia Miller,Marketing,Junior,26,Male,2023-08-03,29274.0,2.8,9,161,4.0,0,8,0,1,Bangkok
+E769,Chris Garcia,Sales,Senior,26,Female,2016-01-22,67907.0,2.4,117,79,2.0,5,12,0,0,Chiang Mai
+E770,Sophia Williams,Operations,Mid,43,Male,2019-02-27,,2.7,79,103,2.0,4,13,0,0,Bangkok
+E771,William Martinez,IT,Senior,26,Female,2019-12-23,75481.0,3.0,15,182,5.0,1,3,0,0,Bangkok
+E772,Olivia Brown,Operations,Junior,25,Male,2024-07-18,32086.0,2.2,57,145,4.0,5,6,1,0,Chiang Mai
+E773,Anna Jones,IT,Senior,30,Female,2019-12-23,76466.0,3.3,71,33,7.0,5,11,0,0,Chiang Mai
+E774,Emily Smith,Sales,Manager,50,Female,2019-12-20,110052.0,4.0,28,88,5.0,5,3,0,0,Bangkok
+E775,Daniel Rodriguez,Operations,Junior,43,Female,2023-06-29,30395.0,2.6,102,124,6.0,5,13,0,0,Chiang Mai
+E776,Matthew Rodriguez,IT,Junior,48,Female,2024-02-20,26498.0,4.5,91,44,10.0,5,12,1,0,Bangkok
+E777,Isabella Miller,IT,Junior,31,Male,2021-07-03,26801.0,3.7,5,133,4.0,1,4,0,1,Bangkok
+E778,Chris Garcia,Operations,Senior,37,Female,2019-02-24,78830.0,4.1,15,20,2.0,3,1,0,0,Bangkok
+E779,Emily Miller,Operations,Senior,31,Male,2018-05-25,70437.0,2.8,19,121,10.0,2,5,0,0,Rayong
+E780,Olivia Garcia,Finance,Senior,27,Female,2015-11-16,79060.0,4.0,79,69,9.0,5,1,0,0,Phuket
+E781,Olivia Johnson,Finance,Mid,26,Male,2016-02-03,51203.0,2.4,70,95,10.0,5,13,0,0,Bangkok
+E782,Lisa Miller,HR,Mid,27,Male,2020-03-29,51756.0,4.0,104,104,7.0,2,1,0,0,Chiang Mai
+E783,Emma Jones,Sales,Senior,46,Male,2015-04-15,81957.0,3.4,77,47,4.0,1,10,0,1,Khon Kaen
+E784,Mike Rodriguez,Sales,Mid,25,Male,2016-11-26,45038.0,3.7,42,38,3.0,0,15,0,0,Bangkok
+E785,John Rodriguez,IT,Director,53,Male,2023-05-23,192320.0,2.4,25,30,10.0,4,11,0,0,Khon Kaen
+E786,Emma Brown,Marketing,Junior,56,Female,2015-11-26,29505.0,2.6,89,9,3.0,4,11,0,0,Bangkok
+E787,David Rodriguez,Finance,Senior,31,Male,2016-10-21,68593.0,3.8,77,29,9.0,0,14,0,0,Khon Kaen
+E788,Mike Jones,Sales,Mid,55,Male,2023-07-16,47716.0,2.5,70,17,5.0,1,7,0,0,Chiang Mai
+E789,Lisa Miller,HR,Mid,57,Female,2022-03-31,49362.0,3.7,32,187,3.0,4,12,0,1,Bangkok
+E790,Robert Davis,Marketing,Senior,27,Male,2017-03-31,76365.0,2.2,25,87,5.0,2,6,0,1,Bangkok
+E791,James Martinez,IT,Senior,37,Female,2020-05-26,68676.0,4.0,120,124,2.0,0,2,0,0,Rayong
+E792,Isabella Rodriguez,Finance,Director,40,Female,2022-05-12,181680.0,2.3,44,72,4.0,3,14,0,0,Phuket
+E793,Matthew Garcia,HR,Junior,55,Female,2019-11-29,28019.0,3.7,83,14,10.0,1,11,0,0,Chiang Mai
+E794,Jane Miller,Finance,Junior,46,Female,2021-06-19,,3.8,62,3,2.0,0,12,0,0,Bangkok
+E795,James Smith,IT,Senior,52,Male,2023-10-24,81307.0,2.7,66,190,2.0,4,2,0,0,Bangkok
+E796,Jane Smith,Marketing,Senior,38,Male,2016-04-06,67973.0,3.8,51,167,8.0,1,11,0,0,Bangkok
+E797,Lisa Johnson,Marketing,Mid,51,Male,2019-05-27,40682.0,3.5,67,8,1.0,2,7,1,0,Bangkok
+E798,Emma Garcia,Finance,Junior,60,Female,2021-12-08,24049.0,2.9,25,108,7.0,1,1,0,0,Chiang Mai
+E799,Mike Davis,Finance,Junior,52,Male,2019-08-03,30129.0,2.5,74,136,5.0,1,13,0,1,Khon Kaen
+E800,Matthew Martinez,Marketing,Manager,40,Male,2021-09-23,118020.0,1.7,1,153,8.0,2,2,0,1,Phuket

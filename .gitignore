@@ -2,7 +2,12 @@
 __pycache__/
 *.pyc
 pipeline/
-logs/
-projects/
-knowledge_base/
+.claude/settings.local.json
 11111111.txt
+
+# Large files — ห้าม commit
+*.sqlite
+*.db
+projects/*/output/rex/all_agent_context.txt
+projects/*/input/*.sqlite
+projects/*/output/scout/*.sqlite
