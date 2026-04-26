@@ -148,3 +148,121 @@ scale_pos_weight ใน XGBoost ช่วย imbalance ได้ดี
 ```python
 final = 0.6 * xgb_pred + 0.4 * dl_pred  # weighted average
 ```
+
+---
+
+## SHAP Values — Model Interpretability
+
+ใช้หลัง train model เสมอ — อธิบายได้ทั้ง global และ individual prediction
+
+```python
+import shap
+
+# Tree-based models (XGBoost, LightGBM, Random Forest)
+explainer = shap.TreeExplainer(model)
+shap_values = explainer.shap_values(X_test)
+
+# Global importance
+shap.summary_plot(shap_values, X_test, plot_type="bar")
+
+# Individual prediction
+shap.waterfall_plot(explainer(X_test)[0])
+
+# Linear / any model
+explainer = shap.LinearExplainer(model, X_train)
+# หรือ KernelExplainer สำหรับ black-box (ช้ากว่า)
+explainer = shap.KernelExplainer(model.predict_proba, shap.sample(X_train, 100))
+```
+
+**กฎการใช้ SHAP:**
+- Tree-based → `TreeExplainer` (เร็ว, exact)
+- Linear → `LinearExplainer`
+- Black-box (MLP, SVM) → `KernelExplainer` (ช้า — sample 100-200 rows พอ)
+- SHAP value > 0 → ดัน prediction ขึ้น, < 0 → ดัน prediction ลง
+- ใช้ `shap.dependence_plot` หา interaction ระหว่าง 2 features
+
+---
+
+## Nested Cross-Validation — Unbiased Evaluation
+
+ใช้เมื่อ: tune hyperparameter + evaluate พร้อมกัน (ป้องกัน optimistic bias)
+
+```python
+from sklearn.model_selection import StratifiedKFold, GridSearchCV, cross_val_score
+
+outer_cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+inner_cv  = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
+
+param_grid = {"n_estimators": [100, 300], "max_depth": [3, 5, None]}
+clf = GridSearchCV(RandomForestClassifier(), param_grid, cv=inner_cv, scoring="f1_weighted")
+
+# outer loop ประเมิน generalization จริง
+nested_scores = cross_val_score(clf, X, y, cv=outer_cv, scoring="f1_weighted")
+print(f"Nested CV F1: {nested_scores.mean():.4f} ± {nested_scores.std():.4f}")
+```
+
+**กฎ:**
+- ถ้า nested CV score ต่ำกว่า simple CV มาก (>3%) → model overfit ต่อ hyperparameter search
+- Dataset เล็ก (<5K rows) → nested CV สำคัญมาก
+- Dataset ใหญ่ (>50K) → simple CV + holdout test set พอ
+
+---
+
+## Bayesian Hyperparameter Optimization
+
+เร็วกว่า RandomizedSearchCV เมื่อ search space ใหญ่หรือ train นาน
+
+```python
+from skopt import BayesSearchCV
+from skopt.space import Real, Integer, Categorical
+
+search_spaces = {
+    "n_estimators":   Integer(100, 1000),
+    "max_depth":      Integer(3, 10),
+    "learning_rate":  Real(0.01, 0.3, prior="log-uniform"),
+    "subsample":      Real(0.6, 1.0),
+}
+
+opt = BayesSearchCV(
+    XGBClassifier(random_state=42),
+    search_spaces,
+    n_iter=50,          # จำนวน evaluations (น้อยกว่า Random แต่ฉลาดกว่า)
+    cv=5,
+    scoring="f1_weighted",
+    random_state=42,
+    n_jobs=-1
+)
+opt.fit(X_train, y_train)
+print(f"Best params: {opt.best_params_}")
+```
+
+**เมื่อไหร่ใช้ Bayesian vs RandomizedSearchCV:**
+| สถานการณ์ | เลือก |
+|-----------|-------|
+| train < 1 นาที / params < 5 | RandomizedSearchCV 50 iter |
+| train > 5 นาที / params > 5 | BayesSearchCV 30-50 iter |
+| ต้องการ reproducible | ทั้งคู่ใส่ random_state=42 |
+
+---
+
+## Regularization — L1 vs L2 vs ElasticNet
+
+**ทำไม regularize:** ลด variance (overfitting) โดยบังคับให้ weights เล็กลง
+
+| | L1 (Lasso) | L2 (Ridge) | ElasticNet |
+|--|-----------|-----------|-----------|
+| สูตร penalty | Σ\|w\| | Σw² | α·L1 + (1-α)·L2 |
+| ผลต่อ weights | ทำ weights บางตัว = 0 (sparse) | ทำ weights เล็กแต่ไม่เป็น 0 | ผสมกัน |
+| ใช้เมื่อ | features เยอะ ต้องการ feature selection | features สัมพันธ์กัน (multicollinearity) | ทั้ง 2 เงื่อนไข |
+| sklearn | `Lasso(alpha=...)` | `Ridge(alpha=...)` | `ElasticNet(alpha, l1_ratio)` |
+
+```python
+from sklearn.linear_model import RidgeCV, LassoCV, ElasticNetCV
+
+# หา alpha ดีที่สุดอัตโนมัติ
+ridge = RidgeCV(alphas=[0.01, 0.1, 1, 10, 100], cv=5)
+lasso = LassoCV(cv=5, random_state=42)
+enet  = ElasticNetCV(l1_ratio=[0.1, 0.5, 0.9], cv=5)
+```
+
+**กฎง่าย:** ถ้าไม่แน่ใจ → ลอง Ridge ก่อน, ถ้าต้องการรู้ว่า feature ไหนสำคัญ → Lasso

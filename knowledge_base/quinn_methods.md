@@ -86,5 +86,57 @@ Reason: [สาเหตุที่ต้อง restart — ถ้า YES]
 
 ---
 
+---
+
+## Data Drift Detection — ตรวจ Distribution Shift
+
+ใช้เมื่อ: QC model ก่อน deploy หรือ monitor model ที่ใช้งานอยู่แล้ว
+
+```python
+from scipy.stats import ks_2samp, chi2_contingency
+import numpy as np
+
+def check_drift(train_col, test_col, col_name, threshold=0.05):
+    """ตรวจ drift ระหว่าง train และ test/production data"""
+    if train_col.dtype in ["float64", "int64"]:
+        # Kolmogorov-Smirnov test สำหรับ numerical
+        stat, p = ks_2samp(train_col.dropna(), test_col.dropna())
+        drifted = p < threshold
+    else:
+        # Chi-square สำหรับ categorical
+        cats = set(train_col.unique()) | set(test_col.unique())
+        t = [train_col.value_counts().get(c, 0) for c in cats]
+        s = [test_col.value_counts().get(c, 0)  for c in cats]
+        _, p, _, _ = chi2_contingency([t, s])
+        drifted = p < threshold
+    print(f"{'DRIFT' if drifted else 'OK':6s} {col_name:30s} p={p:.4f}")
+    return drifted
+
+# ใช้กับทุก feature
+drifted_features = []
+for col in X_train.columns:
+    if check_drift(X_train[col], X_test[col], col):
+        drifted_features.append(col)
+
+print(f"\nDrifted features ({len(drifted_features)}): {drifted_features}")
+```
+
+**Population Stability Index (PSI) — ตัวชี้วัด drift มาตรฐาน industry:**
+```python
+def psi(expected, actual, buckets=10):
+    breakpoints = np.linspace(0, 100, buckets + 1)
+    e_pct = np.histogram(expected, np.percentile(expected, breakpoints))[0] / len(expected)
+    a_pct = np.histogram(actual,   np.percentile(expected, breakpoints))[0] / len(actual)
+    e_pct = np.clip(e_pct, 1e-6, None)
+    a_pct = np.clip(a_pct, 1e-6, None)
+    return np.sum((a_pct - e_pct) * np.log(a_pct / e_pct))
+
+# PSI < 0.1  → ไม่มี drift
+# PSI 0.1-0.2 → drift เล็กน้อย ควร monitor
+# PSI > 0.2  → drift มาก — ต้อง retrain model
+```
+
+**Quinn ต้องรายงาน drift ใน QC report เสมอถ้ามี train/test split**
+
 ## [2026-04-25 19:49] [FEEDBACK]
 QC passed 10/11 checks — validated CSV shape, missing values, data types for all agent outputs. Saved quinn_qc_results.csv.
