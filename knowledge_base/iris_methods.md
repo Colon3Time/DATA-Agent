@@ -56,3 +56,7 @@ test3: Business Insights from Mo output - summarize 3 key insights with recommen
 
 ## [2026-04-25 20:25] [DISCOVERY]
 None (method is standard)
+
+
+## [2026-04-26 10:57] [DISCOVERY]
+Structured JSON parsing for flexible insight extraction

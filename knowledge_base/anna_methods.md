@@ -1,4 +1,3 @@
-
 # Anna Methods & Knowledge Base
 
 ## กฎการทำงาน
@@ -9,7 +8,6 @@
 - ดูวันที่ใน log file เพื่อหาโปรเจคที่มีการทำงานล่าสุด
 - ตัวอย่าง: `olist` มี log วันที่ `2026-04-24_raw.md` ซึ่งเป็นล่าสุด
 
-
 ## [2026-04-25 01:19] Discovery
 **ระบบการอ่านไฟล์เมื่อเรียก Anna:**
 ทุกครั้งที่เรียก Anna ต้องอ่าน 3 ไฟล์นี้ตามลำดับ:
@@ -17,14 +15,12 @@
 2. `C:\Users\Amorntep\DATA-Agent\anna_short.md`
 3. `C:\Users\Amorntep\DATA-Agent\knowledge_base\anna_methods.md`
 
-
 ## [2026-04-25 01:31] Discovery
 **บทเรียนจาก Olist — Eddie Report QC ผ่าน Quinn**
 - เวลาแก้ไข Python script แล้วรันแล้ว Error เหมือนเดิม — ปัญหาคือ Python cache script ตัวเก่าไว้
 - วิธีแก้: ต้องใช้ **full path** เสมอเวลา `python projects/olist/output/quinn/quinn_script.py`
 - หรือลบไฟล์ .pyc cache ก่อนรัน
 - เรียนรู้ครั้งหน้า: ถ้าแก้ script แล้ว Error ซ้ำ ให้ตรวจสอบว่าแก้ถูกไฟล์จริง และล้าง cache ก่อน
-
 
 ## [2026-04-25] กฎสำคัญ — ตรวจสอบ Dana Output ก่อน Dispatch Eddie
 
@@ -40,13 +36,11 @@ projects/{project}/output/dana/dana_output.csv
 
 **กฎ:** report เสร็จ ≠ งานเสร็จ ต้องมีไฟล์ output จริงก่อนส่งต่อ pipeline เสมอ
 
-
 ## [2026-04-25 01:32] Discovery
 **เพิ่มเติมจาก Olist — Quinn QC**
 - Eddie output folder ไม่มี CSV มีแต่ .md กับ .py
 - Dana output folder ต้องเช็คว่ามีไฟล์อะไรบ้าง
 - ถ้า error path ให้ใช้ `dir` ตรวจสอบ folder ก่อนแก้ path ทุกครั้ง
-
 
 ## [2026-04-25 01:33] Discovery
 **กฎสำคัญ — Anna ต้องรายงานผลทุกครั้ง**
@@ -63,7 +57,6 @@ projects/{project}/output/dana/dana_output.csv
 
 **ข้อยกเว้น:** ถ้าผลลัพธ์ยาวมาก ให้สรุปเฉพาะส่วนที่สำคัญ + บอกว่ามีกี่บรรทัด
 
-
 ## [2026-04-25 01:48] Discovery
 **บทเรียนจาก Olist — Quinn & Script Error**
 1. ❌ **Anna สั่ง RUN_SHELL โดยไม่ตรวจสอบก่อน** — Quinn ทำ report เสร็จแล้ว แต่ Anna ยังพยายามรัน script ซ้ำถึก
@@ -78,13 +71,11 @@ projects/{project}/output/dana/dana_output.csv
 4. ❌ **Anna หือหือเกินไป** — อยากทำให้เสร็จไว แต่กลับทำให้เสียเวลา更长
    - ✅ **บทเรียน:** ช้าลงหน่อย คิดก่อนทำ — ตรวจสอบก่อน dispatch ทุกครั้ง
 
-
 ## [2026-04-25 01:52] Discovery
 **กฎใหม่ — Agent ต้องอ่าน KB ก่อนทำงาน**
 ทุกครั้งที่ Anna dispatch งานให้ agent ใด ๆ **ต้องเพิ่มคำสั่งนี้ใน task ทุกครั้ง:**
 - "อ่าน KB ของตัวเองก่อนเริ่มทำงาน — โดยเฉพาะบทเรียนจากโปรเจคล่าสุด"
 - ถ้าเป็นไปได้ ให้เขียนเป็นกฎใน agent.md แต่ละตัวด้วย
-
 
 ## [2026-04-25 02:08] Discovery
 **บทเรียนสำคัญ — Agent รันโค้ดเองได้!**
@@ -97,14 +88,12 @@ projects/{project}/output/dana/dana_output.csv
   - ❌ ไม่ต้องแก้โค้ดให้ agent
 - **จำไว้! ถ้าต้องการให้ agent ทำงาน → dispatch ไปเลย อย่าเขียนโค้ดแทน!**
 
-
 ## [2026-04-25 02:13] Discovery
 **สถานะล่าสุด Olist Project (จากประวัติการสนทนา):**
 - ✅ Eddie ทำงาน EDA v2 เสร็จแล้ว — มี `eddie_v2_script.py` เกิดขึ้น
 - ❌ Dashboard + Wiz ถูกลบออกแล้ว
 - ❌ ยังไม่ได้ตรวจสอบผลงาน Eddie v2 ว่า `eddie_report_v2.md` มีหรือยัง
 - ❌ ยังไม่ได้ dispatch งานต่อให้ Max/Finn/Mo
-
 
 ## [2026-04-25 02:13] Discovery
 **กฎการบันทึกสถานะงาน:**
@@ -113,10 +102,8 @@ projects/{project}/output/dana/dana_output.csv
 - KB ใช้สำหรับ: บทเรียน, ข้อควรระวัง, best practices, การเปลี่ยนแปลงระบบเท่านั้น
 - log ใช้สำหรับ: สถานะการทำงานจริง, timeline, output
 
-
 ## [2026-04-25 07:41] Discovery
 ผู้ใช้ให้สิทธิ์ Anna หา dataset รูปภาพและโหลดเองได้ โดยไม่ต้องถาม Scout และไม่ต้องถามผู้ใช้ก่อน — ทำงานได้อิสระเต็มที่
-
 
 ## [2026-04-25 07:43] Discovery
 Research: best Thai monospace fonts for terminal windows 2024-2025
@@ -199,14 +186,11 @@ As of late 2024 / early 2025, here are the **best** Thai monospace fonts for ter
 - **If you are stuck on Windows without admin rights:** **Source Code Pro** (comes with Visual Studio).
 - **If you also code in Chinese/Japanese:** **Sarasa Term** (specifically the `sarasa-term-sc-*` variant).
 
-
 ## [2026-04-25 10:19] Discovery
 เพิ่มกฎสำคัญ: Anna ห้ามทำงานแทน agent ทุกกรณี ยกเว้นผู้ใช้สั่งเองโดยตรง — Anna ทำได้แค่ DISPATCH, แก้ config/log/KB, สรุปผล, ตัดสินใจ, ควบคุม pipeline เท่านั้น
 
-
 ## [2026-04-25 11:08] Discovery
 กฎสำคัญ: Anna ไม่มีหน้าที่รัน Python script หรือทำงานแทน agent โดยตรง หน้าที่ของ Anna คือ Dispatch งานให้ agent ที่เหมาะสมและควบคุม pipeline เท่านั้น — ห้ามใช้ RUN_PYTHON หรือ RUN_SHELL เพื่อทำงานที่อยู่ในขอบเขตของ agent
-
 
 ## [2026-04-25 11:16] Discovery
 กฎการทำงานของ Anna (อัพเดตล่าสุด):
@@ -225,7 +209,6 @@ As of late 2024 / early 2025, here are the **best** Thai monospace fonts for ter
      - knowledge_base/ (KB ทั้งหมด)
    - dispatch งานไปยัง agent ที่ถูกต้อง
 
-
 ## [2026-04-25 11:22] Discovery
 กฎการทำงานของ Agent ทุกคน:
 - ✅ ทุกครั้งที่ agent ทำงาน ต้องสร้าง **report** ทุกครั้ง — ทั้ง success และ fail
@@ -234,21 +217,17 @@ As of late 2024 / early 2025, here are the **best** Thai monospace fonts for ter
 - ✅ ถ้างาน fail ก็ต้อง report ว่าทำอะไร, เจอปัญหาอะไร, ติดตรงไหน
 - ❌ ห้ามจบโดยไม่มี report — Anna จะตรวจสอบทุกครั้งก่อน dispatch ต่อ
 
-
 ## [2026-04-25 14:04] [DISCOVERY]
 Research: Olist Brazilian E-Commerce dataset benchmark — standard data cleaning practices by Kaggle Grandmaste
 Key finding: This is an excellent and highly specific question that gets to the heart of practical data science with real-world, messy data. The Olist dataset is a benchmark, but it's not clean. The numbers you've cited (88% missing `review_comment_title`, 610 missing `product_category`, ~3% missing delivery dates) are classic pain points.
-
 
 ## [2026-04-25 16:13] [DISCOVERY]
 Research: Kaggle Olist Brazilian E-Commerce dataset — data cleaning standards and benchmark scores by Grandmas
 Key finding: Here is a thorough breakdown of how Kaggle Grandmasters handle missing values and measure data quality in the context of the **Olist Brazilian E-Commerce** dataset, based on established kernels, competition solutions, and best practices from top-tier notebooks.
 
-
 ## [2026-04-25 23:48] [DISCOVERY]
 Research: Kaggle Grandmaster Olist data cleaning best practices 2024 — what standards do top tier notebooks us
 Key finding: This is an excellent question that gets to the heart of what separates a "passable" kernel from a "Grandmaster" level submission on Kaggle, especially for a dataset like Olist (Brazilian E-commerce) which is rich with relational data, timestamps, and geographic info.
-
 
 ## [2026-04-25 23:53] [FEEDBACK]
 จาก Olist Grandmaster Benchmark — Anna ต้องทำก่อน dispatch Dana ทุกครั้ง:
@@ -257,12 +236,32 @@ Key finding: This is an excellent question that gets to the heart of what separa
 3. เช็คว่า Dana ทำ geolocation, timestamp, text features หรือยัง (ถ้ามี data เหล่านี้)
 4. หลัง Dana เสร็จ → ตรวจสอบ output.csv จริง ไม่ใช่แค่ report
 
-
 ## [2026-04-26 00:07] [DISCOVERY]
 Research: Kaggle Grandmaster Olist Brazilian E-commerce data cleaning benchmark — what are the exact standards
 Key finding: This is a highly specific and excellent question. As a research assistant, I will break this down by first establishing the **benchmark standards** from the top Olist kernels (which are typically scored via the **Kaggle Data Quality** tab or the **Data Profiling** report generated by `ydata-profiling` / `pandas-profiling`), then provide a **gap analysis** against your current dataset stats.
 
-
 ## [2026-04-26 00:25] [DISCOVERY]
 Research: Kaggle Grandmaster Olist data cleaning Quality Score calculation — how do top notebooks calculate Da
 Key finding: This is an excellent and highly specific question that gets to the heart of how data quality (DQ) scoring is used in Kaggle competitions versus real-world analytics. Let's break down the Olist Grandmaster approach, the outlier handling, and specifically analyze Dana's 79.74% score.
+
+## [2026-04-26 02:31] [DISCOVERY]
+Research: Kaggle Grandmaster Olist E-Commerce dataset — Data Quality Score benchmarks, cleaning standards, และ
+Key finding: ในฐานะ Research Assistant ผมขอเรียบเรียงข้อมูลเกี่ยวกับ **Data Quality Score benchmarks, cleaning standards และ criteria** ที่ใช้ในการวัดคุณภาพของ **Olist E-Commerce Dataset** หลังจากกระบวนการทำความสะอาดข้อมูล (Data Cleaning) ตามแนวทางระดับ **Kaggle Grandmaster** อย่างละเอียด
+
+## [2026-04-26 03:13] [FEEDBACK]
+[2026-04-26 02:31] สิทธิ์ของ Anna ถูกจำกัด — ทำได้แค่ DISPATCH agent, อ่าน/อัปเดต KB, และทำตาม CLAUDE.md เท่านั้น ทุก action นอกเหนือจากนี้ต้องขอผู้ใช้ก่อนห้ามทำเองเด็ดขาด
+
+## [2026-04-26 18:10] Discovery
+**ระบบการอ่านไฟล์เมื่อเรียก Anna:**
+ทุกครั้งที่เรียก Anna ต้องอ่าน 3 ไฟล์นี้ตามลำดับ:
+1. `C:\Users\Amorntep\DATA-Agent\CLAUDE.md`
+2. `C:\Users\Amorntep\DATA-Agent\knowledge_base\anna_methods.md`
+
+**วิธีการอ่าน:** ใช้ RUN_PYTHON + open() แบ่งทีละ 50-80 บรรทัด จนครบทุกบรรทัด — ห้ามใช้ READ_FILE เพราะถูกจำกัด context window
+
+## [2026-04-26 03:44] [FEEDBACK]
+กฎใหม่ — เปิดโปรแกรมทุกครั้งต้องอ่าน 2 ไฟล์นี้ก่อนทำงาน:
+1. อ่าน `CLAUDE.md` — เพื่อรู้กฎสูงสุดของระบบและ workflow
+2. อ่าน `knowledge_base/anna_methods.md` — เพื่อรู้ KB ของตัวเอง
+
+วิธีการอ่าน: ใช้ `RUN_PYTHON` + `open()` แบ่งทีละ 50-80 บรรทัด จนครบทุกบรรทัด

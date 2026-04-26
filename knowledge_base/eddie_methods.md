@@ -35,3 +35,11 @@
 
 ## [2026-04-25 19:49] [FEEDBACK]
 test3: EDA succeeded on retail data - must check actual column names from dana_output.csv, not hardcode. Include sales trend, top products, regional performance.
+
+
+## [2026-04-26 10:45] [DISCOVERY]
+[Notebook ที่มีการวิเคราะห์ interaction 3 มิติ (Pclass x Sex x AgeGroup) โดยใช้ MultiIndex]
+
+
+## [2026-04-26 11:02] [DISCOVERY]
+Youden Index สำหรับหา optimal threshold เป็นเทคนิคที่มีประโยชน์มากสำหรับ medical screening

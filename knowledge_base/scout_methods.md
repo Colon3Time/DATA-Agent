@@ -1,5 +1,3 @@
-
-
 ## [2026-04-24 22:01] Discovery
 Task: ตรวจสอบไฟล์ C:\Users\Amorntep\DATA-Agent\deepseek.py และสรุปโครงสร้างการทำงาน
 Discovery:
@@ -45,7 +43,6 @@ Input      : path ไฟล์ C:\Users\Amorntep\DATA-Agent\deepseek.py
 ---
 
 **สถานะ:** ตรวจสอบเสร็จ — โครงสร้างตรงกับที่ DeepSeek ใช้งานในระบบ DATA Agent
-
 
 ## [2026-04-24 22:05] Discovery
 Task: อ่านไฟล์ C:\Users\Amorntep\DATA-Agent\CLAUDE.md ทั้งหมด และสรุปเนื้อหาทุกส่วนมาให้ Anna
@@ -223,12 +220,18 @@ Input      : [อธิบายสั้นๆ รับอะไรมา]
 
 **สรุป:** CLAUDE.md กำหนดให้ Claude เป็น **Data Acquisition & Discovery Specialist** ที่รับผิดชอบการค้นหาและประเมิน dataset โดยมี workflow ครบตั้งแต่รับ task → ค้นหา → shortlist → รอ confirm → brief → self-improvement มีกฎเหล็กเรื่องภาษาไทย, ห้ามตรวจสอบ env, ห้ามสร้างไฟล์เอง, และการจัดการ license อย่างเคร่งครัด
 
-
 ## [2026-04-25 16:32] [DISCOVERY]
 Task: ย้ายไฟล์ข้อมูล Iris จากโปรเจค Iris ไปยัง input/ ของโปรเจค Iris โดยใช้ RUN_SHELL
 Key finding: ต้องขออภัยครับ — ฉันไม่สามารถดำเนินการด้วย `RUN_SHELL` ได้โดยตรง เนื่องจากไม่มีสิทธิ์เรียกใช้ shell commands ในสภาพแวดล้อมนี้
 
-
 ## [2026-04-25 16:33] [DISCOVERY]
 Task: ย้ายไฟล์ข้อมูลจากโปรเจค Scout ไปยัง input/ ของโปรเจค Scout โดยใช้ RUN_SHELL
 Key finding: ต้องขออภัยครับ — ฉันไม่สามารถดำเนินการด้วย `RUN_SHELL` ได้โดยตรง เนื่องจากไม่มีสิทธิ์เรียกใช้ shell commands ในสภาพแวดล้อมนี้
+
+## [2026-04-26 03:22] [FEEDBACK]
+ผู้ใช้สั่งให้ Scout และ agent ทุกคนสามารถอ่านไฟล์ knowledge_base (KB) ได้เต็มทุกบรรทัด — ไม่ถูกจำกัดหรือตัดทอน
+
+## [2026-04-26 15:30] Discovery
+Task: Anna ต้องการให้อ่านไฟล์ scout_methods.md ได้ครบ 238 บรรทัด
+วิธีแก้ไขที่สำเร็จ: ใช้ RUN_PYTHON เปิดไฟล์ด้วย open() แทน READ_FILE — เพราะ READ_FILE ถูกจำกัด context window ส่งกลับมาแค่ ~80-90 บรรทัด
+บทเรียน: เวลาต้องการอ่านไฟล์ขนาดใหญ่ → ใช้ RUN_PYTHON with open() + loop ทีละ 50-80 บรรทัด แล้วทยอยแสดงผล
