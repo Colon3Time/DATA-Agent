@@ -437,6 +437,273 @@ if len(feat_cols) >= 2 and 'diagnosis' in df.columns:
     print(f'[STATUS] Saved: 07_feature_distributions.png')
 
 # ============================================================
+# 8) Outlier Boxplots — Dana's IQR outlier analysis
+# ============================================================
+import re as _re
+
+dana_dir = os.path.join(Path(OUTPUT_DIR).parent, 'dana')
+outlier_flags_csv = os.path.join(dana_dir, 'outlier_flags.csv')
+
+if os.path.exists(outlier_flags_csv):
+    df_flags = pd.read_csv(outlier_flags_csv)
+    flag_counts = df_flags.groupby('column_name').size().sort_values(ascending=False)
+    top_flagged_cols = flag_counts.head(4).index.tolist()
+
+    # Build IQR bounds map from 'reason' column
+    bounds_map = {}
+    for col_name in top_flagged_cols:
+        sample = df_flags[df_flags['column_name'] == col_name].iloc[0]
+        m = _re.search(r'\[([0-9.]+),\s*([0-9.]+)\]', str(sample.get('reason', '')))
+        if m:
+            bounds_map[col_name] = (float(m.group(1)), float(m.group(2)))
+
+    # Match column names in main df (dana uses spaces, df may use underscores)
+    def find_col(col_name):
+        for c in df.columns:
+            if c.lower() == col_name.lower() or c.lower() == col_name.lower().replace(' ', '_'):
+                return c
+        return None
+
+    valid_pairs = [(cname, find_col(cname)) for cname in top_flagged_cols if find_col(cname)]
+    n_plots = min(4, len(valid_pairs))
+
+    if n_plots > 0:
+        fig, axes = plt.subplots(1, n_plots, figsize=(5 * n_plots, 8))
+        if n_plots == 1:
+            axes = [axes]
+
+        for idx, (col_name, col) in enumerate(valid_pairs[:n_plots]):
+            ax = axes[idx]
+            outlier_rows = df_flags[df_flags['column_name'] == col_name]['row_index'].values
+            data_all = df[col].dropna()
+            outlier_vals = df.loc[df.index.isin(outlier_rows), col].dropna()
+            normal_vals = data_all.drop(index=outlier_rows, errors='ignore')
+
+            # Boxplot body
+            bp = ax.boxplot(data_all.values, vert=True, patch_artist=True, widths=0.5,
+                            boxprops=dict(facecolor='#AED6F1', alpha=0.7),
+                            medianprops=dict(color='#1A252F', linewidth=2.5),
+                            whiskerprops=dict(color='#5D6D7E', linewidth=1.5),
+                            capprops=dict(color='#5D6D7E', linewidth=1.5),
+                            flierprops=dict(marker='', color='gray'))
+
+            # Normal points (jitter, small, transparent)
+            if len(normal_vals) > 0:
+                jn = np.random.uniform(0.82, 1.18, len(normal_vals))
+                ax.scatter(jn, normal_vals, color='#5D8AA8', alpha=0.18, s=20, zorder=3)
+
+            # Outlier points (red, prominent)
+            if len(outlier_vals) > 0:
+                jo = np.random.uniform(0.82, 1.18, len(outlier_vals))
+                ax.scatter(jo, outlier_vals, color='#E74C3C', s=70, zorder=6, alpha=0.85,
+                           edgecolors='#922B21', linewidth=0.7,
+                           label=f'Outliers flagged\n(n={len(outlier_vals)})')
+
+            # IQR bound lines
+            if col_name in bounds_map:
+                lo, hi = bounds_map[col_name]
+                ax.axhline(lo, color='#E67E22', linestyle='--', linewidth=1.8, alpha=0.8,
+                           label=f'IQR lower: {lo:.2f}')
+                ax.axhline(hi, color='#E67E22', linestyle='--', linewidth=1.8, alpha=0.8,
+                           label=f'IQR upper: {hi:.2f}')
+
+            ax.set_title(f'{col_name.title()}\n({len(outlier_vals)} flagged / {len(data_all)} total)',
+                         fontsize=11, fontweight='bold')
+            ax.set_xticks([])
+            ax.set_ylabel('Value', fontsize=10)
+            ax.legend(fontsize=8, loc='upper right', framealpha=0.85)
+            ax.grid(axis='y', alpha=0.25)
+            ax.set_facecolor('#FAFAFA')
+
+        plt.suptitle('Outlier Analysis — IQR Method (Dana Cleaning Report)\n'
+                     'Red = Flagged outliers (kept as "Likely Real" — no correction applied)',
+                     fontsize=13, fontweight='bold', y=1.02)
+        plt.tight_layout()
+        plt.savefig(os.path.join(CHARTS_DIR, '08_outlier_boxplots.png'), dpi=200, bbox_inches='tight')
+        plt.close()
+        print(f'[STATUS] Saved: 08_outlier_boxplots.png')
+
+    # ---- 9) Outlier count summary bar chart ----
+    if len(flag_counts) > 0:
+        top20 = flag_counts.head(20)
+        bar_colors = ['#E74C3C' if v > 20 else '#E67E22' if v > 10 else '#F1C40F'
+                      for v in top20.values]
+
+        fig, ax = plt.subplots(figsize=(12, 7))
+        bars = ax.barh(top20.index, top20.values, color=bar_colors, edgecolor='white', linewidth=1.2)
+        for bar, val in zip(bars, top20.values):
+            ax.text(bar.get_width() + 0.3, bar.get_y() + bar.get_height() / 2,
+                    str(val), ha='left', va='center', fontsize=10, fontweight='bold')
+
+        ax.set_xlabel('Number of Flagged Rows', fontsize=12, fontweight='bold')
+        ax.set_title('Outlier Count by Feature — Dana Cleaning Report\n'
+                     '(All retained as "Likely Real" — data quality score: 100%)',
+                     fontsize=13, fontweight='bold', pad=12)
+        ax.grid(axis='x', alpha=0.3)
+        ax.set_facecolor('#FAFAFA')
+
+        from matplotlib.patches import Patch as _Patch
+        ax.legend(handles=[
+            _Patch(facecolor='#E74C3C', label='>20 flags (high)'),
+            _Patch(facecolor='#E67E22', label='10–20 flags (moderate)'),
+            _Patch(facecolor='#F1C40F', label='<10 flags (low)'),
+        ], fontsize=9, loc='lower right')
+
+        plt.tight_layout()
+        plt.savefig(os.path.join(CHARTS_DIR, '09_outlier_summary.png'), dpi=200, bbox_inches='tight')
+        plt.close()
+        print(f'[STATUS] Saved: 09_outlier_summary.png')
+else:
+    print('[STATUS] outlier_flags.csv not found — skipping outlier charts')
+
+# ============================================================
+# 10) Violin Plots — Feature distribution by Diagnosis (top 6)
+# ============================================================
+if len(feat_cols) >= 2 and true_col in df.columns:
+    from scipy import stats as _stats
+
+    top6 = (feat_df.tail(6)['feature'].tolist() if 'feat_df' in dir() else feat_cols[:6])
+
+    fig, axes = plt.subplots(2, 3, figsize=(18, 12))
+    axes_flat = axes.flatten()
+    cls_colors = {0: '#27AE60', 1: '#E74C3C'}
+    cls_labels = {0: 'Benign (357)', 1: 'Malignant (212)'}
+
+    for idx, feat in enumerate(top6[:6]):
+        if feat not in df.columns:
+            continue
+        ax = axes_flat[idx]
+        data_by_cls = [df[df[true_col] == c][feat].dropna().values for c in [0, 1]]
+
+        parts = ax.violinplot(data_by_cls, positions=[0, 1],
+                              showmeans=True, showmedians=True, showextrema=True)
+        for pc, color in zip(parts['bodies'], [cls_colors[0], cls_colors[1]]):
+            pc.set_facecolor(color)
+            pc.set_alpha(0.55)
+        parts['cmedians'].set_color('#1A252F')
+        parts['cmedians'].set_linewidth(2.5)
+        parts['cmeans'].set_color('white')
+        parts['cmeans'].set_linewidth(1.5)
+
+        for ci, (c, cdata) in enumerate(zip([0, 1], data_by_cls)):
+            jitter = np.random.uniform(-0.12, 0.12, len(cdata))
+            ax.scatter(ci + jitter, cdata, alpha=0.15, s=12, color=cls_colors[c])
+            if len(cdata) > 0:
+                ax.text(ci, np.min(cdata) - (np.ptp(cdata) * 0.08),
+                        f'Md={np.median(cdata):.2f}',
+                        ha='center', fontsize=8, fontweight='bold', color=cls_colors[c])
+
+        ax.set_xticks([0, 1])
+        ax.set_xticklabels([cls_labels[0], cls_labels[1]], fontsize=10)
+        ax.set_title(feat.replace('_', ' ').title(), fontsize=11, fontweight='bold')
+        ax.grid(axis='y', alpha=0.25)
+        ax.set_facecolor('#FAFAFA')
+
+        if len(data_by_cls[0]) > 0 and len(data_by_cls[1]) > 0:
+            _, p = _stats.mannwhitneyu(data_by_cls[0], data_by_cls[1], alternative='two-sided')
+            p_str = 'p<0.001 ***' if p < 0.001 else (f'p={p:.3f} **' if p < 0.01 else f'p={p:.3f}')
+            ax.annotate(p_str, xy=(0.5, 0.97), xycoords='axes fraction',
+                        ha='center', va='top', fontsize=9, fontweight='bold', color='#1A3A5C',
+                        bbox=dict(boxstyle='round,pad=0.25', facecolor='#D6EAF8', alpha=0.8))
+
+    plt.suptitle('Feature Distributions by Diagnosis — Top Predictive Features\n'
+                 '(Green = Benign  |  Red = Malignant  |  Black line = Median)',
+                 fontsize=14, fontweight='bold')
+    plt.tight_layout()
+    plt.savefig(os.path.join(CHARTS_DIR, '10_violin_distributions.png'), dpi=200, bbox_inches='tight')
+    plt.close()
+    print(f'[STATUS] Saved: 10_violin_distributions.png')
+
+# ============================================================
+# 11) Mutual Information Bar Chart (from Eddie's EDA)
+# ============================================================
+if len(feat_cols) >= 2:
+    try:
+        from sklearn.feature_selection import mutual_info_classif as _mic
+        X_mi = df[feat_cols].fillna(df[feat_cols].median()).values
+        mi_scores = _mic(X_mi, y_true, random_state=42)
+        mi_df = pd.DataFrame({'feature': feat_cols, 'mi_score': mi_scores})
+        mi_df = mi_df.sort_values('mi_score', ascending=True).tail(15)
+        mi_source = 'Computed from data'
+    except Exception as e:
+        print(f'[STATUS] MI compute failed: {e} — using Eddie report values')
+        eddie_mi = {
+            'worst perimeter': 0.4718, 'worst area': 0.4643, 'worst radius': 0.4512,
+            'mean concave points': 0.4388, 'worst concave points': 0.4363,
+            'mean perimeter': 0.4024, 'mean concavity': 0.3754,
+            'mean radius': 0.3623, 'mean area': 0.3600, 'area error': 0.3408,
+        }
+        mi_df = pd.DataFrame({'feature': list(eddie_mi.keys()), 'mi_score': list(eddie_mi.values())})
+        mi_df = mi_df.sort_values('mi_score', ascending=True)
+        mi_source = 'Eddie EDA Report'
+
+    fig, ax = plt.subplots(figsize=(12, 8))
+    mi_bar_colors = plt.cm.YlOrRd(np.linspace(0.25, 0.9, len(mi_df)))
+    bars = ax.barh(mi_df['feature'], mi_df['mi_score'], color=mi_bar_colors,
+                   edgecolor='white', linewidth=1.2)
+    for bar, val in zip(bars, mi_df['mi_score']):
+        ax.text(bar.get_width() + 0.004, bar.get_y() + bar.get_height() / 2,
+                f'{val:.4f}', ha='left', va='center', fontsize=9, fontweight='bold')
+    ax.axvline(0.2, color='#2980B9', linestyle='--', linewidth=2, alpha=0.7,
+               label='Threshold MI > 0.2 (strong predictor)')
+    ax.set_xlabel('Mutual Information Score', fontsize=12, fontweight='bold')
+    ax.set_title('Feature Predictive Power — Mutual Information Ranking\n'
+                 '(Eddie EDA Report — higher = stronger signal for malignancy)',
+                 fontsize=13, fontweight='bold', pad=12)
+    ax.legend(fontsize=10, loc='lower right')
+    ax.grid(axis='x', alpha=0.3)
+    ax.set_facecolor('#FAFAFA')
+    ax.annotate(f'Source: {mi_source}', xy=(0.99, 0.01), xycoords='axes fraction',
+                ha='right', fontsize=8, color='gray', fontstyle='italic')
+    plt.tight_layout()
+    plt.savefig(os.path.join(CHARTS_DIR, '11_mutual_information.png'), dpi=200, bbox_inches='tight')
+    plt.close()
+    print(f'[STATUS] Saved: 11_mutual_information.png')
+
+# ============================================================
+# 12) Separability Scatter — Top 2 MI Features
+# ============================================================
+if 'mi_df' in dir() and true_col in df.columns and len(feat_cols) >= 2:
+    top2_mi = mi_df.tail(2)['feature'].tolist()
+
+    def _find_col_loose(name):
+        for c in df.columns:
+            if c.lower() == name.lower() or c.lower() == name.lower().replace(' ', '_'):
+                return c
+        return None
+
+    top2_matched = [_find_col_loose(n) for n in top2_mi if _find_col_loose(n)]
+
+    if len(top2_matched) >= 2:
+        col_x, col_y = top2_matched[-2], top2_matched[-1]
+        fig, ax = plt.subplots(figsize=(10, 8))
+        for cls, label, color, marker in [
+            (0, f'Benign (n={int((df[true_col]==0).sum())})', '#27AE60', 'o'),
+            (1, f'Malignant (n={int((df[true_col]==1).sum())})', '#E74C3C', '^'),
+        ]:
+            mask = df[true_col] == cls
+            ax.scatter(df.loc[mask, col_x], df.loc[mask, col_y],
+                       color=color, alpha=0.6, s=60, marker=marker,
+                       label=label, edgecolors='k', linewidth=0.5)
+
+        ax.set_xlabel(col_x.replace('_', ' ').title(), fontsize=12, fontweight='bold')
+        ax.set_ylabel(col_y.replace('_', ' ').title(), fontsize=12, fontweight='bold')
+        ax.set_title(f'Tumor Separability — Top 2 Predictive Features\n'
+                     f'{col_x.replace("_"," ").title()} vs {col_y.replace("_"," ").title()}',
+                     fontsize=13, fontweight='bold', pad=12)
+        ax.legend(fontsize=11, framealpha=0.9,
+                  title='Diagnosis', title_fontsize=10)
+        ax.grid(alpha=0.2)
+        ax.set_facecolor('#FAFAFA')
+        ax.annotate('Source: Eddie EDA — MI ranking', xy=(0.99, 0.01),
+                    xycoords='axes fraction', ha='right', fontsize=8,
+                    color='gray', fontstyle='italic')
+        plt.tight_layout()
+        plt.savefig(os.path.join(CHARTS_DIR, '12_separability_scatter.png'), dpi=200, bbox_inches='tight')
+        plt.close()
+        print(f'[STATUS] Saved: 12_separability_scatter.png')
+
+# ============================================================
 # Save vera_output.csv
 # ============================================================
 output_csv = os.path.join(OUTPUT_DIR, 'vera_output.csv')
@@ -457,5 +724,5 @@ print('[SUMMARY] Charts generated:')
 for f in chart_files:
     fpath = os.path.join(CHARTS_DIR, f)
     fsize = os.path.getsize(fpath) / 1024 if os.path.exists(fpath) else 0
-    print(f'  ✅ {f} ({fsize:.1f} KB)')
+    print(f'  [OK] {f} ({fsize:.1f} KB)')
 print(f'[STATUS] Vera task complete. Output in: {CHARTS_DIR}')

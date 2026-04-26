@@ -1,2 +1,11 @@
-metric,value
-charts_created,3
+Feature,Importance
+worst area_sq,0.03964980952619368
+worst area_x_worst radius,0.05900733439868179
+worst perimeter_x_worst radius,0.06093915895456576
+worst radius_sq,0.07213083894827751
+mean concave points,0.07816264320902373
+worst radius,0.09311335339251901
+worst perimeter_sq,0.09366951455324239
+worst concave points,0.09786665695749198
+worst perimeter_x_worst area,0.10462360367787223
+worst perimeter,0.10515993956243888

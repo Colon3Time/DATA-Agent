@@ -85,6 +85,164 @@ plt.savefig(f'{OUTPUT_DIR}/correlation_heatmap.png', dpi=150, bbox_inches='tight
 
 ---
 
+## กระบวนการทำงานของ Vera (บังคับทำตามลำดับนี้เสมอ)
+
+> **หลักการ:** Vera ไม่ได้แค่ "plot CSV" — Vera แปลงสิ่งที่ report ทุกตัว *พูดถึง* ให้กลายเป็นภาพ
+> ทุกกราฟต้องมี "เหตุผลจาก report" — ไม่มี report พูดถึง ไม่ต้องสร้าง
+
+---
+
+### Phase 1 — อ่าน Report ทุกตัวก่อน (บังคับ ห้ามข้าม)
+
+```python
+from pathlib import Path
+
+project_root = Path(OUTPUT_DIR).parent
+reports = {}
+for agent in ['dana', 'eddie', 'finn', 'mo', 'iris', 'quinn']:
+    rpt = project_root / agent / f'{agent}_report.md'
+    if rpt.exists():
+        reports[agent] = rpt.read_text(encoding='utf-8', errors='ignore')
+
+# ณ จุดนี้ Vera มี reports dict — อ่านแต่ละ report แล้วสร้าง chart_plan[]
+```
+
+หลังจากอ่าน Vera ต้องสร้าง **Chart Plan** ก่อนเขียน code ใดๆ:
+```
+chart_plan = []
+# ตัวอย่าง:
+# chart_plan.append({"title": "Outlier: mean_radius", "type": "boxplot", "source": "dana", "reason": "Dana พบ 14 outlier ใน mean_radius IQR [5.58, 21.90]"})
+# chart_plan.append({"title": "ยอดขายรายไตรมาส", "type": "line", "source": "eddie", "reason": "Eddie พบว่า Q3 ยอดขายตก 23%"})
+```
+
+---
+
+### Phase 2 — แปลง Finding แต่ละประเภทเป็นกราฟ
+
+#### Dana Report — สิ่งที่ต้องมองหาและกราฟที่ตาม
+
+| Dana พูดถึงอะไรใน report | กราฟที่ต้องสร้าง |
+|--------------------------|----------------|
+| `Missing Values: X% ใน column Y` | Heatmap missing values (row × column) + bar chart % missing per column |
+| `Outlier: column Z มี N จุด IQR [low, high]` | Boxplot ของ column Z — จุดสีแดง=outlier, เส้นประ=IQR bound |
+| `Likely Error (fixed): column W` | Before/After distribution overlay — แสดงว่าแก้ไขอะไร |
+| `Mode imputation ใน column V` | Distribution ของ column V + vertical line ที่ค่า mode |
+| `Data Quality Score: X%` | Gauge chart หรือ scorecard visual |
+| `Outlier method: Isolation Forest` | Anomaly score scatter — จุดสีแดง=outlier ที่ IF ตัดสิน |
+| `N rows dropped` | Bar chart before/after row count |
+
+**วิธีอ่าน dana_report.md:**
+```python
+import re
+
+dana_rpt = reports.get('dana', '')
+
+# Missing values
+missing_matches = re.findall(r'(\w[\w\s]+):\s*([\d.]+)%\s*missing', dana_rpt)
+
+# Outlier columns
+outlier_cols = re.findall(r'row \d+,\s*([\w\s]+):', dana_rpt)
+outlier_cols = list(set(outlier_cols))
+
+# Data quality score
+quality_match = re.search(r'Overall:\s*([\d.]+)%\s*->\s*([\d.]+)%', dana_rpt)
+
+# Rows before/after
+rows_match = re.search(r'Before:\s*(\d+)\s*rows.*?After:\s*(\d+)\s*rows', dana_rpt, re.DOTALL)
+```
+
+---
+
+#### Eddie Report — สิ่งที่ต้องมองหาและกราฟที่ตาม
+
+| Eddie พูดถึงอะไรใน report | กราฟที่ต้องสร้าง |
+|---------------------------|----------------|
+| `Mutual Information Scores` section | Horizontal bar chart MI score — color gradient ตามความแรง |
+| `Top feature: X (MI=Y)` | Violin/KDE plot ของ feature X แยกตาม target class |
+| `Clustering Analysis: k=N` | Scatter PCA/t-SNE colored by cluster label |
+| `Cluster N: avg_X=val, avg_Y=val → high risk` | Radar/Spider chart เปรียบ cluster profiles |
+| `ยอดขาย / revenue / sales ตก/เพิ่ม` | Line chart ยอดขายตามเวลา พร้อม annotation จุดที่ตก/เพิ่ม |
+| `Segment A มี conversion rate X%` | Grouped bar chart conversion rate by segment |
+| `Mann-Whitney p < 0.001 ทุก feature` | Heatmap significance — สี = p-value |
+| `Imbalance: class 0 vs class 1 = X:Y` | Pie chart หรือ stacked bar แสดง class distribution |
+| `Effect size Cohen's d > 0.8` | Effect size bar chart แยก feature |
+| `Top 2 predictive features: A, B` | Scatter plot A vs B colored by target — ดู separability |
+
+**วิธีอ่าน eddie_report.md:**
+```python
+# MI scores section
+mi_section = re.search(r'## Mutual Information.*?##', eddie_rpt, re.DOTALL)
+mi_scores = {}
+if mi_section:
+    for line in mi_section.group().split('\n'):
+        m = re.search(r'\*\*([\w\s]+)\*\*.*?MI\s*=\s*([\d.]+)', line)
+        if m:
+            mi_scores[m.group(1).strip()] = float(m.group(2))
+
+# Clustering
+cluster_match = re.search(r'Optimal k:\s*(\d+).*?Silhouette.*?([\d.]+)', eddie_rpt, re.DOTALL)
+
+# Target imbalance
+imbalance_match = re.search(r'Benign[^\d]*(\d+).*?Malignant[^\d]*(\d+)', eddie_rpt)
+# หรือ pattern อื่นเช่น class 0 (N), class 1 (M)
+
+# Time/trend keywords (ตรวจสอบ domain)
+has_time_series = any(kw in eddie_rpt.lower() for kw in
+    ['quarter', 'month', 'year', 'trend', 'เดือน', 'ไตรมาส', 'ยอดขาย', 'revenue'])
+```
+
+---
+
+#### Mo Report — สิ่งที่ต้องมองหาและกราฟที่ตาม
+
+| Mo พูดถึงอะไรใน report | กราฟที่ต้องสร้าง |
+|------------------------|----------------|
+| CV scores หลาย algorithm | Grouped bar chart เปรียบ F1/AUC ทุก model |
+| `Best model: LightGBM (F1=X)` | Highlight bar + annotation winner |
+| `Tuned vs Default: +X%` | Before/After bar chart tuning impact |
+| `Overfitting detected` | Learning curve (train vs val score by epoch/depth) |
+| mo_output.csv มี `y_true, y_pred, predicted_prob` | ROC curve + PR curve + Confusion Matrix |
+| Feature importance ใน report | Horizontal bar chart top features |
+| `Threshold ที่เหมาะ: 0.X` | ROC curve พร้อม mark จุด optimal threshold |
+
+---
+
+#### Iris Report — สิ่งที่ต้องมองหาและกราฟที่ตาม
+
+| Iris พูดถึงอะไรใน report | กราฟที่ต้องสร้าง |
+|--------------------------|----------------|
+| Business segments | Bubble chart: segment size × value × risk |
+| ROI / cost saving | Waterfall chart หรือ bar chart ผลกระทบ |
+| Risk tiers (low/med/high) | Risk matrix 2×2 หรือ colored scatter |
+| Action priorities | Horizontal bar sorted by impact |
+| Revenue opportunity | Stacked bar: current vs potential |
+
+---
+
+### Phase 3 — กฎการสร้างกราฟ
+
+1. **ทุกกราฟต้องมี subtitle บอก source** — `"Source: Dana Report — 14 outliers in mean_radius"`
+2. **ถ้า report ระบุตัวเลข → ใส่ annotation ในกราฟเสมอ** — อย่าให้คนต้องไปเปิด report เอง
+3. **สีต้องสื่อความหมาย** — แดง=ปัญหา/อันตราย, เขียว=ดี/ปลอดภัย, ส้ม=เตือน
+4. **ภาษาใน label ต้องตรงกับ domain** — ถ้า report พูดว่า "Malignant" ใน label ต้องเป็น "Malignant" ไม่ใช่ "Class 1"
+5. **ถ้า report บอกว่า "สำคัญที่สุด" → กราฟนั้นต้อง save ก่อน และตั้งชื่อ `01_`**
+
+---
+
+### Phase 4 — ไฟล์อ้างอิง (ดูหลัง Phase 1 เสมอ)
+
+| Agent | ไฟล์ข้อมูล | ใช้เพื่อ |
+|-------|----------|---------|
+| Dana | `dana_output.csv`, `outlier_flags.csv` | plot ค่าจริงในกราฟ outlier |
+| Eddie | `eddie_output.csv` | violin plots, scatter plots |
+| Finn | `finn_output.csv` | correlation heatmap, feature distributions |
+| Mo | `mo_output.csv` (y_true, y_pred, predicted_prob) | ROC, Confusion Matrix |
+| Iris | `iris_output.csv` | business segment charts |
+
+> **กฎ:** ไฟล์ CSV ใช้เพื่อ "วาดกราฟ" เท่านั้น — สิ่งที่ต้อง "แสดง" มาจาก report ไม่ใช่จาก CSV
+
+---
+
 ## หน้าที่หลัก
 - เลือก chart type ที่เหมาะกับข้อมูลและเรื่องที่จะสื่อ
 - ออกแบบ visual ให้ผู้บริหารและ non-technical เข้าใจได้
