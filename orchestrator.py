@@ -61,6 +61,10 @@ if "--claude-limit" in sys.argv:
         except ValueError:
             pass
 
+# ── Step Mode — ถามยืนยันก่อนรัน agent ถัดไปทุกครั้ง ──────────────────────────
+# ค่าเริ่มต้น: เปิด (True) — ใช้ --auto เพื่อปิดและรันต่อเนื่องอัตโนมัติ
+STEP_MODE: bool = "--auto" not in sys.argv
+
 ANNA_SYSTEM = (BASE_DIR / "CLAUDE.md").read_text(encoding="utf-8")
 
 VALID_AGENTS = {"scout", "dana", "eddie", "max", "finn", "mo", "iris", "vera", "quinn", "rex"}
@@ -199,18 +203,124 @@ def call_claude(system_prompt: str, user_message: str, label: str = "") -> str:
 # ── Knowledge Base ────────────────────────────────────────────────────────────
 
 def load_kb(agent_name: str) -> str:
-    f = KNOWLEDGE_DIR / f"{agent_name}_methods.md"
-    return f.read_text(encoding="utf-8") if f.exists() else ""
+    """โหลด KB ทุกไฟล์ของ agent นั้น (methods + decision_tree + อื่นๆ)"""
+    files = sorted(KNOWLEDGE_DIR.glob(f"{agent_name}_*.md"))
+    if not files:
+        return ""
+    parts = []
+    for f in files:
+        try:
+            parts.append(f.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return "\n\n".join(parts)
+
+def load_relevant_kb(agent_name: str, task: str, top_n: int = 4) -> str:
+    """RAG-style: ดึงเฉพาะ KB sections ที่ตรงกับ task (TF-IDF cosine similarity)"""
+    kb = load_kb(agent_name)
+    if not kb:
+        return ""
+    sections = [s.strip() for s in re.split(r'\n(?=##)', kb.strip()) if s.strip()]
+    if len(sections) <= top_n:
+        return kb  # KB เล็กพอ — โหลดทั้งหมด
+    try:
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.metrics.pairwise import cosine_similarity as cos_sim
+        docs = [task] + sections
+        mat  = TfidfVectorizer(min_df=1).fit_transform(docs)
+        scores = cos_sim(mat[0:1], mat[1:])[0]
+        top_idx = scores.argsort()[::-1][:top_n]
+        return "\n\n".join(sections[i] for i in sorted(top_idx))
+    except ImportError:
+        words = set(task.lower().split())
+        scored = [(len(words & set(s.lower().split())), s) for s in sections]
+        return "\n\n".join(s for _, s in sorted(scored, reverse=True)[:top_n])
 
 def save_kb(agent_name: str, content: str, entry_type: str = "discovery"):
-    """entry_type: 'discovery' = พิสูจน์แล้วว่าดี | 'feedback' = แก้งาน อาจไม่ถูกเสมอ"""
+    """
+    entry_type:
+      'discovery'  — วิธีใหม่ที่พบ ยังไม่ได้พิสูจน์ซ้ำ
+      'feedback'   — แก้งาน อาจไม่ถูกเสมอ
+      'proven'     — พิสูจน์แล้วซ้ำหลายครั้งว่าได้ผล → consolidate จะไม่ลบ
+      'deprecated' — ล้าสมัย / ผิด → consolidate จะลบออกทันที
+    """
     KNOWLEDGE_DIR.mkdir(exist_ok=True)
     f = KNOWLEDGE_DIR / f"{agent_name}_methods.md"
     ts = datetime.now().strftime("%Y-%m-%d %H:%M")
-    tag = "FEEDBACK" if entry_type == "feedback" else "DISCOVERY"
+    tag_map = {"feedback": "FEEDBACK", "proven": "PROVEN", "deprecated": "DEPRECATED"}
+    tag = tag_map.get(entry_type, "DISCOVERY")
     with open(f, "a", encoding="utf-8") as fp:
         fp.write(f"\n\n## [{ts}] [{tag}]\n{content.strip()}\n")
     log_raw("system", f"KB [{tag}] {agent_name}: {content[:80]}", task="kb_update")
+
+def consolidate_kb(agent_name: str):
+    """ลบ KB entries ที่ซ้ำกัน (cosine similarity > 0.85) เก็บตัวที่ใหม่กว่า
+    กฎพิเศษ: [PROVEN] → ไม่ลบเลย | [DEPRECATED] → ลบทันทีโดยไม่ต้องเปรียบเทียบ
+    """
+    kb = load_kb(agent_name)
+    if not kb:
+        return
+    sections = [s.strip() for s in re.split(r'\n(?=##)', kb.strip()) if s.strip()]
+    if len(sections) < 10:
+        return  # ยังไม่จำเป็น
+
+    # แยก PROVEN, DEPRECATED, และ sections ทั่วไปก่อน
+    proven     = [s for s in sections if "[PROVEN]"     in s]
+    deprecated = [s for s in sections if "[DEPRECATED]" in s]
+    normal     = [s for s in sections if "[PROVEN]" not in s and "[DEPRECATED]" not in s]
+    removed_deprecated = len(deprecated)
+
+    try:
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.metrics.pairwise import cosine_similarity as cos_sim
+        if len(normal) >= 2:
+            mat    = TfidfVectorizer(min_df=1).fit_transform(normal)
+            sim    = cos_sim(mat)
+            remove = set()
+            for i in range(len(normal)):
+                if i in remove:
+                    continue
+                for j in range(i + 1, len(normal)):
+                    if j not in remove and sim[i, j] > 0.85:
+                        remove.add(i)  # เก็บตัวหลัง (ใหม่กว่า)
+            normal = [normal[i] for i in range(len(normal)) if i not in remove]
+    except ImportError:
+        pass
+
+    kept = proven + normal  # PROVEN ต้องอยู่ด้านบนเสมอ
+    f    = KNOWLEDGE_DIR / f"{agent_name}_methods.md"
+    f.write_text("\n\n".join(kept), encoding="utf-8")
+    removed_total = len(sections) - len(kept)
+    if removed_total:
+        log_raw("system",
+                f"KB consolidate {agent_name}: ลบ {removed_total} entries "
+                f"(deprecated={removed_deprecated}, duplicate={removed_total-removed_deprecated})",
+                task="kb_consolidate")
+
+
+# ── Step Confirmation ────────────────────────────────────────────────────────
+
+def confirm_next_step(done_agent: str, next_agent: str, next_task: str,
+                      step_num: int, total: int) -> str:
+    """
+    ถามผู้ใช้ก่อนรัน agent ถัดไป
+    คืนค่า: 'y' = ไปต่อ | 'n' = หยุด pipeline | 's' = ข้าม agent นี้
+    """
+    print(f"\n{YL}{'─'*55}{RST}")
+    print(f"{YL}  ✓ {BLD}{done_agent.upper()}{RST}{YL} เสร็จแล้ว  ({step_num}/{total}){RST}")
+    print(f"{CY}  → ถัดไป: {BLD}{next_agent.upper()}{RST}")
+    print(f"{DIM}    {next_task[:80]}{'...' if len(next_task) > 80 else ''}{RST}")
+    print(f"{YL}{'─'*55}{RST}")
+    try:
+        ans = input(
+            f"  {BLD}ไปต่อไหม? [y=ใช่ / n=หยุด / s=ข้ามstep นี้]:{RST} "
+        ).strip().lower()
+    except EOFError:
+        ans = "y"
+    if ans not in ("y", "n", "s"):
+        ans = "y"
+    log_raw("anna", f"step confirm: {done_agent}→{next_agent} user={ans}", task="step-mode")
+    return ans
 
 
 # ── Pipeline (PATH-BASED) ─────────────────────────────────────────────────────
@@ -287,7 +397,7 @@ def run_script(script_path: Path, input_path: str, output_dir: Path) -> tuple[st
 
 # ── Agent Runner ──────────────────────────────────────────────────────────────
 
-def get_system_prompt(agent_name: str) -> str:
+def get_system_prompt(agent_name: str, task: str = "") -> str:
     f = AGENTS_DIR / f"{agent_name}.md"
     base = f.read_text(encoding="utf-8") if f.exists() else f"You are {agent_name}, a data science specialist."
     base += (
@@ -297,6 +407,17 @@ def get_system_prompt(agent_name: str) -> str:
         "3. [DISCOVERY] = วิธีที่พิสูจน์แล้วว่าได้ผลดี — ใช้ก่อนเสมอถ้าเหมาะสม\n"
         "4. อ่าน Input file path ที่ระบุใน task message แล้วโหลดข้อมูลจาก path นั้นทันที\n"
         "5. บันทึก Self-Improvement Report ทุกครั้งหลังทำงานเสร็จ\n"
+        "6. เมื่อทำงานเสร็จ ต้องเขียน Agent Report ก่อนส่งผลต่อเสมอ:\n"
+        "```\n"
+        "Agent Report — [ชื่อ Agent]\n"
+        "============================\n"
+        "รับจาก     : [agent ก่อนหน้า หรือ User]\n"
+        "Input      : [อธิบายสั้นๆ ว่าได้รับอะไรมา]\n"
+        "ทำ         : [ทำอะไรบ้าง]\n"
+        "พบ         : [สิ่งสำคัญที่พบ 2-3 ข้อ]\n"
+        "เปลี่ยนแปลง: [data หรือ insight เปลี่ยนยังไง]\n"
+        "ส่งต่อ     : [agent ถัดไป] — [ส่งอะไรไป]\n"
+        "```\n"
         "\n\n---\n## ⚠ กฎสำคัญที่สุด — ห้ามละเมิด\n"
         "1. **ห้ามใช้ `<thinking>` tags, XML tool calls, หรือ `<assistant_tool_use>` syntax ใดๆ**\n"
         "2. **ต้องตอบด้วย Python code block เสมอ** (```python ... ```) — ไม่ใช่แค่ plan หรือ text\n"
@@ -331,20 +452,51 @@ def get_system_prompt(agent_name: str) -> str:
         "- output ทุกไฟล์ต้อง save ใน OUTPUT_DIR\n"
         "- ต้องมี print('[STATUS] ...') เพื่อแสดงความคืบหน้า\n"
     )
-    kb = load_kb(agent_name)
+    kb = load_relevant_kb(agent_name, task) if task else load_kb(agent_name)
     if kb:
         base += f"\n\n---\n## Knowledge Base — {agent_name}\n{kb}"
     return base
 
 
-def read_report_summary(output_dir: Path, agent_name: str, max_chars: int = 800) -> str:
+def extract_key_blocks(text: str) -> str:
+    """ดึง structured blocks สำคัญจาก report — Anna ต้องเห็น blocks เหล่านี้เพื่อ dispatch ถูกต้อง"""
+    KEY_BLOCKS = [
+        "PIPELINE_SPEC",
+        "INSIGHT_QUALITY",
+        "BUSINESS_SATISFACTION",
+        "DATASET_PROFILE",
+        "PREPROCESSING_REQUIREMENT",
+        "DL_ESCALATE",
+        "RESTART_CYCLE",
+        "Loop Back To Finn",
+        "NEED_CLAUDE",
+    ]
+    found = []
+    for block in KEY_BLOCKS:
+        # หา block จาก heading ไปจนถึง heading ถัดไปหรือจบไฟล์
+        m = re.search(
+            rf'({re.escape(block)}.*?)(?=\n(?:#{1,3} |\Z))',
+            text, re.DOTALL | re.IGNORECASE,
+        )
+        if m:
+            found.append(m.group(1).strip()[:1500])
+    return "\n\n".join(found)
+
+
+def read_report_summary(output_dir: Path, agent_name: str, max_chars: int = 1200) -> str:
+    """อ่าน report: header 1200 chars + structured blocks สำคัญทั้งหมด"""
     if not output_dir or not output_dir.exists():
         return ""
     reports = sorted(output_dir.glob("*.md"), key=lambda x: x.stat().st_mtime, reverse=True)
     if not reports:
         return ""
     try:
-        return reports[0].read_text(encoding="utf-8")[:max_chars]
+        full = reports[0].read_text(encoding="utf-8")
+        header = full[:max_chars]
+        blocks = extract_key_blocks(full)
+        if blocks and blocks not in header:
+            return header + "\n\n--- Key Blocks ---\n" + blocks
+        return header
     except Exception:
         return ""
 
@@ -439,15 +591,21 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
         print(f"{CY}  ⟳ input resolved:{RST} {DIM}{input_path}{RST}")
         log_raw("system", f"resolve input: {raw_input_path} → {input_path}", task=f"{agent_name}")
 
-    # fallback: ถ้าไม่มี input path ให้หา CSV ใน project/input/ อัตโนมัติ
+    # fallback: ถ้าไม่มี input path ให้หา CSV หรือ SQLite ใน project/input/ อัตโนมัติ
     if not input_path and project_dir:
         input_dir = project_dir / "input"
         if input_dir.exists():
-            csvs = sorted(input_dir.glob("*.csv"), key=lambda x: x.stat().st_mtime, reverse=True)
-            if csvs:
-                input_path = str(csvs[0])
-                print(f"{CY}  ⟳ input fallback:{RST} {DIM}{input_path}{RST}")
-                log_raw("system", f"input fallback → {input_path}", task=agent_name)
+            sqlites = sorted(input_dir.glob("*.sqlite"), key=lambda x: x.stat().st_mtime, reverse=True)
+            if sqlites:
+                input_path = str(sqlites[0])
+                print(f"{CY}  ⟳ input sqlite fallback:{RST} {DIM}{input_path}{RST}")
+                log_raw("system", f"input sqlite fallback → {input_path}", task=agent_name)
+            else:
+                csvs = sorted(input_dir.glob("*.csv"), key=lambda x: x.stat().st_mtime, reverse=True)
+                if csvs:
+                    input_path = str(csvs[0])
+                    print(f"{CY}  ⟳ input fallback:{RST} {DIM}{input_path}{RST}")
+                    log_raw("system", f"input fallback → {input_path}", task=agent_name)
 
     # fallback: ถ้า input เป็น .md (agent ก่อนหน้าไม่ผลิต CSV) → หา CSV ที่ดีที่สุดใน project
     if input_path and input_path.endswith(".md") and project_dir:
@@ -483,7 +641,7 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
                     f"Input path: {input_path}\nOutput dir: {output_dir}\n\n"
                     f"แก้ script ให้รันได้ ตอบเป็น python code block เดียวเท่านั้น"
                 )
-                fixed = call_deepseek(get_system_prompt(agent_name), fix_prompt,
+                fixed = call_deepseek(get_system_prompt(agent_name, task=task), fix_prompt,
                                       label=f"{agent_name.upper()} auto-fix #{attempt+1}")
                 blocks = re.findall(r'```python\n(.*?)```', fixed, re.DOTALL)
                 if blocks:
@@ -527,7 +685,7 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
         return output_path
 
     # ── Priority 2: LLM ───────────────────────────────────────
-    system = get_system_prompt(agent_name)
+    system = get_system_prompt(agent_name, task=task)
 
     path_lines = []
     if input_path:
@@ -596,7 +754,7 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
                 if _attempt < _MAX - 1:
                     print(f"\n{YL}  ⟳ Script error (รอบ {_attempt+1}/{_MAX}) → DeepSeek แก้ไข...{RST}")
                     _fix = call_deepseek(
-                        get_system_prompt(agent_name),
+                        get_system_prompt(agent_name, task=task),
                         f"Script error:\n```python\n{py_path.read_text(encoding='utf-8')[:3000]}\n```\n"
                         f"Error:\n```\n{_stderr[:800]}\n```\n"
                         f"Input: {input_path}\nOutput dir: {output_dir}\n"
@@ -666,16 +824,37 @@ ASK_USER_RE = re.compile(r'<ASK_USER>(.*?)</ASK_USER>', re.DOTALL)
 def parse_dispatches(text: str) -> list[dict]:
     results = []
     for match in DISPATCH_RE.finditer(text):
+        raw = match.group(1).strip()
+        # ลบ code fence ที่ DeepSeek บางครั้งใส่ไว้ข้างใน
+        raw = re.sub(r'^```[a-z]*\n?', '', raw).rstrip('`').strip()
+        d = None
+        # attempt 1: JSON ปกติ
         try:
-            d = json.loads(match.group(1).strip())
-            agent = d.get("agent", "").lower().strip()
-            task  = d.get("task", "").strip()
-            if agent in VALID_AGENTS and task and task not in ("...", ""):
-                results.append(d)
-            elif agent:
-                print(f"{RD}  ✗ dispatch ถูกปฏิเสธ — agent='{agent}' ไม่ถูกต้อง{RST}")
+            d = json.loads(raw)
         except json.JSONDecodeError:
             pass
+        # attempt 2: DeepSeek ลืม {} → ครอบให้
+        if d is None:
+            try:
+                d = json.loads("{" + raw + "}")
+            except json.JSONDecodeError:
+                pass
+        # attempt 3: หา inline JSON ข้างใน (DeepSeek ใส่ ``` ครอบ DISPATCH อีกที)
+        if d is None:
+            m2 = re.search(r'\{.*?\}', raw, re.DOTALL)
+            if m2:
+                try:
+                    d = json.loads(m2.group())
+                except json.JSONDecodeError:
+                    pass
+        if d is None:
+            continue
+        agent = d.get("agent", "").lower().strip()
+        task  = d.get("task", "").strip()
+        if agent in VALID_AGENTS and task and task not in ("...", ""):
+            results.append(d)
+        elif agent:
+            print(f"{RD}  ✗ dispatch ถูกปฏิเสธ — agent='{agent}' ไม่ถูกต้อง{RST}")
     return results
 
 def parse_ask_user(text: str) -> str|None:
@@ -686,18 +865,14 @@ def parse_ask_user(text: str) -> str|None:
 # ── Project Detection ─────────────────────────────────────────────────────────
 
 def detect_project(text: str) -> Path|None:
+    """ตรวจจับ project จาก Anna response — คืน None ถ้าไม่พบชัดเจน
+    ไม่ fallback เป็น project ล่าสุดอีกต่อไป เพื่อป้องกัน task ใหม่ใช้ project เก่าผิด
+    """
     m = re.search(r'projects[/\\]([\w\-]+)', text)
     if m:
         p = PROJECTS_DIR / m.group(1)
         if p.exists():
             return p
-    if PROJECTS_DIR.exists():
-        projects = sorted(
-            [p for p in PROJECTS_DIR.iterdir() if p.is_dir()],
-            key=lambda x: x.stat().st_mtime,
-        )
-        if projects:
-            return projects[-1]
     return None
 
 
@@ -712,15 +887,18 @@ def execute_anna_actions(response: str) -> str:
 
     # READ_FILE
     for m in re.finditer(r'<READ_FILE\s+path="([^"]+)"\s*/?>', response):
-        fpath = BASE_DIR / m.group(1)
-        print(f"\n{CY}  ▶ READ_FILE{RST}  {DIM}{m.group(1)}{RST}")
-        log_raw("anna", f"READ_FILE: {m.group(1)}", task="full-power")
+        raw = m.group(1)
+        # รองรับทั้ง absolute path (C:\... หรือ /...) และ relative path
+        p = Path(raw)
+        fpath = p if p.is_absolute() else BASE_DIR / raw
+        print(f"\n{CY}  ▶ READ_FILE{RST}  {DIM}{raw}{RST}")
+        log_raw("anna", f"READ_FILE: {raw}", task="full-power")
         try:
             content = fpath.read_text(encoding="utf-8")
-            parts.append(f'[READ_FILE: {m.group(1)}]\n{content[:3000]}')
+            parts.append(f'[READ_FILE: {raw}]\n{content[:100000]}')
         except Exception as e:
             parts.append(f'[READ_FILE ERROR: {e}]')
-            log_raw("anna", f"READ_FILE ERROR: {m.group(1)} — {e}", task="full-power")
+            log_raw("anna", f"READ_FILE ERROR: {raw} — {e}", task="full-power")
 
     # RUN_SHELL
     for m in re.finditer(r'<RUN_SHELL>(.*?)</RUN_SHELL>', response, re.DOTALL):
@@ -740,7 +918,7 @@ def execute_anna_actions(response: str) -> str:
 
     # WRITE_FILE
     for m in re.finditer(r'<WRITE_FILE\s+path="([^"]+)">(.*?)</WRITE_FILE>', response, re.DOTALL):
-        fpath = BASE_DIR / m.group(1)
+        _p = Path(m.group(1)); fpath = _p if _p.is_absolute() else BASE_DIR / m.group(1)
         print(f"\n{GR}  ▶ WRITE_FILE{RST}  {DIM}{m.group(1)}{RST}")
         try:
             fpath.parent.mkdir(parents=True, exist_ok=True)
@@ -753,7 +931,7 @@ def execute_anna_actions(response: str) -> str:
 
     # APPEND_FILE
     for m in re.finditer(r'<APPEND_FILE\s+path="([^"]+)">(.*?)</APPEND_FILE>', response, re.DOTALL):
-        fpath = BASE_DIR / m.group(1)
+        _p = Path(m.group(1)); fpath = _p if _p.is_absolute() else BASE_DIR / m.group(1)
         print(f"\n{GR}  ▶ APPEND_FILE{RST}  {DIM}{m.group(1)}{RST}")
         try:
             fpath.parent.mkdir(parents=True, exist_ok=True)
@@ -767,7 +945,7 @@ def execute_anna_actions(response: str) -> str:
 
     # EDIT_FILE
     for m in re.finditer(r'<EDIT_FILE\s+path="([^"]+)"><old>(.*?)</old><new>(.*?)</new></EDIT_FILE>', response, re.DOTALL):
-        fpath = BASE_DIR / m.group(1)
+        _p = Path(m.group(1)); fpath = _p if _p.is_absolute() else BASE_DIR / m.group(1)
         print(f"\n{GR}  ▶ EDIT_FILE{RST}  {DIM}{m.group(1)}{RST}")
         try:
             original = fpath.read_text(encoding="utf-8")
@@ -799,7 +977,7 @@ def execute_anna_actions(response: str) -> str:
 
     # DELETE_FILE
     for m in re.finditer(r'<DELETE_FILE\s+path="([^"]+)"\s*/?>', response):
-        fpath = BASE_DIR / m.group(1)
+        _p = Path(m.group(1)); fpath = _p if _p.is_absolute() else BASE_DIR / m.group(1)
         print(f"\n{RD}  ▶ DELETE_FILE{RST}  {DIM}{m.group(1)}{RST}")
         try:
             fpath.unlink()
@@ -877,20 +1055,47 @@ def _anna_autofix_response(original: str, user_input: str, anna_system: str,
 
 # ── Main Pipeline ─────────────────────────────────────────────────────────────
 
+def load_agent_specs() -> str:
+    """โหลด MD ของทุก agent เข้า Anna's context (max 100,000 chars รวม)"""
+    parts = []
+    total = 0
+    for name in sorted(VALID_AGENTS):
+        f = AGENTS_DIR / f"{name}.md"
+        if not f.exists():
+            continue
+        content = f.read_text(encoding="utf-8")
+        chunk = f"\n\n=== AGENT SPEC: {name.upper()} ===\n{content}"
+        if total + len(chunk) > 100_000:
+            break
+        parts.append(chunk)
+        total += len(chunk)
+    return "".join(parts)
+
+
 def run_pipeline(user_input: str):
     global active_project, agent_iter_count
     agent_iter_count = {}  # reset iteration counter ทุก pipeline run
+    active_project   = None  # reset project ทุก pipeline run — Anna เลือกใหม่ตาม task
 
     anna_kb = load_kb("anna")
     projects_list = "\n".join(
         p.name for p in sorted(PROJECTS_DIR.iterdir()) if p.is_dir()
     ) if PROJECTS_DIR.exists() else ""
+    agent_specs = load_agent_specs()
 
     anna_system = (
         ANNA_SYSTEM
         + (f"\n\n---\n## Anna KB\n{anna_kb}" if anna_kb else "")
         + (f"\n\n---\n## Available Projects\n{projects_list}" if projects_list else "")
+        + (f"\n\n---\n## Agent Specs (อ่านก่อน dispatch ทุกครั้ง)\n{agent_specs}" if agent_specs else "")
     )
+
+    # Auto-consolidate KB ทุก 10 project
+    project_count = len(list(PROJECTS_DIR.iterdir())) if PROJECTS_DIR.exists() else 0
+    if project_count > 0 and project_count % 10 == 0:
+        print(f"{DIM}  ⟳ KB consolidation (project #{project_count})...{RST}")
+        for ag in VALID_AGENTS | {"anna"}:
+            consolidate_kb(ag)
 
     print(f"\n{YL}{'═'*55}{RST}")
     anna_response = call_deepseek(anna_system, user_input, label="ANNA", history=anna_history)
@@ -965,6 +1170,7 @@ def run_pipeline(user_input: str):
 
     prev_agent = ""
     completed  = []
+    _stop_pipeline = False
 
     for i, d in enumerate(dispatches):
         agent    = d.get("agent", "").lower()
@@ -973,11 +1179,22 @@ def run_pipeline(user_input: str):
         if not agent or not task:
             continue
 
+        # Step confirmation ก่อนรัน agent แรกไม่ต้องถาม (เพิ่งรับคำสั่งมา)
+        # ถามก่อนรัน agent ที่ 2 เป็นต้นไปเท่านั้น
+        if STEP_MODE and completed:
+            ans = confirm_next_step(prev_agent, agent, task, i, len(dispatches))
+            if ans == "n":
+                print(f"\n{YL}  หยุด pipeline ตามที่คุณสั่ง{RST}")
+                _stop_pipeline = True
+                break
+            elif ans == "s":
+                print(f"\n{YL}  ข้าม {BLD}{agent.upper()}{RST}")
+                continue
+
         run_agent(agent, task, prev_agent=prev_agent,
                   project_dir=active_project, discover=discover)
         completed.append(agent)
         prev_agent = agent
-        print(f"\n{GR}  ✓ {BLD}{agent}{RST}{GR} เสร็จแล้ว  ({i+1}/{len(dispatches)}){RST}")
 
     if completed:
         print(f"\n{YL}{'═'*55}{RST}")
@@ -990,7 +1207,10 @@ def run_pipeline(user_input: str):
                 continue
             p = Path(out)
             if p.suffix == ".md" and p.exists():
-                content = p.read_text(encoding="utf-8")[:800]
+                full    = p.read_text(encoding="utf-8")
+                header  = full[:1200]
+                blocks  = extract_key_blocks(full)
+                content = header + ("\n\n--- Key Blocks ---\n" + blocks if blocks and blocks not in header else "")
                 report_sections.append(f"=== {agent.upper()} REPORT ===\n{content}")
             else:
                 search_dir = p.parent if p.suffix in (".csv", ".py") else p
@@ -1021,23 +1241,44 @@ def run_pipeline(user_input: str):
         anna_history.append({"role": "user",      "content": summary_msg})
         anna_history.append({"role": "assistant", "content": summary})
 
-        # Auto-continue: CRISP-DM loop — รันต่อเนื่องอัตโนมัติ (max 10 รอบ สำหรับ multi-model + tuning loop)
+        # Auto-continue: CRISP-DM loop — รันต่อเนื่อง (max 10 รอบ)
+        if _stop_pipeline:
+            return
         for _cont in range(10):
             cont_dispatches = parse_dispatches(summary)
             if not cont_dispatches:
                 break
-            print(f"\n{CY}  ⟳ Auto-continue pipeline:{RST} {BLD}{len(cont_dispatches)} agent(s) เพิ่มเติม{RST}")
+            print(f"\n{CY}  ⟳ Anna แนะนำ agent ถัดไป:{RST} {BLD}{len(cont_dispatches)} agent(s){RST}")
+            _stop_cont = False
             for d in cont_dispatches:
                 agent    = d.get("agent", "").lower()
                 task     = d.get("task", "")
                 discover = d.get("discover", False)
                 if not agent or not task:
                     continue
+
+                # Step confirmation ก่อนทุก agent ใน auto-continue
+                if STEP_MODE:
+                    ans = confirm_next_step(
+                        prev_agent or "anna", agent, task,
+                        len(completed) + 1, len(completed) + len(cont_dispatches),
+                    )
+                    if ans == "n":
+                        print(f"\n{YL}  หยุด pipeline ตามที่คุณสั่ง{RST}")
+                        _stop_cont = True
+                        break
+                    elif ans == "s":
+                        print(f"\n{YL}  ข้าม {BLD}{agent.upper()}{RST}")
+                        continue
+
                 run_agent(agent, task, prev_agent=prev_agent,
                           project_dir=active_project, discover=discover)
                 completed.append(agent)
                 prev_agent = agent
                 print(f"\n{GR}  ✓ {BLD}{agent}{RST}{GR} เสร็จแล้ว  (total: {len(completed)}){RST}")
+
+            if _stop_cont:
+                return
 
             # อัปเดต summary หลังรัน batch ใหม่
             last_path = pipeline_read(completed[-1])
