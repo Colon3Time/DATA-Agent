@@ -927,10 +927,22 @@ def parse_ask_user(text: str) -> str|None:
 def detect_project(text: str) -> Path|None:
     """ตรวจจับ project จาก Anna response — คืน None ถ้าไม่พบชัดเจน
     ไม่ fallback เป็น project ล่าสุดอีกต่อไป เพื่อป้องกัน task ใหม่ใช้ project เก่าผิด
+    ค้นหาจาก folder ที่มีอยู่จริง — รองรับชื่อที่มี space และอักขระพิเศษ
     """
-    m = re.search(r'projects[/\\]([\w\-]+)', text)
+    if not PROJECTS_DIR.exists():
+        return None
+    # 1) หา folder ที่มีอยู่จริงที่ชื่อปรากฏใน text (longest match ก่อน)
+    candidates = sorted(
+        (p for p in PROJECTS_DIR.iterdir() if p.is_dir()),
+        key=lambda x: len(x.name), reverse=True,
+    )
+    for p in candidates:
+        if p.name in text:
+            return p
+    # 2) fallback: regex แบบเก่า (สำหรับ project ที่ยังไม่สร้าง folder — จะถูก catch ใน CREATE_DIR)
+    m = re.search(r'projects[/\\]([\w\-][^\n"\'\\/:*?<>|]*)', text)
     if m:
-        p = PROJECTS_DIR / m.group(1)
+        p = PROJECTS_DIR / m.group(1).strip()
         if p.exists():
             return p
     return None

@@ -1,0 +1,11 @@
+Agent Report — Eddie
+============================
+Input      : D:\DATA-ScinceOS\projects\Test Dataset\input\pharma_sales_benchmark_v1.csv
+Output     : D:\DATA-ScinceOS\projects\Test Dataset\output\eddie
+Rows       : 10000
+Columns    : 17
+Target     : None
+Top features: ['population_density', 'hospitals_within_5km', 'clinics_within_5km']
+Clusters   : None
+Verdict    : INSUFFICIENT
+Sent to    : next_agent — eddie_output.csv + eda_report.md

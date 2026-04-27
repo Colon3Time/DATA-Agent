@@ -153,3 +153,7 @@ with open('path/to/file.md', 'r', encoding='utf-8') as f:
 for i, line in enumerate(lines[0:80], 1):
     print(f"{i}: {line}", end='')
 ```
+
+
+## [2026-04-27 16:10] [DISCOVERY]
+ใช้ pathlib glob เพื่อ search .csv ทั้ง folder แทน path เดียว

@@ -207,3 +207,7 @@ print(f"Causal effect: {estimate.value:.4f}")
 - ML model บอกได้ว่า feature ไหน "predict" — ไม่ได้บอกว่า "cause"
 - ถ้า business ต้องการ intervention (เปลี่ยน A แล้วจะเกิดอะไร) → ต้องใช้ causal inference
 - ถ้าแค่ predict → correlation เพียงพอ
+
+
+## [2026-04-27 16:17] [DISCOVERY]
+Found actual column names — using dynamic column mapping instead of hardcoding

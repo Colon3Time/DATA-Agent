@@ -276,3 +276,7 @@ quinn_reports = glob.glob(str(project_dir / "output/quinn/*.md"))
 mo_reports    = glob.glob(str(project_dir / "output/mo/*.md"))
 # parse F1/AUC จาก markdown table ไม่ใช่จาก CSV
 ```
+
+
+## [2026-04-27 14:55] [DISCOVERY]
+การอ่าน Quinn/Mo reports โดยตรงแทน Vera CSV เพื่อป้องกันข้อมูลผิดพลาด
