@@ -1,0 +1,7 @@
+Model,Accuracy,F1 (macro),F1 (weighted),Precision,Recall,Time (s)
+Random Forest,1.0,1.0,1.0,1.0,1.0,0.12
+XGBoost,1.0,1.0,1.0,1.0,1.0,0.21
+KNN,1.0,1.0,1.0,1.0,1.0,0.0
+LightGBM,1.0,1.0,1.0,1.0,1.0,1.48
+Logistic Regression,0.0,0.0,0.0,0.0,0.0,0.0
+SVM,0.0,0.0,0.0,0.0,0.0,0.0

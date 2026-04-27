@@ -102,3 +102,7 @@ test3 retail: Feature Engineering succeeded - revenue_per_unit, discount_impact,
 
 ## [2026-04-27 05:17] [DISCOVERY]
 การใช้ target encoding อาจเหมาะสมสำหรับ cancer datasets ที่มี high cardinality แต่ dataset นี้เป็น numeric ทั้งหมด เลยไม่จำเป็น
+
+
+## [2026-04-27 22:49] [DISCOVERY]
+Penguins BMI (body mass / flipper length^2) — approximate body density
