@@ -81,6 +81,75 @@ CRISP_DM_PHASES = {
 AGENT_TO_PHASE = {a: p for p, agents in CRISP_DM_PHASES.items() for a in agents}
 MAX_AGENT_ITER = 5  # สูงสุดที่ agent เดียวกันรันซ้ำได้ใน 1 pipeline (CRISP-DM: explore→preprocess→tune→validate)
 
+# ── Terminal Tab Notification ─────────────────────────────────────────────────
+
+def notify_tab(success: bool = True, label: str = ""):
+    """แจ้งเตือน Windows Terminal tab เมื่อ pipeline เสร็จ
+    - Bell (\\a) → Windows Terminal แสดง dot notification บน tab ที่ไม่ได้ focus
+    - OSC 0     → เปลี่ยน tab title ให้แสดงสถานะ
+    """
+    print('\a', end='', flush=True)
+    icon  = "✅" if success else "⚠️"
+    title = f"{icon} Anna — {label}" if label else (f"{icon} Anna — พร้อม" if success else f"{icon} Anna — หยุด")
+    print(f'\033]0;{title}\007', end='', flush=True)
+
+
+def set_tab_title(title: str):
+    """เปลี่ยนชื่อ tab terminal ระหว่าง pipeline รัน"""
+    print(f'\033]0;{title}\007', end='', flush=True)
+
+
+# ── Intent Classifier ─────────────────────────────────────────────────────────
+
+_PIPELINE_KW = {
+    # agent names
+    "scout", "dana", "eddie", "max", "finn", "mo", "iris", "vera", "quinn", "rex",
+    # action words (Thai + English)
+    "ให้", "dispatch", "รัน", "run", "ทำ", "วิเคราะห์", "cleaning", "eda",
+    "pipeline", "dataset", "data", "โมเดล", "model", "train", "predict",
+    "insight", "visualization", "report", "clean", "ข้อมูล", "สร้าง", "project",
+    "csv", "excel", "xlsx", "json", "ml", "deep", "learning", "sklearn",
+}
+_CHAT_KW = {
+    "สวัสดี", "hello", "hi", "ขอบคุณ", "thanks", "ok", "โอเค", "เข้าใจ",
+    "ดี", "เยี่ยม", "ตกลง", "อธิบาย", "explain", "คือ", "หมายถึง",
+}
+
+def classify_intent(text: str) -> str:
+    """
+    จำแนก user input ก่อนส่ง LLM — ลด token ที่ใช้โดยไม่โหลด agent specs
+    เมื่อผู้ใช้แค่คุยทั่วไป
+
+    Returns: 'pipeline' | 'chat'
+      pipeline → โหลด agent specs เต็ม (ต้อง dispatch agent)
+      chat     → ไม่โหลด agent specs (ประหยัด ~60k tokens ต่อ call)
+
+    หลักการ: false positive (chat → pipeline) ปลอดภัย
+              false negative (pipeline → chat) อันตราย — ห้ามเกิด
+    """
+    lower = text.lower()
+    words = set(lower.split())
+
+    # มี pipeline keyword ชัดเจน (word-level) → pipeline
+    if words & _PIPELINE_KW:
+        return "pipeline"
+
+    # มี pipeline keyword แบบ substring (รองรับภาษาไทยที่ไม่มี space) → pipeline
+    if any(kw in lower for kw in _PIPELINE_KW if len(kw) >= 3):
+        return "pipeline"
+
+    # มี path หรือ file extension → pipeline
+    if any(c in lower for c in ('/', '\\', '.csv', '.xlsx', '.json', 'input/', 'output/')):
+        return "pipeline"
+
+    # ข้อความสั้นมาก (1-3 words) + chat keyword → chat
+    if len(words) <= 3 and any(kw in lower for kw in _CHAT_KW):
+        return "chat"
+
+    # default: pipeline (safe — ดีกว่า miss คำสั่ง pipeline)
+    return "pipeline"
+
+
 anna_history:     list      = []
 active_project:   Path|None = None
 claude_calls:     int       = 0
@@ -526,10 +595,15 @@ def validate_agent_output(agent_name: str, output_path: str) -> tuple[bool, str]
     if p.suffix == ".csv":
         try:
             import pandas as _pd
-            df = _pd.read_csv(str(p), nrows=2)
+            df = _pd.read_csv(str(p), nrows=5)
             if df.shape[1] == 0:
                 return False, "CSV ว่าง (0 columns)"
-            return True, f"{p.name} ({df.shape[1]} cols)"
+            # ตรวจ row count — ถ้า < 20 rows อาจโหลดไฟล์ผิด (เช่น outlier_flags.csv)
+            full_rows = sum(1 for _ in open(str(p), encoding="utf-8")) - 1
+            if full_rows < 20:
+                return False, (f"{p.name} มีแค่ {full_rows} rows — "
+                               f"อาจโหลดไฟล์ผิด (outlier_flags? ควรเป็น *_output.csv)")
+            return True, f"{p.name} ({full_rows} rows, {df.shape[1]} cols)"
         except Exception as e:
             return False, f"อ่าน CSV ไม่ได้: {e}"
     if p.suffix == ".md":
@@ -1148,10 +1222,16 @@ def _anna_autofix_response(original: str, user_input: str, anna_system: str,
 # ── Main Pipeline ─────────────────────────────────────────────────────────────
 
 def load_agent_specs(user_input: str = "") -> str:
-    """โหลด MD ของ agent ที่เกี่ยวข้อง — TF-IDF เลือก top 6 ถ้ามี user_input, โหลดทั้งหมดถ้าไม่มี"""
-    all_names = sorted(VALID_AGENTS)
-    selected  = all_names  # default: โหลดทั้งหมด
+    """โหลด MD ของทุก agent — TF-IDF จัดลำดับ relevance แต่โหลดครบทุกตัว
+    Anna เห็นแค่ header+role (5000 chars) ของแต่ละ agent — code template ยาวๆ ไม่จำเป็นสำหรับ dispatch
+    """
+    ANNA_CHARS_PER_AGENT = 5000   # Anna ต้องการแค่ภาพรวม ไม่ใช่ code ทั้งหมด
+    MAX_TOTAL            = 80_000 # เพิ่มจาก 100k → ลด overhead ให้ KB และ context อื่น
 
+    all_names = sorted(VALID_AGENTS)
+
+    # TF-IDF จัดลำดับ relevance (ยังคงไว้เพื่อเรียงสำคัญก่อน)
+    ordered = all_names
     if user_input:
         try:
             from sklearn.feature_extraction.text import TfidfVectorizer
@@ -1159,23 +1239,25 @@ def load_agent_specs(user_input: str = "") -> str:
             descs = []
             for name in all_names:
                 f = AGENTS_DIR / f"{name}.md"
-                descs.append(f.read_text(encoding="utf-8")[:600] if f.exists() else name)
-            mat    = TfidfVectorizer(min_df=1).fit_transform([user_input] + descs)
-            scores = _cs(mat[0:1], mat[1:])[0]
-            top_idx = set(scores.argsort()[::-1][:6])
-            selected = [all_names[i] for i in sorted(top_idx)]
+                # ใช้แค่ 300 chars แรกสำหรับ TF-IDF scoring (เร็วขึ้น แม่นขึ้น)
+                descs.append(f.read_text(encoding="utf-8")[:300] if f.exists() else name)
+            mat     = TfidfVectorizer(min_df=1).fit_transform([user_input] + descs)
+            scores  = _cs(mat[0:1], mat[1:])[0]
+            # เรียงทุกตัวตาม relevance — ไม่ตัดออก
+            ordered = [all_names[i] for i in scores.argsort()[::-1]]
         except Exception:
-            selected = all_names  # fallback ถ้า sklearn ไม่มี
+            ordered = all_names
 
     parts = []
     total = 0
-    for name in selected:
+    for name in ordered:
         f = AGENTS_DIR / f"{name}.md"
         if not f.exists():
             continue
-        content = f.read_text(encoding="utf-8")
-        chunk = f"\n\n=== AGENT SPEC: {name.upper()} ===\n{content}"
-        if total + len(chunk) > 100_000:
+        # ตัด content ต่อ agent — Anna เห็นภาพรวม ไม่ต้องเห็น code template ทั้งหมด
+        content = f.read_text(encoding="utf-8")[:ANNA_CHARS_PER_AGENT]
+        chunk   = f"\n\n=== AGENT SPEC: {name.upper()} ===\n{content}"
+        if total + len(chunk) > MAX_TOTAL:
             break
         parts.append(chunk)
         total += len(chunk)
@@ -1187,11 +1269,18 @@ def run_pipeline(user_input: str):
     agent_iter_count = {}  # reset iteration counter ทุก pipeline run
     active_project   = None  # reset project ทุก pipeline run — Anna เลือกใหม่ตาม task
 
+    set_tab_title("⏳ Anna — กำลังรัน...")
+
     anna_kb = load_kb("anna")
     projects_list = "\n".join(
         p.name for p in sorted(PROJECTS_DIR.iterdir()) if p.is_dir()
     ) if PROJECTS_DIR.exists() else ""
-    agent_specs = load_agent_specs(user_input)
+
+    # Intent classifier — โหลด agent specs เฉพาะเมื่อต้องการ pipeline จริงๆ
+    intent      = classify_intent(user_input)
+    agent_specs = load_agent_specs(user_input) if intent == "pipeline" else ""
+    if intent == "chat":
+        print(f"{DIM}  [intent: chat — skip agent specs]{RST}")
 
     # Session memory — โหลด recent session summaries ให้ Anna จำได้ข้าม session
     session_mem = ""
@@ -1613,6 +1702,8 @@ def main():
     while True:
         try:
             proj = f" {DIM}[{active_project.name}]{RST}" if active_project else ""
+            proj_title  = f" [{active_project.name}]" if active_project else ""
+            set_tab_title(f"🟢 Anna{proj_title} — พร้อม")
             user_input = input(f"{BLD}{WH}คุณ{RST}{proj}{BLD}{WH}:{RST} ").strip()
         except EOFError:
             print(f"\n{YL}  ลาก่อนค่ะ{RST}")
@@ -1738,16 +1829,20 @@ def main():
                 continue
             discover   = agent_part.endswith("!")
             agent_name = agent_part.rstrip("!")
+            set_tab_title(f"⏳ {agent_name.upper()} — กำลังรัน...")
             run_agent(agent_name, task, project_dir=active_project, discover=discover)
+            notify_tab(success=True, label=f"{agent_name.upper()} เสร็จ")
             continue
 
         try:
             run_pipeline(user_input)
+            notify_tab(success=True, label="เสร็จสิ้น — พร้อมรับคำสั่ง")
         except KeyboardInterrupt:
             if _current_proc:
                 _current_proc.kill()
             print(f"\n{YL}  หยุด pipeline แล้ว — พร้อมรับคำสั่งใหม่{RST}")
             _stop_requested.clear()
+            notify_tab(success=False, label="หยุดกลางคัน")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,12 @@
+Check,Result,Detail
+1. Data Leakage,FAIL,finn_report.md ไม่มี mention ถึง leakage fix
+2. No Species Columns,UNKNOWN,No mo_output.csv to check
+3. Overfitting Gap,UNKNOWN,No numeric scores found in report
+4. CV Std < 0.05,UNKNOWN,No CV scores found
+5. Model Comparison,FAIL,Only 0 model(s): []
+6. Feature Importance,WARN,Only 2 numeric features
+7. Correct Metrics (Classification),FAIL,No standard classification metrics
+8. Train/Test Split,UNKNOWN,Split not documented
+9. Imbalance Check,UNKNOWN,Target column not found
+10. Row Count Retention,FAIL,"344→18 (5.2%), <95%"
+11. Missing Values,FAIL,Missing: 50.0000%

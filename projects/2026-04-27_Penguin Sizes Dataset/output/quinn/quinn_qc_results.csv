@@ -1,0 +1,7 @@
+check,status,details
+data_integrity,PASS,"{'row_count_change_pct': 0.0, 'row_count_pass': True, 'missing_pct': np.float64(0.0), 'missing_pass': np.True_, 'duplicates': 0, 'duplicates_pass': np.True_}"
+model_quality,PASS,"{'perfect_scores_detected': False, 'has_model_comparison': True, 'train_val_gap': 'N/A', 'overfitting_detected': False, 'cv_std': 0.1, 'cv_std_pass': False, 'suspicious_feature_importance': False}"
+leakage_detection,FAIL,Indicators: 1
+fairness,FAIL,Issues: 2
+calibration,PASS,Perfect scores invalidate calibration check
+business_satisfaction,FAIL,Criteria passed: 1/4

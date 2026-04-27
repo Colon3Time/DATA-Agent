@@ -83,6 +83,77 @@
 | TabNet | StandardScaler | LabelEncoder (ไม่ใช้ One-Hot) | ห้าม One-Hot |
 | FT-Transformer | StandardScaler | LabelEncoder + Embedding | Warmup LR |
 
+## Input Validation Guard — บังคับรันก่อน train ทุกครั้ง
+
+Mo ต้องตรวจ input file ก่อนเสมอ — ป้องกันโหลดไฟล์ผิด (เช่น outlier_flags.csv แทน dana_output.csv)
+
+```python
+import pandas as pd, sys, os
+from pathlib import Path
+
+def validate_mo_input(input_path: str, target_col: str, min_rows: int = 30) -> pd.DataFrame:
+    """
+    ตรวจ input ก่อน train:
+    1. ไฟล์ถูกต้องไหม (ไม่ใช่ outlier_flags / report)
+    2. Row count พอไหม
+    3. Target column มีอยู่ไหม
+    4. ไม่มี target column ใน features (leakage)
+    """
+    p = Path(input_path)
+
+    # ห้ามโหลดไฟล์ที่ชื่อบ่งบอกว่าไม่ใช่ main data
+    FORBIDDEN = ["outlier_flags", "feature_report", "qc_report",
+                 "mining_result", "patterns_found"]
+    if any(kw in p.stem.lower() for kw in FORBIDDEN):
+        print(f"[ERROR] Mo ตรวจพบว่าโหลดไฟล์ผิด: {p.name}")
+        print(f"[ERROR] ต้องการ *_output.csv หรือ engineered_data.csv ไม่ใช่ {p.stem}")
+        # หา CSV ที่ถูกต้องใน parent folders
+        for parent in [p.parent, p.parent.parent]:
+            candidates = (list(parent.glob("dana/dana_output.csv")) +
+                          list(parent.glob("finn/finn_output.csv")) +
+                          list(parent.glob("finn/engineered_data.csv")) +
+                          list(parent.glob("dana/*_output.csv")))
+            if candidates:
+                correct = candidates[0]
+                print(f"[STATUS] หาไฟล์ที่ถูกต้อง → {correct}")
+                input_path = str(correct)
+                p = correct
+                break
+        else:
+            sys.exit(1)
+
+    df = pd.read_csv(input_path)
+    print(f"[STATUS] Loaded: {df.shape} from {p.name}")
+
+    # ตรวจ row count
+    if len(df) < min_rows:
+        print(f"[ERROR] Dataset มีแค่ {len(df)} rows — น้อยเกินไปสำหรับ train/test split")
+        print(f"[ERROR] ตรวจสอบว่าโหลดไฟล์ถูกหรือไม่ (ควรมี {min_rows}+ rows)")
+        sys.exit(1)
+
+    # ตรวจ target column
+    if target_col not in df.columns:
+        available = df.columns.tolist()
+        print(f"[ERROR] ไม่พบ target_col='{target_col}' ใน {available}")
+        sys.exit(1)
+
+    # ตรวจ target leakage (column ชื่อคล้าย target)
+    target_lower = target_col.lower()
+    leak_cols = [c for c in df.columns
+                 if c != target_col and target_lower in c.lower()]
+    if leak_cols:
+        print(f"[WARN] พบ column ที่อาจ leak target: {leak_cols} — ลบออก")
+        df = df.drop(columns=leak_cols)
+
+    print(f"[STATUS] Input validated: {df.shape}, target='{target_col}'")
+    return df
+
+# ── วิธีใช้ (บังคับเป็นบรรทัดแรกหลัง argparse) ──
+# df = validate_mo_input(INPUT_PATH, target_col="species")
+# X  = df.drop(columns=["species"])
+# y  = df["species"]
+```
+
 ## Hyperparameter Search Space (Phase 2)
 
 ### XGBoost / LightGBM

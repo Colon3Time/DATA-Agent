@@ -69,6 +69,120 @@ for col in df_num.columns:
         print(f"[WARN] {col} ไม่ normal — ควรใช้ robust methods")
 ```
 
+### Auto-Compare Imputation — รันทุกวิธีแล้วเลือกที่ดีที่สุด (บังคับเมื่อ missing > 5%)
+
+Dana ห้ามเลือกวิธี impute เองโดยไม่เปรียบเทียบ — ให้ downstream CV score ตัดสิน
+
+```python
+import numpy as np
+import pandas as pd
+from sklearn.impute import SimpleImputer, KNNImputer, IterativeImputer
+from sklearn.experimental import enable_iterative_imputer
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.model_selection import cross_val_score
+import warnings; warnings.filterwarnings('ignore')
+
+def auto_compare_imputation(df: pd.DataFrame, num_cols: list,
+                            target_col: str = None,
+                            problem_type: str = "classification") -> dict:
+    """
+    เปรียบเทียบวิธี imputation ทุกแบบ แล้วเลือกที่ให้ downstream model score ดีที่สุด
+    ถ้าไม่มี target_col → ใช้ distribution preservation score แทน
+
+    Returns: {'best_method': str, 'best_imputer': imputer_object, 'scores': dict}
+    """
+    methods = {
+        "median":  SimpleImputer(strategy="median"),
+        "knn_5":   KNNImputer(n_neighbors=5),
+        "knn_10":  KNNImputer(n_neighbors=10),
+        "mice":    IterativeImputer(max_iter=10, random_state=42),
+    }
+
+    X_cols = [c for c in num_cols if c != target_col]
+    has_missing = df[X_cols].isnull().any().any()
+
+    if not has_missing:
+        print("[STATUS] ไม่มี missing values — ข้าม Auto-Compare Imputation")
+        return {"best_method": "none", "best_imputer": None, "scores": {}}
+
+    scores = {}
+
+    if target_col and target_col in df.columns:
+        # มี target → วัด downstream CV score
+        y = df[target_col].dropna()
+        idx = y.index
+        quick_model = (RandomForestClassifier(n_estimators=30, random_state=42)
+                       if problem_type == "classification"
+                       else RandomForestRegressor(n_estimators=30, random_state=42))
+        scoring = "f1_weighted" if problem_type == "classification" else "r2"
+
+        for name, imp in methods.items():
+            try:
+                X_imp = pd.DataFrame(
+                    imp.fit_transform(df[X_cols]),
+                    columns=X_cols, index=df.index
+                ).loc[idx]
+                cv = cross_val_score(quick_model, X_imp, y,
+                                     cv=3, scoring=scoring, n_jobs=-1).mean()
+                scores[name] = cv
+                print(f"[STATUS] impute {name:8s}: downstream {scoring}={cv:.4f}")
+            except Exception as e:
+                print(f"[WARN] impute {name} failed: {e}")
+    else:
+        # ไม่มี target → วัด distribution preservation ด้วย KS test
+        from scipy.stats import ks_2samp
+        original_stats = df[X_cols].describe()
+
+        for name, imp in methods.items():
+            try:
+                X_imp = pd.DataFrame(
+                    imp.fit_transform(df[X_cols]),
+                    columns=X_cols, index=df.index
+                )
+                # ยิ่ง KS p-value สูง (distribution คล้ายเดิม) ยิ่งดี
+                p_vals = []
+                for col in X_cols:
+                    orig = df[col].dropna()
+                    if len(orig) > 10:
+                        _, p = ks_2samp(orig, X_imp[col])
+                        p_vals.append(p)
+                score = np.mean(p_vals) if p_vals else 0.0
+                scores[name] = score
+                print(f"[STATUS] impute {name:8s}: dist_preservation={score:.4f}")
+            except Exception as e:
+                print(f"[WARN] impute {name} failed: {e}")
+
+    if not scores:
+        print("[WARN] ทุก method ล้มเหลว — ใช้ median")
+        return {"best_method": "median", "best_imputer": methods["median"], "scores": {}}
+
+    best_method = max(scores, key=scores.get)
+    print(f"[STATUS] Best imputation: {best_method} (score={scores[best_method]:.4f})")
+
+    # Fit best imputer บน full data
+    best_imputer = methods[best_method]
+    X_final = pd.DataFrame(
+        best_imputer.fit_transform(df[X_cols]),
+        columns=X_cols, index=df.index
+    )
+    return {
+        "best_method":  best_method,
+        "best_imputer": best_imputer,
+        "X_imputed":    X_final,
+        "scores":       scores,
+    }
+
+# ── วิธีใช้ใน script ──
+# result = auto_compare_imputation(df, num_cols, target_col="Outcome", problem_type="classification")
+# df[num_cols[:-1]] = result["X_imputed"]
+# print(f"Best: {result['best_method']} | Scores: {result['scores']}")
+```
+
+**กฎ Auto-Compare Imputation:**
+- รันเมื่อ missing > 5% ของ dataset
+- ถ้า missing ≤ 5% → ใช้ median ตรงๆ (ไม่คุ้มค่า compute)
+- บันทึก `best_method` และ `scores` ลง dana_report.md เสมอ
+
 **กฎ Dana:** เริ่มจาก rule-based ก่อน → ถ้า missing > 5% หรือ outlier > 3% → escalate ไป ML methods
 
 ---
