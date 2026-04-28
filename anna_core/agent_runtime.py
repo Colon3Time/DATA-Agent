@@ -20,10 +20,14 @@ def latest_input_file(project_dir: Path | None) -> str:
     input_dir = project_dir / "input"
     if not input_dir.exists():
         return ""
-    sqlites = sorted(input_dir.glob("*.sqlite"), key=lambda x: x.stat().st_mtime, reverse=True)
+    sqlites = sorted(input_dir.glob("**/*.sqlite"), key=lambda x: x.stat().st_mtime, reverse=True)
     if sqlites:
         return str(sqlites[0])
-    csvs = sorted(input_dir.glob("*.csv"), key=lambda x: x.stat().st_mtime, reverse=True)
+    csvs = sorted(
+        input_dir.glob("**/*.csv"),
+        key=lambda x: (x.stat().st_size, x.stat().st_mtime),
+        reverse=True,
+    )
     return str(csvs[0]) if csvs else ""
 
 
@@ -43,7 +47,11 @@ def scout_input_csv(project_dir: Path | None) -> str:
     input_dir = project_dir / "input"
     if not input_dir.exists():
         return ""
-    csvs = sorted(input_dir.glob("*.csv"), key=lambda x: x.stat().st_mtime, reverse=True)
+    csvs = sorted(
+        input_dir.glob("**/*.csv"),
+        key=lambda x: (x.stat().st_size, x.stat().st_mtime),
+        reverse=True,
+    )
     return str(csvs[0]) if csvs else ""
 
 
@@ -69,4 +77,3 @@ def build_agent_path_message(
     if agent_name == "scout" and project_dir:
         path_lines.append(f"Save dataset to : {project_dir / 'input'}/ ← ไฟล์ข้อมูลจริงต้องอยู่ที่นี่เท่านั้น")
     return "\n".join(path_lines) + f"\n\nTask: {task}" if path_lines else task
-

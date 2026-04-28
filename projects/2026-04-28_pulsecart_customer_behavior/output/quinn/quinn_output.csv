@@ -1,0 +1,5 @@
+criterion,passed,details
+model_performance,False,"{'pass': False, 'cv_score': 0.4571, 'test_score': 0.4571, 'threshold': 0.75}"
+technical_soundness,True,"{'pass': True, 'leakage_cols': [], 'overfit_gap': 0.0, 'drift_cols': []}"
+fairness,True,"{'pass': True, 'disparities': {}}"
+calibration,False,"{'pass': False, 'mean_calibration_error': 0.6547}"

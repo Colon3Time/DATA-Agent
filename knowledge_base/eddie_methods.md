@@ -211,3 +211,11 @@ print(f"Causal effect: {estimate.value:.4f}")
 
 ## [2026-04-27 16:17] [DISCOVERY]
 Found actual column names — using dynamic column mapping instead of hardcoding
+
+
+## [2026-04-28 01:14] [DISCOVERY]
+Mutual Information is more informative than Pearson correlation for categorical targets
+
+
+## [2026-04-28 02:22] [DISCOVERY]
+Threshold Analysis with Youden

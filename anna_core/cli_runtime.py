@@ -44,56 +44,75 @@ class CliRenderer:
         self.mode = mode
         self.p = palette
 
+    def _infer_project_from_pipeline(self) -> Path | None:
+        projects_root = self.projects_dir.resolve()
+        for pf in reversed(self.pipeline.path_files()):
+            value = pf.read_text(encoding="utf-8").strip()
+            if not value:
+                continue
+            output_path = Path(value)
+            if not output_path.is_absolute():
+                output_path = (Path.cwd() / output_path).resolve()
+            else:
+                output_path = output_path.resolve()
+            try:
+                rel = output_path.relative_to(projects_root)
+            except ValueError:
+                continue
+            if rel.parts:
+                project = self.projects_dir / rel.parts[0]
+                if project.exists():
+                    return project
+        return None
+
     def print_header(self) -> None:
         p = self.p
         ds_ok = bool(os.environ.get("DEEPSEEK_API_KEY"))
         cl_ok = bool(os.environ.get("ANTHROPIC_API_KEY"))
-        plain = [
-            "DataScienceOS  —  Anna (CEO)",
-            f"DeepSeek: {self.deepseek_model}  |  Claude: {self.claude_model}",
-            f"PATH-BASED pipeline v2  |  mode: {self.mode}  |  Claude limit: {self.claude_limit}",
-            "Type  help  for commands",
+        lines = [
+            "DataScienceOS - Anna (CEO)",
+            f"DeepSeek: {self.deepseek_model} | Claude: {self.claude_model}",
+            f"PATH-BASED pipeline v2 | mode: {self.mode} | Claude limit: {self.claude_limit}",
+            "Type /help for commands",
         ]
-        width = max(len(line) for line in plain) + 4
-
-        def box_row(plain_text: str, colored_text: str) -> str:
-            pad = " " * (width - 2 - len(plain_text))
-            return f"{p.cyan}│{p.reset}  {colored_text}{pad}  {p.cyan}│{p.reset}"
-
-        print(f"{p.cyan}┌{'─'*width}┐{p.reset}")
-        print(box_row(plain[0], f"{p.bold}{p.white}DataScienceOS{p.reset}  {p.dim}—{p.reset}  {p.bold}{p.yellow}Anna (CEO){p.reset}"))
-        print(box_row(plain[1], f"{p.blue}DeepSeek:{p.reset} {p.bold}{self.deepseek_model}{p.reset}  {p.dim}|{p.reset}  {p.magenta}Claude:{p.reset} {p.bold}{self.claude_model}{p.reset}"))
-        print(box_row(plain[2], f"{p.dim}PATH-BASED pipeline v2{p.reset}  {p.dim}|{p.reset}  mode: {p.bold}{self.mode}{p.reset}  {p.dim}|{p.reset}  Claude limit: {p.magenta}{p.bold}{self.claude_limit}{p.reset}"))
-        print(box_row(plain[3], f"Type  {p.bold}{p.white}help{p.reset}  for commands"))
-        print(f"{p.cyan}└{'─'*width}┘{p.reset}")
+        width = max(len(line) for line in lines) + 4
+        print("+" + "-" * width + "+")
+        for line in lines:
+            print("|  " + line.ljust(width - 2) + "|")
+        print("+" + "-" * width + "+")
         print()
-
-        ds_str = f"{p.green}✓{p.reset}" if ds_ok else f"{p.red}✗ ไม่พบ key{p.reset}"
-        cl_str = f"{p.green}✓{p.reset}" if cl_ok else f"{p.red}✗ ไม่พบ key{p.reset}"
-        print(f"  {p.blue}{p.bold}DeepSeek:{p.reset} {ds_str}    {p.magenta}{p.bold}Claude:{p.reset} {cl_str}  {p.dim}(limit: {self.claude_limit} calls/session){p.reset}")
+        ds_str = "OK" if ds_ok else "MISSING KEY"
+        cl_str = "OK" if cl_ok else "MISSING KEY"
+        print(
+            f"  {p.blue}{p.bold}DeepSeek:{p.reset} {ds_str}    "
+            f"{p.magenta}{p.bold}Claude:{p.reset} {cl_str}  "
+            f"{p.dim}(limit: {self.claude_limit} calls/session){p.reset}"
+        )
         print()
 
     def print_status(self) -> None:
         p = self.p
-        print(f"\n{p.cyan}┌─ STATUS ─────────────────────────────────────────────┐{p.reset}")
-        project = self.state.active_project.name if self.state.active_project else "ไม่มี"
-        print(f"{p.cyan}│{p.reset}  Project : {p.bold}{project}{p.reset}")
-        print(f"{p.cyan}│{p.reset}  Claude  : {self.state.claude_calls}/{self.claude_limit} calls")
+        print("\n+-- STATUS --------------------------------------------------+")
+        if self.state.active_project is None:
+            self.state.active_project = self._infer_project_from_pipeline()
+        project = self.state.active_project.name if self.state.active_project else "none"
+        print(f"| Project : {p.bold}{project}{p.reset}")
+        print(f"| Claude  : {self.state.claude_calls}/{self.claude_limit} calls")
         if self.state.agent_iter_count:
-            iters = ", ".join(f"{a}×{n}" for a, n in self.state.agent_iter_count.items() if n > 1)
+            iters = ", ".join(f"{a}x{n}" for a, n in self.state.agent_iter_count.items() if n > 1)
             if iters:
-                print(f"{p.cyan}│{p.reset}  Iterations: {iters}")
+                print(f"| Iterations: {iters}")
         path_files = self.pipeline.path_files()
         if path_files:
-            print(f"{p.cyan}│{p.reset}  Pipeline outputs:")
+            print("| Pipeline outputs:")
             for pf in path_files:
                 agent = pf.stem.replace("_path", "")
                 value = pf.read_text(encoding="utf-8").strip()
-                exists_mark = f"{p.green}✓{p.reset}" if Path(value).exists() else f"{p.red}✗{p.reset}"
-                print(f"{p.cyan}│{p.reset}    {p.bold}{agent:<10}{p.reset} {exists_mark}  {p.dim}{value[-55:]}{p.reset}")
+                exists_mark = "OK" if Path(value).exists() else "MISSING"
+                print(f"|   {agent:<10} {exists_mark:<7} {value[-70:]}")
         else:
-            print(f"{p.cyan}│{p.reset}  {p.dim}ยังไม่มี pipeline output{p.reset}")
-        print(f"{p.cyan}└──────────────────────────────────────────────────────┘{p.reset}")
+            print("| No pipeline output yet")
+        print("+------------------------------------------------------------+")
 
     def print_claude_usage(self) -> None:
         p = self.p
@@ -102,50 +121,51 @@ class CliRenderer:
         pct = int(used / limit * 100) if limit > 0 else 100
         bar_len = 20
         filled = int(bar_len * used / limit) if limit > 0 else bar_len
-        bar_color = p.green if pct < 60 else (p.yellow if pct < 90 else p.red)
-        bar = f"{bar_color}{'█' * filled}{p.dim}{'░' * (bar_len - filled)}{p.reset}"
-        print(f"\n  {p.magenta}{p.bold}Claude usage:{p.reset}  {bar}  {p.bold}{used}/{limit}{p.reset}  ({pct}%)")
+        bar = "#" * filled + "." * (bar_len - filled)
+        print(f"\n  {p.magenta}{p.bold}Claude usage:{p.reset}  [{bar}]  {used}/{limit} ({pct}%)")
         if used >= limit:
-            print(f"  {p.red}  ✗ ถึง limit แล้ว — ทุก call จะใช้ DeepSeek แทน{p.reset}")
+            print("  Limit reached. DeepSeek will be used instead.")
         else:
-            print(f"  เหลืออีก {p.bold}{limit - used}{p.reset} calls  →  reset ด้วย {p.bold}end session{p.reset}  หรือ {p.bold}--claude-limit N{p.reset}")
+            print(f"  Remaining calls: {limit - used}. Reset with /end or end session.")
         print()
 
     def print_help(self) -> None:
-        p = self.p
-        print(f"""
-{p.cyan}┌─ คำสั่ง ──────────────────────────────────────────────┐{p.reset}
-{p.cyan}│{p.reset}  {p.bold}{p.white}<ข้อความ>{p.reset}            {p.yellow}»{p.reset} Anna รับ แล้ว pipeline อัตโนมัติ
-{p.cyan}│{p.reset}  {p.bold}{p.white}!! <ข้อความ>{p.reset}          {p.yellow}»{p.reset} {p.magenta}Claude{p.reset} discover mode
-{p.cyan}│{p.reset}  {p.bold}{p.white}@<agent> <task>{p.reset}       {p.yellow}»{p.reset} dispatch ตรงไป agent ({p.blue}DeepSeek{p.reset})
-{p.cyan}│{p.reset}  {p.bold}{p.white}@<agent>! <task>{p.reset}      {p.yellow}»{p.reset} dispatch ตรงไป agent ({p.magenta}Claude{p.reset})
-{p.cyan}│{p.reset}  {p.bold}{p.white}project <name>{p.reset}        {p.yellow}»{p.reset} set active project
-{p.cyan}│{p.reset}  {p.bold}{p.white}resume <name>{p.reset}         {p.yellow}»{p.reset} ต่อ pipeline ที่ค้างไว้
-{p.cyan}│{p.reset}  {p.bold}{p.white}status{p.reset}                {p.yellow}»{p.reset} ดู pipeline output + Claude usage
-{p.cyan}│{p.reset}  {p.bold}{p.white}kb <agent>{p.reset}            {p.yellow}»{p.reset} ดู knowledge base ของ agent
-{p.cyan}│{p.reset}  {p.bold}{p.white}claude{p.reset}                {p.yellow}»{p.reset} ดู {p.magenta}Claude{p.reset} usage / calls เหลือ
-{p.cyan}│{p.reset}  {p.bold}{p.white}end session{p.reset}           {p.yellow}»{p.reset} ล้าง history + reset Claude calls
-{p.cyan}│{p.reset}  {p.bold}{p.white}exit{p.reset}                  {p.yellow}»{p.reset} ออกจากระบบ
-{p.cyan}│{p.reset}  {p.dim}--claude-limit N{p.reset}      {p.yellow}»{p.reset} {p.dim}ตั้ง limit เมื่อเริ่มโปรแกรม (default 10){p.reset}
-{p.cyan}└──────────────────────────────────────────────────────┘{p.reset}""")
+        print(
+            "\n"
+            "+-- COMMANDS -----------------------------------------------+\n"
+            "| Plain text                 -> ask Anna / run pipeline\n"
+            "| /project <name>            -> set active project  (aliases: /p, /proj)\n"
+            "| /resume [name] [task]      -> continue pipeline   (alias: /r)\n"
+            "| /run-all [task]            -> run full agent sequence from Scout to Rex\n"
+            "| /status                    -> show pipeline state (aliases: /s, /st)\n"
+            "| /kb <agent>                -> show agent knowledge base\n"
+            "| /claude                    -> show Claude usage\n"
+            "| /end                       -> reset session\n"
+            "| /exit                      -> quit\n"
+            "| @agent <task>              -> run one agent with DeepSeek\n"
+            "| @agent! <task>             -> run one agent with Claude discover\n"
+            "| !! <task>                  -> Anna discover mode\n"
+            "+------------------------------------------------------------+\n"
+        )
 
     def print_kb(self, name: str, content: str) -> None:
-        p = self.p
         if content:
-            bar = "─" * max(0, 44 - len(name))
-            print(f"\n{p.cyan}┌─ KB: {p.bold}{name}{p.reset}{p.cyan} {bar}┐{p.reset}")
+            print(f"\n+-- KB: {name} " + "-" * max(0, 48 - len(name)) + "+")
             print(content)
-            print(f"{p.cyan}└{'─'*50}┘{p.reset}")
+            print("+------------------------------------------------------------+")
         else:
-            print(f"{p.yellow}  [{name}]{p.reset} ยังไม่มี Knowledge Base")
+            print(f"  [{name}] no Knowledge Base yet")
 
     def resolve_project(self, name: str) -> tuple[Path | None, str]:
         project = self.projects_dir / name
         if project.exists():
             return project, ""
-        matches = [d for d in self.projects_dir.iterdir() if d.is_dir() and name.lower() in d.name.lower()] if self.projects_dir.exists() else []
+        matches = [
+            d for d in self.projects_dir.iterdir()
+            if d.is_dir() and name.lower() in d.name.lower()
+        ] if self.projects_dir.exists() else []
         if len(matches) == 1:
             return matches[0], ""
         if len(matches) > 1:
-            return None, f"พบหลาย project: {', '.join(m.name for m in matches)}"
-        return None, f"ไม่พบ project: {name}"
+            return None, f"Multiple projects matched: {', '.join(m.name for m in matches)}"
+        return None, f"Project not found: {name}"

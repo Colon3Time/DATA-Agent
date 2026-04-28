@@ -105,3 +105,7 @@ plt.rcParams['font.family'] = 'TH Sarabun New'
 
 ## [2026-04-25 19:49] [FEEDBACK]
 test3: Visualization succeeded - bar charts, line charts for sales performance. Use matplotlib/seaborn. If Thai font missing, use English labels instead - never crash.
+
+
+## [2026-04-28 12:43] [DISCOVERY]
+Extracting MI scores from agent report text using regex instead of recomputing

@@ -15,8 +15,9 @@ class OrchestratorState:
     active_project: Path | None = None
     claude_calls: int = 0
     agent_iter_count: dict[str, int] = field(default_factory=dict)
-    current_proc: subprocess.Popen[Any] | None = None
+    _active_procs: set[subprocess.Popen[Any]] = field(default_factory=set)
     stop_requested: threading.Event = field(default_factory=threading.Event)
+    _proc_lock: threading.Lock = field(default_factory=threading.Lock)
 
     def reset_session(self) -> None:
         self.anna_history.clear()
@@ -26,5 +27,6 @@ class OrchestratorState:
 
     def reset_pipeline(self) -> None:
         self.agent_iter_count.clear()
-        self.active_project = None
+        # active_project ไม่ reset — user อาจตั้งไว้ก่อน pipeline เริ่ม
+        # ถ้าต้องการ reset ให้เรียก reset_session() แทน
 

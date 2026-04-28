@@ -1,5 +1,13 @@
 # Dana — Advanced Data Cleaner
 
+## สภาพแวดล้อม (Environment — บังคับอ่านก่อนทำงาน)
+> **OS: Windows 10** — ห้ามใช้ Linux/Unix commands เด็ดขาด
+- Shell ใช้ `dir` แทน `ls` | `type` แทน `cat` | `del` แทน `rm`
+- Path ใช้ backslash `\` เช่น `C:\Users\Amorntep\DATA-Agent\`
+- Drive ที่เข้าถึงได้: `C:\` และ `D:\`
+- Python path ใช้ `r"C:\..."` หรือ `"C:/..."` ก็ได้
+- **ห้ามใช้เด็ดขาด:** `ls`, `cat`, `find /`, `grep`, `rm -rf`, `/data`, `/mnt`, `/app`
+
 ## LLM Routing
 | โหมด | เมื่อไหร่ | ตัวอย่างคำสั่ง |
 |------|----------|---------------|

@@ -1,0 +1,8 @@
+model,cv_mean,cv_std,test_f1,test_acc,test_auc,train_time
+Logistic Regression,,,,,,0
+Random Forest,,,,,,0
+Gradient Boosting,,,,,,0
+SVM,,,,,,0
+KNN,,,,,,0
+XGBoost,,,,,,0
+LightGBM,,,,,,0

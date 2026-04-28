@@ -6,6 +6,7 @@ Agent ที่ไม่มี script → LLM สร้าง report + Python co
 """
 
 import re
+import os
 import sys
 import threading
 import concurrent.futures
@@ -52,16 +53,36 @@ load_dotenv(BASE_DIR / ".env")
 CONFIG = load_config(BASE_DIR)
 
 # ── Colors ────────────────────────────────────────────────────────────────────
-RST = "\033[0m"
-BLD = "\033[1m"
-DIM = "\033[2m"
-CY  = "\033[96m"   # Bright Cyan   — UI / borders
-GR  = "\033[92m"   # Bright Green  — success / ✓
-YL  = "\033[93m"   # Bright Yellow — Anna / separators
-RD  = "\033[91m"   # Bright Red    — errors / ✗
-BL  = "\033[94m"   # Bright Blue   — DeepSeek
-MG  = "\033[95m"   # Bright Magenta — Claude
-WH  = "\033[97m"   # Bright White
+def _supports_ansi() -> bool:
+    if CONFIG.no_color or not sys.stdout.isatty():
+        return False
+    if sys.platform != "win32":
+        return True
+    return bool(
+        os.environ.get("WT_SESSION")
+        or os.environ.get("ANSICON")
+        or os.environ.get("TERM_PROGRAM")
+        or os.environ.get("ConEmuANSI") == "ON"
+    )
+
+
+COLOR_ENABLED = _supports_ansi()
+
+if COLOR_ENABLED:
+    RST = "\033[0m"
+    BLD = "\033[1m"
+    DIM = "\033[2m"
+    CY  = "\033[96m"   # Bright Cyan   — UI / borders
+    GR  = "\033[92m"   # Bright Green  — success / ✓
+    YL  = "\033[93m"   # Bright Yellow — Anna / separators
+    RD  = "\033[91m"   # Bright Red    — errors / ✗
+    BL  = "\033[94m"   # Bright Blue   — DeepSeek
+    MG  = "\033[95m"   # Bright Magenta — Claude
+    WH  = "\033[97m"   # Bright White
+else:
+    RST = BLD = DIM = CY = GR = YL = RD = BL = MG = WH = ""
+
+TERMINAL_TITLE_ENABLED = CONFIG.terminal_title and COLOR_ENABLED
 
 # ── Config ────────────────────────────────────────────────────────────────────
 DEEPSEEK_URL = CONFIG.deepseek_url
@@ -76,7 +97,19 @@ MODE = CONFIG.mode
 CLAUDE_LIMIT = CONFIG.claude_limit
 STEP_MODE = CONFIG.step_mode
 
-ANNA_SYSTEM = (BASE_DIR / "CLAUDE.md").read_text(encoding="utf-8")
+ANNA_PERSONA_GUARD = """
+
+---
+## Anna Persona Guard (non-negotiable)
+- Anna is female.
+- When Anna replies in Thai, Anna must use a feminine voice.
+- Use "ดิฉัน" or "Anna" for self-reference when needed.
+- End polite Thai sentences with "ค่ะ" or "คะ" as appropriate.
+- Never use "ครับ", "คับ", or "ฮะ" in Anna's own voice.
+- Session memory may contain older replies with "ครับ"; treat those as stale style examples and do not imitate them.
+"""
+
+ANNA_SYSTEM = (BASE_DIR / "CLAUDE.md").read_text(encoding="utf-8") + ANNA_PERSONA_GUARD
 
 VALID_AGENTS = {"scout", "dana", "eddie", "max", "finn", "mo", "iris", "vera", "quinn", "rex"}
 
@@ -98,6 +131,8 @@ def notify_tab(success: bool = True, label: str = ""):
     - Bell (\\a) → Windows Terminal แสดง dot notification บน tab ที่ไม่ได้ focus
     - OSC 0     → เปลี่ยน tab title ให้แสดงสถานะ
     """
+    if not TERMINAL_TITLE_ENABLED:
+        return
     print('\a', end='', flush=True)
     icon  = "✅" if success else "⚠️"
     title = f"{icon} Anna — {label}" if label else (f"{icon} Anna — พร้อม" if success else f"{icon} Anna — หยุด")
@@ -106,6 +141,8 @@ def notify_tab(success: bool = True, label: str = ""):
 
 def set_tab_title(title: str):
     """เปลี่ยนชื่อ tab terminal ระหว่าง pipeline รัน"""
+    if not TERMINAL_TITLE_ENABLED:
+        return
     print(f'\033]0;{title}\007', end='', flush=True)
 
 
@@ -152,6 +189,7 @@ DISPATCHER = DispatchParser(
     on_reject=lambda agent: print(f"{RD}  ✗ dispatch ถูกปฏิเสธ — agent='{agent}' ไม่ถูกต้อง{RST}"),
 )
 PIPELINE = PipelineStore(PIPELINE_DIR)
+_STATE_LOCK = threading.Lock()   # ป้องกัน race condition ใน parallel agent execution
 RAW_LOGGER = RawLogger(LOGS_DIR, active_project=lambda: STATE.active_project)
 SESSION_MEMORY = SessionMemoryStore(KNOWLEDGE_DIR)
 WORKSPACE_PATHS = WorkspacePaths(BASE_DIR)
@@ -211,9 +249,15 @@ def _esc_monitor():
                 time.sleep(0.02)
                 while msvcrt.kbhit():
                     msvcrt.getch()
-                if STATE.current_proc is not None:
-                    print(f"\n{YL}  [ESC] หยุด script — กลับไปรอคำสั่ง...{RST}")
-                    STATE.current_proc.kill()
+                with STATE._proc_lock:
+                    _esc_procs = list(STATE._active_procs)
+                if _esc_procs:
+                    print(f"\n{YL}  [ESC] หยุด script ({len(_esc_procs)}) — กลับไปรอคำสั่ง...{RST}")
+                    for _ep in _esc_procs:
+                        try:
+                            _ep.kill()
+                        except OSError:
+                            pass
                     STATE.stop_requested.set()
         time.sleep(0.05)
 
@@ -276,11 +320,40 @@ def pipeline_write(agent_name: str, file_path: str):
 def pipeline_read(agent_name: str) -> str:
     return PIPELINE.read(agent_name)
 
+_last_pipeline_project: Path | None = None
+
+
 def pipeline_clear():
-    PIPELINE.clear()
+    """Clear PIPELINE only when the active project changes — preserves paths for resume."""
+    global _last_pipeline_project
+    if STATE.active_project != _last_pipeline_project:
+        PIPELINE.clear()
+        _last_pipeline_project = STATE.active_project
 
 
 # ── Script Runner ─────────────────────────────────────────────────────────────
+
+def _strip_python_fences(text: str) -> str:
+    """Remove markdown code fences accidentally written into .py files."""
+    cleaned = text.strip()
+    cleaned = re.sub(r"^\s*```(?:python|py)?\s*\r?\n", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\r?\n```\s*$", "\n", cleaned)
+    return cleaned
+
+
+def sanitize_python_script_file(script_path: Path) -> None:
+    """Make any agent-generated .py file executable even if LLM included fences."""
+    if script_path.suffix != ".py" or not script_path.exists():
+        return
+    try:
+        original = script_path.read_text(encoding="utf-8")
+        cleaned = _strip_python_fences(original)
+        if cleaned != original:
+            script_path.write_text(cleaned, encoding="utf-8")
+            log_raw("system", f"sanitized markdown fences from {script_path.name}", task="script-sanitize")
+    except Exception:
+        pass
+
 
 def find_agent_script(agent_name: str, project_dir: Path|None) -> Path|None:
     if not project_dir:
@@ -295,6 +368,7 @@ def find_agent_script(agent_name: str, project_dir: Path|None) -> Path|None:
 def run_script(script_path: Path, input_path: str, output_dir: Path) -> tuple[str, int, str]:
     """Returns (output_path, returncode, stderr)"""
     output_dir.mkdir(parents=True, exist_ok=True)
+    sanitize_python_script_file(script_path)
     print(f"\n{CY}  ▶ SCRIPT{RST}  {BLD}{script_path.name}{RST}  {DIM}← {input_path or 'no input'}{RST}")
     print(f"{DIM}  กด ESC เพื่อหยุด script นี้{RST}")
 
@@ -311,7 +385,19 @@ def run_script(script_path: Path, input_path: str, output_dir: Path) -> tuple[st
         print(f"{RD}  ╚{'═'*18}╝{RST}")
 
     csvs = sorted(output_dir.glob("*.csv"), key=lambda x: x.stat().st_mtime, reverse=True)
-    out_path = str(csvs[0]) if csvs else str(output_dir)
+    canonical = output_dir / f"{output_dir.name}_output.csv"
+    if canonical.exists():
+        out_path = str(canonical)
+    else:
+        supplementary = (
+            "correlat", "mi_score", "feature_score", "summary", "metric",
+            "importance", "flag", "shap", "outlier", "report", "comparison",
+        )
+        main_csvs = [
+            f for f in csvs
+            if not any(pat in f.stem.lower() for pat in supplementary)
+        ]
+        out_path = str(main_csvs[0] if main_csvs else csvs[0]) if csvs else str(output_dir)
     if result.returncode == 0 and not csvs:
         fake_err = "Script ran successfully but produced no CSV in OUTPUT_DIR. Must add: df.to_csv(os.path.join(OUTPUT_DIR, 'output.csv'), index=False)"
         return out_path, -1, fake_err
@@ -438,33 +524,332 @@ def auto_extract_kb_learning(agent_name: str, result: str):
     save_kb(agent_name, new_method[:400], entry_type="discovery")
 
 
-def validate_agent_output(agent_name: str, output_path: str) -> tuple[bool, str]:
-    """ตรวจสอบว่า output ของ agent มีอยู่จริงและไม่ว่าง — non-blocking, warn only"""
+def _read_project_target(project_dir: Path | None) -> str:
+    """Return the Scout-declared target column for this project, if known."""
+    if not project_dir:
+        return ""
+    profile_path = project_dir / "output" / "scout" / "dataset_profile.md"
+    if not profile_path.exists():
+        return ""
+    m = re.search(
+        r"target_column\s*:\s*([^\s,|]+)",
+        profile_path.read_text(encoding="utf-8", errors="ignore"),
+        re.IGNORECASE,
+    )
+    if not m:
+        return ""
+    target = m.group(1).strip()
+    return "" if target.lower() == "unknown" else target
+
+
+def _forbidden_model_column(col: str, target: str = "") -> bool:
+    """Columns that must not appear as model features in a predictive handoff."""
+    lc = col.strip().lower()
+    target_lc = target.strip().lower()
+    if target_lc and lc == target_lc:
+        return False
+    id_like_exact = {
+        "customer_id", "user_id", "account_id", "client_id", "member_id",
+        "transaction_id", "order_id", "record_id", "row_id",
+    }
+    return (
+        lc in id_like_exact
+        or lc.endswith("_id")
+        or "target_encoded" in lc
+        or lc.endswith("_target")
+        or "post_period" in lc
+        or "postperiod" in lc
+        or "account_note" in lc
+        or lc.endswith("_note")
+        or "reason" in lc
+        or lc in {"duration"}  # UCI Bank Marketing: post-call duration leakage for pre-call deployment.
+    )
+
+
+def _read_csv_shape(path: Path) -> tuple[int, int]:
+    import pandas as _pd
+
+    df_head = _pd.read_csv(str(path), nrows=1)
+    rows = sum(1 for _ in open(str(path), encoding="utf-8")) - 1
+    return rows, df_head.shape[1]
+
+
+def _binary_target_signature(csv_path: Path, target: str) -> tuple[bool, float, set[str]]:
+    """Return (has_target, positive_rate, unique_values_as_strings)."""
+    import pandas as _pd
+
+    if not target:
+        return False, 0.0, set()
+    df = _pd.read_csv(str(csv_path), usecols=lambda c: c == target)
+    if target not in df.columns:
+        return False, 0.0, set()
+    s = df[target].dropna()
+    values = {str(v).strip().lower() for v in s.unique()}
+    num = _pd.to_numeric(s, errors="coerce")
+    if num.notna().any():
+        return True, float(num.mean()), values
+    positives = {"1", "yes", "true", "y", ">50k", ">50k.", "subscribed", "churn"}
+    return True, float(s.astype(str).str.strip().str.lower().isin(positives).mean()), values
+
+
+def _score_like_columns(df) -> list[str]:
+    return [
+        c for c in df.select_dtypes(include="number").columns
+        if any(k in c.lower() for k in ("f1", "auc", "accuracy", "precision", "recall"))
+    ]
+
+
+def validate_agent_output(agent_name: str, output_path: str,
+                          project_dir: Path | None = None) -> tuple[bool, str]:
+    """ตรวจสอบ output ของ agent — รวม gate ตาม CLAUDE.md spec"""
     if not output_path:
         return False, "ไม่มี output path"
     p = Path(output_path)
     if not p.exists():
         return False, f"ไฟล์ไม่มีอยู่: {p.name}"
+
     if p.suffix == ".csv":
         try:
             import pandas as _pd
             df = _pd.read_csv(str(p), nrows=5)
             if df.shape[1] == 0:
                 return False, "CSV ว่าง (0 columns)"
-            # ตรวจ row count — ถ้า < 20 rows อาจโหลดไฟล์ผิด (เช่น outlier_flags.csv)
             full_rows = sum(1 for _ in open(str(p), encoding="utf-8")) - 1
-            if full_rows < 20:
+            if agent_name in ("scout", "dana", "eddie", "finn", "max") and full_rows < 20:
                 return False, (f"{p.name} มีแค่ {full_rows} rows — "
                                f"อาจโหลดไฟล์ผิด (outlier_flags? ควรเป็น *_output.csv)")
-            return True, f"{p.name} ({full_rows} rows, {df.shape[1]} cols)"
+            base_msg = f"{p.name} ({full_rows} rows, {df.shape[1]} cols)"
         except Exception as e:
             return False, f"อ่าน CSV ไม่ได้: {e}"
-    if p.suffix == ".md":
+    elif p.suffix == ".md":
         size = p.stat().st_size
         if size < 50:
             return False, f"report เล็กเกินไป ({size} bytes)"
-        return True, f"{p.name} ({size:,} bytes)"
-    return True, p.name
+        base_msg = f"{p.name} ({size:,} bytes)"
+    else:
+        return True, p.name
+
+    # ── Agent-specific gates (CLAUDE.md spec) ─────────────────────────────────
+    proj = project_dir or (p.parent.parent.parent if p.suffix == ".csv" else None)
+
+    if agent_name == "scout" and proj:
+        profile_path = proj / "output" / "scout" / "dataset_profile.md"
+        if profile_path.exists():
+            import re as _re
+            profile_text = profile_path.read_text(encoding="utf-8", errors="ignore")
+            # target_column ห้ามเป็น unknown
+            if "target_column: unknown" in profile_text:
+                return False, "Scout gate FAIL: target_column=unknown — Scout ต้อง dispatch ใหม่"
+            # rows < 1,000 gate ใช้เฉพาะ multi-table/join datasets
+            # single-table datasets เช่น breast cancer (569 rows) ไม่ควรถูก block
+            rows_match = _re.search(r"rows\s*:\s*([\d,]+)", profile_text)
+            if rows_match:
+                rows_val = int(rows_match.group(1).replace(",", ""))
+                _join_signals = ("join", "merged", "tables:", "source_tables", "multi-table")
+                _is_join = any(sig in profile_text.lower() for sig in _join_signals)
+                if _is_join and rows_val < 1000:
+                    return False, f"Scout gate FAIL: rows={rows_val} < 1,000 หลัง JOIN — อาจ join ผิด"
+            # Olist dataset — target ต้องเป็น review_score
+            _olist_signals = ("olist_orders", "order_reviews", "review_score", "olist_order_reviews")
+            if any(sig in profile_text.lower() for sig in _olist_signals):
+                m_target = _re.search(r"target_column:\s*(\S+)", profile_text)
+                if m_target and m_target.group(1).lower() != "review_score":
+                    return False, (f"Scout gate FAIL (Olist): target_column='{m_target.group(1)}' "
+                                   f"ต้องเป็น 'review_score' สำหรับ Olist dataset")
+
+    elif agent_name == "dana" and proj:
+        scout_csv = proj / "output" / "scout" / "scout_output.csv"
+        if scout_csv.exists() and p.suffix == ".csv":
+            try:
+                import pandas as _pd
+                scout_rows = sum(1 for _ in open(str(scout_csv), encoding="utf-8")) - 1
+                dana_rows  = sum(1 for _ in open(str(p), encoding="utf-8")) - 1
+                if scout_rows > 0:
+                    loss_pct = (scout_rows - dana_rows) / scout_rows
+                    if loss_pct > 0.20:
+                        return False, (f"Dana gate FAIL: rows หาย {loss_pct:.0%} "
+                                       f"({scout_rows:,} → {dana_rows:,}) เกิน 20%")
+                # ตรวจ target column ไม่หาย
+                target = _read_project_target(proj)
+                _df_check = _pd.read_csv(str(p), nrows=5)
+                if target:
+                    if target not in _df_check.columns:
+                        return False, f"Dana gate FAIL: target '{target}' หายออกจาก output"
+                    flags_path = proj / "output" / "dana" / "outlier_flags.csv"
+                    if flags_path.exists():
+                        flags_head = _pd.read_csv(str(flags_path), nrows=1000)
+                        if "column_name" in flags_head.columns:
+                            flagged_cols = {
+                                str(v).strip().lower()
+                                for v in flags_head["column_name"].dropna().unique()
+                            }
+                            if target.lower() in flagged_cols:
+                                return False, (
+                                    f"Dana gate FAIL: target '{target}' ถูกใช้ใน outlier detection"
+                                )
+                    if "is_outlier" in _df_check.columns:
+                        target_sig = _binary_target_signature(p, target)
+                        if target_sig[0] and set(_df_check[target].dropna().astype(str).str.strip().str.lower().unique()) <= {"0", "1"}:
+                            if "is_outlier" == target.lower():
+                                return False, "Dana gate FAIL: is_outlier กลายเป็น target"
+                key_cols = [c for c in _df_check.columns if c.lower() in {"customer_id", "client_id", "account_id", "user_id"}]
+                for key in key_cols:
+                    sample = _pd.read_csv(str(p), usecols=[key])
+                    dupes = sample[key].astype(str).str.strip().duplicated().sum()
+                    if dupes:
+                        return False, (
+                            f"Dana gate FAIL: key column '{key}' ยังมี duplicates หลัง trim ({dupes} rows)"
+                        )
+            except Exception as e:
+                return False, f"Dana gate exception: {e}"
+
+    elif agent_name == "eddie" and proj:
+        report = proj / "output" / "eddie" / "eddie_report.md"
+        if report.exists():
+            txt = report.read_text(encoding="utf-8", errors="ignore").lower()
+            for required_kw in ("pipeline_spec", "problem_type", "target_column"):
+                if required_kw not in txt:
+                    return False, f"Eddie gate FAIL: PIPELINE_SPEC ไม่มี '{required_kw}'"
+            if "problem_type : unknown" in txt or "problem_type: unknown" in txt:
+                return False, "Eddie gate FAIL: problem_type=unknown — Eddie ต้อง dispatch ใหม่"
+            scout_profile = proj / "output" / "scout" / "dataset_profile.md"
+            if scout_profile.exists():
+                import re as _re
+                scout_txt = scout_profile.read_text(encoding="utf-8", errors="ignore")
+                m_scout = _re.search(r"target_column\s*:\s*(\S+)", scout_txt, _re.IGNORECASE)
+                m_eddie = _re.search(r"target_column\s*:\s*(\S+)", txt, _re.IGNORECASE)
+                if m_scout and m_eddie:
+                    scout_target = m_scout.group(1).strip().lower()
+                    eddie_target = m_eddie.group(1).strip().lower()
+                    if scout_target != "unknown" and eddie_target != scout_target:
+                        return False, (
+                            f"Eddie gate FAIL: target_column mismatch "
+                            f"(Scout='{scout_target}', Eddie='{eddie_target}')"
+                        )
+
+    elif agent_name == "finn" and proj and p.suffix == ".csv":
+        try:
+            import pandas as _pd
+            target = _read_project_target(proj)
+            df_head = _pd.read_csv(str(p), nrows=5)
+            cols_lower = {c: c.lower() for c in df_head.columns}
+            leak_cols = [
+                c for c, lc in cols_lower.items()
+                if _forbidden_model_column(c, target)
+            ]
+            if leak_cols:
+                return False, f"Finn gate FAIL: leakage/id-like features in output: {leak_cols[:8]}"
+            if target:
+                if target not in df_head.columns:
+                    return False, f"Finn gate FAIL: target '{target}' หายออกจาก output"
+                prev = proj / "output" / "eddie" / "eddie_output.csv"
+                if prev.exists():
+                    has_prev, prev_rate, prev_values = _binary_target_signature(prev, target)
+                    has_now, now_rate, now_values = _binary_target_signature(p, target)
+                    if has_prev and has_now:
+                        if len(prev_values) <= 3 and len(now_values) <= 3 and abs(prev_rate - now_rate) > 0.02:
+                            return False, (
+                                f"Finn gate FAIL: target distribution changed "
+                                f"({prev_rate:.4f} → {now_rate:.4f})"
+                            )
+                report = proj / "output" / "finn" / "finn_report.md"
+                if report.exists():
+                    txt = report.read_text(encoding="utf-8", errors="ignore")
+                    m = re.search(r"target column\s*:\s*([^\s`]+)", txt, re.IGNORECASE)
+                    if m and m.group(1).strip().lower() != target.lower():
+                        return False, (
+                            f"Finn gate FAIL: target_column mismatch "
+                            f"(Scout='{target}', Finn='{m.group(1).strip()}')"
+                        )
+                    selected = re.search(
+                        r"selected features.*?(?:##\s*\d+\.|\Z)",
+                        txt,
+                        re.IGNORECASE | re.DOTALL,
+                    )
+                    if selected and re.search(rf"[-*]\s*`?{re.escape(target)}`?\b", selected.group(0), re.IGNORECASE):
+                        return False, f"Finn gate FAIL: target '{target}' ถูกเลือกเป็น feature"
+        except Exception as e:
+            return False, f"Finn gate exception: {e}"
+
+    elif agent_name == "mo" and proj:
+        report = proj / "output" / "mo" / "model_results.md"
+        comparison = proj / "output" / "mo" / "model_comparison.csv"
+        suspect_msgs: list[str] = []
+        try:
+            mo_csvs = [comparison] if comparison.exists() else []
+            for extra_csv in (proj / "output" / "mo").glob("*.csv"):
+                if extra_csv not in mo_csvs:
+                    mo_csvs.append(extra_csv)
+            for csv_path in mo_csvs:
+                import pandas as _pd
+                cmp_df = _pd.read_csv(str(csv_path))
+                score_cols = _score_like_columns(cmp_df)
+                if score_cols and (cmp_df[score_cols] >= 0.999).any().any():
+                    suspect_msgs.append(f"perfect/near-perfect metric detected in {csv_path.name}")
+            if report.exists():
+                txt = report.read_text(encoding="utf-8", errors="ignore").lower()
+                if re.search(r"\b(winner|best model|algorithm selected)\s*:\s*none\b", txt):
+                    suspect_msgs.append("model report selected None")
+                if "n/a" in txt and ("test f1" in txt or "test auc" in txt or "cv score" in txt):
+                    suspect_msgs.append("model report has N/A metrics")
+                for token in ("target_encoded", "customer_id_target", "post_period", "account_note"):
+                    if token in txt:
+                        suspect_msgs.append(f"leakage feature mentioned: {token}")
+                        break
+            if suspect_msgs:
+                return False, "Mo gate FAIL: likely leakage — " + "; ".join(suspect_msgs)
+        except Exception as e:
+            return False, f"Mo gate exception: {e}"
+
+    elif agent_name == "quinn" and proj:
+        report = proj / "output" / "quinn" / "quinn_report.md"
+        if report.exists():
+            txt = report.read_text(encoding="utf-8", errors="ignore").lower()
+            if "restart_cycle: yes" in txt or "verdict: unsatisfied" in txt or "status: fail" in txt:
+                return False, "Quinn gate FAIL: QC verdict requires restart"
+
+    elif agent_name == "rex" and proj:
+        quinn_report = proj / "output" / "quinn" / "quinn_report.md"
+        if quinn_report.exists():
+            txt = quinn_report.read_text(encoding="utf-8", errors="ignore").lower()
+            if "restart_cycle: yes" in txt or "verdict: unsatisfied" in txt:
+                return False, "Rex gate FAIL: Quinn failed, final success report is blocked"
+
+    return True, base_msg
+
+
+# Maps each gated agent to the (prev_agent, expected_csv) it should rerun from.
+_GATE_RERUN_FROM: dict[str, tuple[str, str]] = {
+    "scout": ("",       ""),
+    "dana":  ("scout",  "scout_output.csv"),
+    "eddie": ("dana",   "dana_output.csv"),
+    "finn":  ("eddie",  "eddie_output.csv"),
+    "mo":    ("finn",   "finn_output.csv"),
+}
+
+
+def _print_gate_fail_recovery(agent: str, msg: str, project_dir: Path | None) -> None:
+    """Print a clear, actionable recovery message when a pipeline gate fails."""
+    prev, csv_name = _GATE_RERUN_FROM.get(agent, ("", ""))
+    if prev and csv_name and project_dir:
+        src = project_dir / "output" / prev / csv_name
+        if src.exists():
+            rerun_hint = f"rerun {agent.upper()} จาก {src.name} ({src.parent.name}/)"
+        else:
+            rerun_hint = f"rerun {prev.upper()} ก่อน แล้วค่อย rerun {agent.upper()}"
+    elif agent == "scout":
+        rerun_hint = "dispatch scout ใหม่ — ระบุ target_column ให้ชัดเจน"
+    else:
+        rerun_hint = f"ตรวจสอบ output ของ {agent} แล้ว dispatch ใหม่"
+
+    bar = "═" * 53
+    print(f"\n{RD}╔{bar}╗{RST}")
+    print(f"{RD}║{RST}  {BLD}GATE FAIL — {agent.upper()}{RST}")
+    print(f"{RD}╠{bar}╣{RST}")
+    print(f"{RD}║{RST}  ปัญหา : {msg}")
+    print(f"{RD}║{RST}  แผน   : {rerun_hint}")
+    print(f"{RD}╚{bar}╝{RST}")
+    log_raw("system", f"gate FAIL recovery hint: {agent} — {msg} → {rerun_hint}", task="gate")
 
 
 def check_pipeline_spec(output_dir: Path) -> bool:
@@ -537,6 +922,14 @@ def anna_autofix_script(agent_name: str, task: str, script: Path,
 
 
 def resolve_agent_input(agent_name: str, prev_agent: str, project_dir: Path | None) -> str:
+    # Dana ต้องใช้ scout_output.csv เสมอ — ห้าม fallback ไป input/ หรือ CSV อื่น
+    if agent_name == "dana" and prev_agent == "scout" and project_dir:
+        scout_csv = project_dir / "output" / "scout" / "scout_output.csv"
+        if scout_csv.exists():
+            print(f"{CY}  ⟳ Dana input → scout_output.csv (forced){RST}")
+            log_raw("system", f"Dana input forced to scout_output.csv", task="dana")
+            return str(scout_csv)
+
     raw_input_path = pipeline_read(prev_agent) if prev_agent else ""
     input_path = resolve_input_path(prev_agent, raw_input_path, project_dir)
     if input_path != raw_input_path and input_path:
@@ -551,12 +944,19 @@ def resolve_agent_input(agent_name: str, prev_agent: str, project_dir: Path | No
             log_raw("system", f"{label} → {input_path}", task=agent_name)
 
     if input_path and input_path.endswith(".md") and project_dir:
-        fallback = latest_output_csv(project_dir)
+        # ลองหา CSV จาก prev_agent โดยตรงก่อน — ป้องกันหยิบ CSV ผิด agent
+        specific_csv: str = ""
+        if prev_agent:
+            candidate = project_dir / "output" / prev_agent / f"{prev_agent}_output.csv"
+            if candidate.exists():
+                specific_csv = str(candidate)
+        fallback = specific_csv or latest_output_csv(project_dir)
         if fallback:
             old_input = input_path
             input_path = fallback
-            print(f"{YL}  ⟳ input .md → CSV fallback:{RST} {DIM}{input_path}{RST}")
-            log_raw("system", f"input .md fallback: {old_input} → {input_path}", task=agent_name)
+            src = f"{prev_agent}_output.csv" if specific_csv else "latest_output_csv"
+            print(f"{YL}  ⟳ input .md → CSV fallback [{src}]:{RST} {DIM}{input_path}{RST}")
+            log_raw("system", f"input .md fallback [{src}]: {old_input} → {input_path}", task=agent_name)
 
     if agent_name in ("vera", "rex") and input_path and input_path.endswith(".csv") and project_dir:
         try:
@@ -729,7 +1129,7 @@ def run_generated_script_agent(
     project_dir: Path | None,
 ) -> str:
     py_path = output_dir / f"{agent_name}_script.py"
-    py_path.write_text("\n\n".join(code_blocks), encoding="utf-8")
+    py_path.write_text(_strip_python_fences("\n\n".join(code_blocks)), encoding="utf-8")
     print(f"{GR}  ✓ {BLD}{agent_name.upper()}{RST}{GR} script saved — กำลังรัน...{RST}  {DIM}→ {py_path}{RST}")
 
     output_path, returncode, stderr = run_script_with_deepseek_autofix(
@@ -771,27 +1171,29 @@ def handle_report_only_agent(
 
 def run_agent(agent_name: str, task: str, prev_agent: str = "",
               project_dir: Path|None = None, discover: bool = False) -> str:
-    # CRISP-DM iteration guard — ป้องกัน infinite loop
-    STATE.agent_iter_count[agent_name] = STATE.agent_iter_count.get(agent_name, 0) + 1
-    if STATE.agent_iter_count[agent_name] > MAX_AGENT_ITER:
+    # CRISP-DM iteration guard — ป้องกัน infinite loop (lock ป้องกัน race ใน parallel)
+    with _STATE_LOCK:
+        STATE.agent_iter_count[agent_name] = STATE.agent_iter_count.get(agent_name, 0) + 1
+        iter_count = STATE.agent_iter_count[agent_name]
+    if iter_count > MAX_AGENT_ITER:
         print(f"\n{RD}  ✗ {BLD}{agent_name.upper()}{RST}{RD} ถึง max iterations ({MAX_AGENT_ITER}) — ข้าม CRISP-DM loop{RST}")
         log_raw("system", f"CRISP-DM loop guard: {agent_name} ถึง max {MAX_AGENT_ITER} iterations", task="loop-guard")
         return pipeline_read(agent_name) or ""
 
-    iter_label = f" [{STATE.agent_iter_count[agent_name]}/{MAX_AGENT_ITER}]" if STATE.agent_iter_count[agent_name] > 1 else ""
+    iter_label = f" [{iter_count}/{MAX_AGENT_ITER}]" if iter_count > 1 else ""
     bar = "─" * max(0, 48 - len(agent_name) - len(iter_label))
     print(f"\n{CY}┌─ {BLD}{agent_name.upper()}{RST}{CY}{YL}{iter_label}{RST}{CY} {bar}┐{RST}")
 
     input_path = resolve_agent_input(agent_name, prev_agent, project_dir)
     output_dir = output_dir_for(project_dir, agent_name)
 
-    # ── ลบ script เก่าออกก่อนทุกครั้ง — บังคับให้ LLM สร้างใหม่เสมอ ──────────
-    delete_old_scripts(output_dir)
-
     # ── Priority 1: script จริง (+ auto-fix via DeepSeek ถ้า error) ──────────
     script = find_agent_script(agent_name, project_dir)
     if script and output_dir and not discover:
         return run_existing_script_agent(agent_name, task, script, input_path, output_dir)
+
+    # ── ลบ script เก่าเฉพาะตอนจะสร้างใหม่ (Priority 1 ไม่ผ่าน) ──────────────
+    delete_old_scripts(output_dir)
 
     # ── Priority 2: LLM ───────────────────────────────────────
     system = get_system_prompt(agent_name, task=task)
@@ -839,6 +1241,63 @@ def detect_project(text: str) -> Path|None:
 
 def execute_anna_actions(response: str) -> str:
     return ACTION_EXECUTOR.execute(response)
+
+
+def response_has_anna_actions(response: str) -> bool:
+    action_tags = (
+        "READ_FILE",
+        "RUN_SHELL",
+        "WRITE_FILE",
+        "APPEND_FILE",
+        "EDIT_FILE",
+        "CREATE_DIR",
+        "DELETE_FILE",
+        "UPDATE_KB",
+        "ASK_DEEPSEEK",
+        "ASK_CLAUDE",
+        "RESEARCH",
+        "RUN_PYTHON",
+    )
+    return any(f"<{tag}" in response for tag in action_tags)
+
+
+def summarize_action_results(anna_system: str, action_results: str, label: str = "ANNA") -> str:
+    followup = (
+        "ผลลัพธ์จากการดำเนินการ:\n\n"
+        f"{action_results}\n\n"
+        "สรุปผลให้ผู้ใช้เป็นภาษาไทยเท่านั้น\n"
+        "ห้ามส่ง action tags เพิ่ม เช่น <RUN_SHELL>, <RUN_PYTHON>, <READ_FILE>, <DISPATCH>\n"
+        "ถ้าผลลัพธ์ไม่พอ ให้บอกว่าข้อมูลไม่พอและถามผู้ใช้เป็นภาษาไทยธรรมดา"
+    )
+    return call_deepseek(anna_system, followup, label=label, history=STATE.anna_history)
+
+
+def execute_anna_actions_until_stable(
+    anna_response: str,
+    anna_system: str,
+    user_input: str,
+    max_rounds: int = 3,
+) -> tuple[str, str]:
+    all_results: list[str] = []
+    current = anna_response
+    for round_no in range(max_rounds):
+        action_results = execute_anna_actions(current)
+        if not action_results:
+            return current, "\n\n".join(all_results)
+        all_results.append(action_results)
+        print(f"\n{CY}  ⟳ ส่งผลลัพธ์กลับให้ Anna...{RST}")
+        STATE.anna_history.append({"role": "user", "content": user_input if round_no == 0 else "action follow-up"})
+        STATE.anna_history.append({"role": "assistant", "content": current})
+        current = summarize_action_results(anna_system, action_results, label="ANNA")
+        STATE.anna_history.append({"role": "user", "content": "action results summary request"})
+        STATE.anna_history.append({"role": "assistant", "content": current})
+        if not response_has_anna_actions(current):
+            return current, "\n\n".join(all_results)
+    return (
+        "Anna หยุดการรัน action เพิ่มแล้วค่ะ เพราะระบบเจอ action ต่อเนื่องหลายรอบเกินไป "
+        "กรุณาสั่งงานใหม่ให้ชัดเจนว่าต้องการให้ตรวจไฟล์หรือรันคำสั่งอะไร",
+        "\n\n".join(all_results),
+    )
 
 
 # ── Anna Auto-Fix ─────────────────────────────────────────────────────────────
@@ -908,6 +1367,7 @@ def load_agent_specs(user_input: str = "") -> str:
 
 def run_pipeline(user_input: str):
     STATE.reset_pipeline()
+    # PIPELINE cleared lazily in pipeline_clear() — only when project changes
 
     set_tab_title("⏳ Anna — กำลังรัน...")
 
@@ -947,16 +1407,12 @@ def run_pipeline(user_input: str):
     first_dispatches = parse_dispatches(anna_response)
 
     # Execute full-power actions แล้ว feed ผลกลับให้ Anna
-    action_results = execute_anna_actions(anna_response)
-    if action_results:
-        print(f"\n{CY}  ⟳ ส่งผลลัพธ์กลับให้ Anna...{RST}")
-        followup = f"ผลลัพธ์จากการดำเนินการ:\n\n{action_results}\n\nโปรดสรุปและตอบผู้ใช้เป็นภาษาไทย"
-        STATE.anna_history.append({"role": "user",      "content": user_input})
-        STATE.anna_history.append({"role": "assistant", "content": anna_response})
-        anna_response = call_deepseek(anna_system, followup, label="ANNA", history=STATE.anna_history)
-        STATE.anna_history.append({"role": "user",      "content": followup})
-        STATE.anna_history.append({"role": "assistant", "content": anna_response})
-    else:
+    anna_response, action_results = execute_anna_actions_until_stable(
+        anna_response,
+        anna_system,
+        user_input,
+    )
+    if not action_results:
         STATE.anna_history.append({"role": "user",      "content": user_input})
         STATE.anna_history.append({"role": "assistant", "content": anna_response})
 
@@ -1004,6 +1460,7 @@ def run_pipeline(user_input: str):
     # ไม่ override project ที่ user ตั้งไว้ผ่าน "project <name>" command
     if STATE.active_project is None:
         STATE.active_project = detect_project(anna_response)
+    pipeline_clear()   # clear stale paths NOW — before validate reads pipeline
 
     plan_issues = validate_dispatch_plan(
         dispatches,
@@ -1021,6 +1478,7 @@ def run_pipeline(user_input: str):
         STATE.anna_history[-1] = {"role": "assistant", "content": anna_response}
         if STATE.active_project is None:
             STATE.active_project = detect_project(anna_response)
+            pipeline_clear()   # project resolved after repair — clear again if it changed
         dispatches = parse_dispatches(anna_response)
         plan_issues = validate_dispatch_plan(
             dispatches,
@@ -1037,8 +1495,6 @@ def run_pipeline(user_input: str):
                 print(f"{YL}│{RST}  {ask}")
                 print(f"{YL}└────────────────────────────────────────────────────┘{RST}")
             return
-
-    pipeline_clear()
     proj_name = STATE.active_project.name if STATE.active_project else "unknown"
     print(f"\n{CY}  ⟳ Pipeline:{RST} {BLD}{len(dispatches)} agent(s){RST}  {DIM}│ project: {proj_name}{RST}")
 
@@ -1070,23 +1526,39 @@ def run_pipeline(user_input: str):
         if len(grp) > 1 and grp[0].get("parallel_group"):
             # ── Parallel execution ────────────────────────────────
             print(f"\n{CY}  ⟳ Parallel:{RST} {BLD}{'+'.join(d['agent'] for d in grp)}{RST}")
+            _parallel_outputs: dict[str, str] = {}
             with concurrent.futures.ThreadPoolExecutor(max_workers=len(grp)) as _pool:
                 _futs = {
                     _pool.submit(run_agent, d["agent"], d["task"],
-                                 prev_agent, STATE.active_project, d.get("discover", False)): d["agent"]
+                                 prev_agent, dispatch_project(d), d.get("discover", False)): d["agent"]
                     for d in grp
+                }
+                _fut_projects = {
+                    fut: dispatch_project(d)
+                    for fut, d in zip(_futs.keys(), grp)
                 }
                 for _f in concurrent.futures.as_completed(_futs):
                     _ag = _futs[_f]
+                    _proj = _fut_projects.get(_f, STATE.active_project)
                     try:
                         _out = _f.result()
-                        ok, msg = validate_agent_output(_ag, _out)
+                        _parallel_outputs[_ag] = _out
+                        ok, msg = validate_agent_output(_ag, _out, _proj)
                         if not ok:
-                            print(f"{YL}  ⚠ {BLD}{_ag.upper()}{RST}{YL} output warning: {msg}{RST}")
+                            if _ag in ("scout", "dana", "eddie", "finn", "mo"):
+                                _print_gate_fail_recovery(_ag, msg, _proj)
+                                _stop_pipeline = True
+                            else:
+                                print(f"{YL}  ⚠ {BLD}{_ag.upper()}{RST}{YL} output warning: {msg}{RST}")
                     except Exception as _e:
                         print(f"{RD}  ✗ parallel {_ag} error: {_e}{RST}")
                     completed.append(_ag)
-            prev_agent = grp[-1]["agent"]
+            # prev_agent = agent ที่เขียน pipeline output จริง (ไม่ใช่แค่ตัวท้ายในลิสต์)
+            _data_agents = [d["agent"] for d in grp
+                            if pipeline_read(d["agent"]) and d["agent"] not in ("vera", "rex", "quinn")]
+            prev_agent = _data_agents[-1] if _data_agents else grp[-1]["agent"]
+            if _stop_pipeline:
+                break
         else:
             # ── Sequential (เดิม) ─────────────────────────────────
             d       = grp[0]
@@ -1095,15 +1567,25 @@ def run_pipeline(user_input: str):
             discover = d.get("discover", False)
             if not agent or not task:
                 continue
+            current_project = dispatch_project(d)
+            if current_project and current_project != STATE.active_project:
+                STATE.active_project = current_project
+                global _last_pipeline_project
+                _last_pipeline_project = current_project
             out = run_agent(agent, task, prev_agent=prev_agent,
-                            project_dir=STATE.active_project, discover=discover)
-            ok, msg = validate_agent_output(agent, out)
+                            project_dir=current_project, discover=discover)
+            ok, msg = validate_agent_output(agent, out, current_project)
             if not ok:
-                print(f"{YL}  ⚠ {BLD}{agent.upper()}{RST}{YL} output warning: {msg}{RST}")
+                if agent in ("scout", "dana", "eddie", "finn", "mo"):
+                    _print_gate_fail_recovery(agent, msg, current_project)
+                    _stop_pipeline = True
+                    break
+                else:
+                    print(f"{YL}  ⚠ {BLD}{agent.upper()}{RST}{YL} output warning: {msg}{RST}")
 
             # ── PIPELINE_SPEC guard: Eddie ต้องเขียน PIPELINE_SPEC ครบ ──────
-            if agent == "eddie" and STATE.active_project:
-                eddie_out_dir = STATE.active_project / "output" / "eddie"
+            if agent == "eddie" and current_project:
+                eddie_out_dir = current_project / "output" / "eddie"
                 for _retry in range(2):
                     if check_pipeline_spec(eddie_out_dir):
                         break
@@ -1113,7 +1595,7 @@ def run_pipeline(user_input: str):
                         "eddie",
                         task + " — บังคับเขียน PIPELINE_SPEC block ให้ครบ: problem_type, target_column, recommended_model, preprocessing, key_features",
                         prev_agent=prev_agent,
-                        project_dir=STATE.active_project,
+                        project_dir=current_project,
                     )
                 else:
                     if not check_pipeline_spec(eddie_out_dir):
@@ -1224,6 +1706,16 @@ def log_raw(role: str, content: str, task: str = "", output: str = ""):
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 def print_help():
+    print(
+        f"\n{CY}Slash commands:{RST}\n"
+        f"  {BLD}/project <name>{RST}       เลือกโปรเจกต์  (alias: /p, /proj)\n"
+        f"  {BLD}/resume [name] [task]{RST} ทำต่อจากโปรเจกต์/active project  (alias: /r)\n"
+        f"  {BLD}/status{RST}               ดูสถานะ pipeline  (alias: /s)\n"
+        f"  {BLD}/kb <agent>{RST}           ดู knowledge base\n"
+        f"  {BLD}/claude{RST}               ดู Claude usage\n"
+        f"  {BLD}/end{RST}                  reset session\n"
+        f"  {BLD}/exit{RST}                 ออกจากระบบ\n"
+    )
     CLI.print_help()
 
 
@@ -1245,13 +1737,42 @@ def read_cli_input() -> str | None:
         return None
 
 
-def resume_project(name: str) -> None:
-    project, message = CLI.resolve_project(name)
+def _split_resume_args(raw: str) -> tuple[str, str]:
+    """Split `resume <project> <extra instruction>` without requiring quotes."""
+    raw = raw.strip()
+    if not raw:
+        return "", ""
+    if PROJECTS_DIR.exists():
+        project_names = sorted(
+            [p.name for p in PROJECTS_DIR.iterdir() if p.is_dir()],
+            key=len,
+            reverse=True,
+        )
+        raw_lower = raw.lower()
+        for project_name in project_names:
+            if raw_lower == project_name.lower():
+                return project_name, ""
+            prefix = project_name.lower() + " "
+            if raw_lower.startswith(prefix):
+                return project_name, raw[len(project_name):].strip()
+    parts = raw.split(" ", 1)
+    return parts[0], parts[1].strip() if len(parts) > 1 else ""
+
+
+def resume_project(name: str = "", extra_instruction: str = "") -> None:
+    if not name and STATE.active_project:
+        project = STATE.active_project
+        message = ""
+    else:
+        project, message = CLI.resolve_project(name)
     if not project:
         color = YL if message.startswith("พบหลาย") else RD
         print(f"{color}  {message}{RST}")
         return
     STATE.active_project = project
+    PIPELINE.rebuild_from_project(project)
+    global _last_pipeline_project
+    _last_pipeline_project = project   # prevent pipeline_clear() from wiping the rebuild
     done = PIPELINE.completed_agents()
     print(f"\n{YL}  Resume:{RST} {BLD}{project.name}{RST}")
     print(f"  เสร็จแล้ว: {GR}{', '.join(done) or 'ไม่มี'}{RST}")
@@ -1260,10 +1781,99 @@ def resume_project(name: str) -> None:
         f"Agents ที่เสร็จแล้ว: {', '.join(done) or 'ไม่มี'}. "
         f"วิเคราะห์ว่าต้องทำอะไรต่อใน CRISP-DM pipeline แล้ว dispatch ต่อทันที"
     )
+    if extra_instruction:
+        resume_msg += f"\n\nคำสั่งเพิ่มเติมจาก user:\n{extra_instruction}"
     try:
         run_pipeline(resume_msg)
     except KeyboardInterrupt:
         print(f"\n{YL}  หยุด resume pipeline{RST}")
+
+
+def dispatch_project(d: dict) -> Path | None:
+    """Resolve optional project field from a DISPATCH object."""
+    raw = str(d.get("project", "") or "").strip()
+    if not raw:
+        return STATE.active_project
+    project, message = CLI.resolve_project(raw)
+    if project:
+        return project
+    print(f"{YL}  ⚠ dispatch project ignored: {message}{RST}")
+    return STATE.active_project
+
+
+def run_all_pipeline_command(extra_instruction: str = "") -> None:
+    project = STATE.active_project
+    if not project:
+        print(f"{RD}  ยังไม่ได้เลือก project{RST}")
+        print("  ใช้: /project <name>")
+        return
+    input_dir = project / "input"
+    if not input_dir.exists() or not any(input_dir.glob("*")):
+        print(f"{RD}  Project นี้ไม่มี input data: {input_dir}{RST}")
+        return
+
+    PIPELINE.clear()
+    global _last_pipeline_project
+    _last_pipeline_project = project
+    STATE.reset_pipeline()
+
+    print(f"\n{CY}  RUN-ALL:{RST} {BLD}{project.name}{RST}")
+    print(f"{DIM}  mode: deterministic sequence, no Anna planning prompt{RST}")
+
+    blind_rule = (
+        "ห้ามอ่าน answer_key ระหว่างทำงาน. "
+        "ให้ตัดสินใจเองตามหน้าที่ agent และบันทึก output/report ของตัวเองให้ครบ. "
+        "ถ้า input มีหลายไฟล์/หลายชั้น folder ให้เลือกไฟล์ข้อมูลหลักที่เหมาะสมเอง. "
+        "ถ้า CSV ไม่ใช่ comma delimiter ให้ detect delimiter เอง เช่น sep=None, engine='python'."
+    )
+    if extra_instruction:
+        blind_rule += " " + extra_instruction
+
+    sequence: list[tuple[str, str]] = [
+        ("scout", "เริ่ม pipeline จากข้อมูลใน input/ ของ project นี้ ตรวจไฟล์ทั้งหมด เลือก dataset หลัก สร้าง scout_output.csv และ dataset_profile.md. " + blind_rule),
+        ("dana", "ทำ data cleaning จาก Scout output สร้าง dana_output.csv และ dana_report.md. ห้ามใช้ target ใน outlier detection และห้ามลบ target. " + blind_rule),
+        ("eddie", "ทำ EDA จาก Dana output หา pattern/relationships และเขียน PIPELINE_SPEC ให้ครบ สร้าง eddie_output.csv และ eddie_report.md. " + blind_rule),
+        ("finn", "ทำ feature engineering/feature selection จาก Eddie output สร้าง finn_output.csv และ finn_report.md. ใช้ target จาก Scout เท่านั้น เก็บ target เป็น label ห้ามเลือก target เป็น feature. " + blind_rule),
+        ("mo", "train และ compare models จาก Finn output สร้าง mo_output.csv, model report และ metrics. ถ้า F1/AUC/Accuracy ใกล้ 1.0 ให้ถือว่าอาจ leakage และรายงาน fail. " + blind_rule),
+        ("quinn", "ตรวจ QC/model/data/business satisfaction จากผลก่อนหน้า สร้าง quinn_output.csv และ quinn_report.md. ต้องตรวจ target consistency, leakage columns, perfect metrics, และ report/CSV contradiction. " + blind_rule),
+        ("iris", "สรุป business insights/action recommendations จากผล pipeline สร้าง iris_output.csv และ iris_report.md. " + blind_rule),
+        ("vera", "สร้าง visualization/report ที่เหมาะสมจากผล pipeline สร้าง vera_output.csv และ vera_report.md. " + blind_rule),
+        ("rex", "รวม final executive report จากทุก agent สร้าง rex_output.csv และ final report. ห้ามสรุปว่า success ถ้า Quinn fail หรือ Mo metrics/report ขัดกัน. " + blind_rule),
+    ]
+
+    prev_agent = ""
+    completed: list[str] = []
+    for agent, task in sequence:
+        try:
+            # RUN-ALL is a fresh pipeline run. Do not reuse stale generated scripts
+            # from older experiments because they can lock in wrong target choices.
+            delete_old_scripts(output_dir_for(project, agent))
+            out = run_agent(agent, task, prev_agent=prev_agent, project_dir=project)
+            ok, msg = validate_agent_output(agent, out, project)
+            if not ok:
+                if agent in ("scout", "dana", "eddie", "finn", "mo"):
+                    _print_gate_fail_recovery(agent, msg, project)
+                    print(f"{RD}  RUN-ALL stopped at {agent.upper()}{RST}")
+                    return
+                print(f"{YL}  ⚠ {agent.upper()} output warning: {msg}{RST}")
+            completed.append(agent)
+            prev_agent = agent
+        except KeyboardInterrupt:
+            print(f"\n{YL}  RUN-ALL stopped by user{RST}")
+            return
+        except Exception as e:
+            print(f"{RD}  RUN-ALL failed at {agent.upper()}: {e}{RST}")
+            return
+
+    print(f"\n{GR}  RUN-ALL complete:{RST} {', '.join(completed)}")
+
+
+def _looks_like_run_all(user_input: str) -> bool:
+    lower = user_input.lower()
+    return (
+        ("run pipeline" in lower or "pipeline ทั้งระบบ" in lower or "ทั้งระบบ" in lower)
+        and ("agent" in lower or "pipeline" in lower)
+    ) or ("เริ่มpipeline" in lower) or ("เริ่ม pipeline" in lower and "ใหม่" in lower)
 
 
 def run_direct_agent_command(user_input: str) -> None:
@@ -1281,6 +1891,37 @@ def run_direct_agent_command(user_input: str) -> None:
 
 
 def handle_cli_command(user_input: str) -> str:
+    if user_input.startswith("/"):
+        parts = user_input[1:].split(" ", 1)
+        slash_cmd = parts[0].lower()
+        slash_arg = parts[1].strip() if len(parts) > 1 else ""
+        alias = {
+            "p": "project",
+            "proj": "project",
+            "project": "project",
+            "r": "resume",
+            "resume": "resume",
+            "run": "run-all",
+            "run-all": "run-all",
+            "all": "run-all",
+            "s": "status",
+            "st": "status",
+            "status": "status",
+            "kb": "kb",
+            "help": "help",
+            "h": "help",
+            "?": "help",
+            "claude": "claude",
+            "end": "end session",
+            "end-session": "end session",
+            "exit": "exit",
+            "quit": "exit",
+        }.get(slash_cmd)
+        if alias is None:
+            print(f"{YL}  ไม่รู้จักคำสั่ง /{slash_cmd} — ใช้ /help เพื่อดูคำสั่ง{RST}")
+            return "handled"
+        user_input = f"{alias} {slash_arg}".strip()
+
     lower = user_input.lower()
     if lower in ("exit", "quit"):
         print(f"{YL}  ลาก่อนค่ะ{RST}")
@@ -1292,10 +1933,25 @@ def handle_cli_command(user_input: str) -> str:
     if lower == "help":
         print_help()
         return "handled"
+    if lower == "run-all" or lower.startswith("run-all "):
+        extra = user_input[7:].strip() if lower.startswith("run-all ") else ""
+        run_all_pipeline_command(extra)
+        return "handled"
+    if lower == "project":
+        CLI.print_status()
+        print(f"  ใช้: /project <name>")
+        return "handled"
     if lower.startswith("project "):
         name = user_input[8:].strip()
         project, _message = CLI.resolve_project(name)
         STATE.active_project = project
+        global _last_pipeline_project
+        if project:
+            PIPELINE.rebuild_from_project(project)
+            _last_pipeline_project = project
+        else:
+            PIPELINE.clear()
+            _last_pipeline_project = None
         status = f"{GR}{STATE.active_project}{RST}" if STATE.active_project else f"{RD}ไม่พบ project นี้{RST}"
         print(f"{YL}  ANNA:{RST} Active project → {status}")
         return "handled"
@@ -1303,11 +1959,15 @@ def handle_cli_command(user_input: str) -> str:
         name = user_input[3:].strip()
         CLI.print_kb(name, load_kb(name))
         return "handled"
-    if lower == "status":
+    if lower in ("status", "stauts", "stats", "stat", "สถานะ"):
         CLI.print_status()
         return "handled"
+    if lower == "resume":
+        resume_project()
+        return "handled"
     if lower.startswith("resume "):
-        resume_project(user_input[7:].strip())
+        project_name, extra_instruction = _split_resume_args(user_input[7:].strip())
+        resume_project(project_name, extra_instruction)
         return "handled"
     if lower in ("claude", "claude status"):
         CLI.print_claude_usage()
@@ -1317,6 +1977,9 @@ def handle_cli_command(user_input: str) -> str:
         return "handled"
     if user_input.startswith("@"):
         run_direct_agent_command(user_input)
+        return "handled"
+    if _looks_like_run_all(user_input):
+        run_all_pipeline_command(user_input)
         return "handled"
     return "pipeline"
 
@@ -1349,8 +2012,13 @@ def main():
             run_pipeline(user_input)
             notify_tab(success=True, label="เสร็จสิ้น — พร้อมรับคำสั่ง")
         except KeyboardInterrupt:
-            if STATE.current_proc:
-                STATE.current_proc.kill()
+            with STATE._proc_lock:
+                _kb_procs = list(STATE._active_procs)
+            for _kp in _kb_procs:
+                try:
+                    _kp.kill()
+                except OSError:
+                    pass
             print(f"\n{YL}  หยุด pipeline แล้ว — พร้อมรับคำสั่งใหม่{RST}")
             STATE.stop_requested.clear()
             notify_tab(success=False, label="หยุดกลางคัน")
@@ -1358,4 +2026,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

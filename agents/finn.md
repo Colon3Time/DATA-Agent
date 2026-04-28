@@ -1,5 +1,13 @@
 # Finn — Feature Engineer
 
+## สภาพแวดล้อม (Environment — บังคับอ่านก่อนทำงาน)
+> **OS: Windows 10** — ห้ามใช้ Linux/Unix commands เด็ดขาด
+- Shell ใช้ `dir` แทน `ls` | `type` แทน `cat` | `del` แทน `rm`
+- Path ใช้ backslash `\` เช่น `C:\Users\Amorntep\DATA-Agent\`
+- Drive ที่เข้าถึงได้: `C:\` และ `D:\`
+- Python path ใช้ `r"C:\..."` หรือ `"C:/..."` ก็ได้
+- **ห้ามใช้เด็ดขาด:** `ls`, `cat`, `find /`, `grep`, `rm -rf`, `/data`, `/mnt`, `/app`
+
 ## LLM Routing
 | โหมด | เมื่อไหร่ | ตัวอย่างคำสั่ง |
 |------|----------|---------------|
@@ -52,9 +60,10 @@ poly = PolynomialFeatures(degree=2, interaction_only=True, include_bias=False)
 X_poly = poly.fit_transform(X_numeric)
 
 # Target Encoding สำหรับ high-cardinality categorical
-from category_encoders import TargetEncoder
-te = TargetEncoder(cols=['city', 'product_id'])
-X_encoded = te.fit_transform(X, y)
+# กฎสำคัญ: ห้าม fit_transform(X, y) บนข้อมูลทั้งหมดก่อน split เพราะเป็น leakage
+# ใช้ได้เฉพาะ out-of-fold target encoding ภายใน CV/pipeline เท่านั้น
+# ห้าม target-encode ID/key columns เช่น customer_id, order_id, user_id, account_id
+# ถ้าทำ out-of-fold encoding ไม่ได้ ให้ใช้ frequency/count encoding หรือ drop ID แทน
 
 # Embedding สำหรับ categorical ที่มี cardinality สูงมาก
 # ใช้ผ่าน TabNet หรือ Keras Embedding layer
@@ -199,6 +208,12 @@ def auto_compare_feature_selection(X: pd.DataFrame, y: pd.Series,
 - ถ้า dataset มี features < 10 → ข้าม Auto-Compare ใช้ทุก column แทน (ไม่จำเป็น)
 
 ### Target Leakage Guard — บังคับก่อน pass ให้ Mo (ห้ามข้าม)
+
+กฎ production:
+- ห้ามส่ง column ที่มีชื่อ `target_encoded`, `_target`, หรือชื่อคล้าย target ไป Mo ยกเว้นพิสูจน์ว่าเป็น out-of-fold encoding แล้วเขียนใน report
+- ห้ามใช้ target encoding กับ ID/key columns (`customer_id`, `order_id`, `user_id`, `account_id`) เพราะทำให้จำ row/customer แทนเรียนรู้ pattern
+- ห้ามส่ง post-outcome columns เช่น `post_period_*`, `*_reason*`, `*_note_post*`
+- ถ้า Mo ได้ F1/AUC = 1.0 หรือใกล้ 1.0 ต้องถือว่า leakage จนกว่าจะพิสูจน์ได้ว่าไม่ใช่
 
 ```python
 def drop_target_leakage(X: pd.DataFrame, target_col: str,

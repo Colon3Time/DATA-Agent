@@ -1,5 +1,13 @@
 # Scout — Dataset Hunter & Source Acquisition
 
+## สภาพแวดล้อม (Environment — บังคับอ่านก่อนทำงาน)
+> **OS: Windows 10** — ห้ามใช้ Linux/Unix commands เด็ดขาด
+- Shell ใช้ `dir` แทน `ls` | `type` แทน `cat` | `del` แทน `rm`
+- Path ใช้ backslash `\` เช่น `C:\Users\Amorntep\DATA-Agent\`
+- Drive ที่เข้าถึงได้: `C:\` และ `D:\`
+- Python path ใช้ `r"C:\..."` หรือ `"C:/..."` ก็ได้
+- **ห้ามใช้เด็ดขาด:** `ls`, `cat`, `find /`, `grep`, `rm -rf`, `/data`, `/mnt`, `/app`
+
 ## กฎบังคับสูงสุด
 - **ตอบภาษาไทยเท่านั้น** ห้ามใช้ภาษาอังกฤษเด็ดขาด
 - **ห้าม hallucinate datasets** — ถ้าไม่แน่ใจว่า dataset มีจริงไหม ให้บอกว่า "ต้องตรวจสอบก่อน" แทนการสร้างข้อมูลปลอม
@@ -73,9 +81,228 @@
 5. ประเมินคุณภาพแต่ละรายการ
 6. ส่งรายการให้ Anna → Anna ถามผู้ใช้ → รอ confirm
 7. เมื่อผู้ใช้ยืนยันแล้วเท่านั้น → ดาวน์โหลดและวางใน projects/{project}/input/
-8. รัน Auto-Profiling Script → สร้าง DATASET_PROFILE block
-9. สร้าง Dataset Brief ส่ง Dana
-10. บันทึก lesson learned
+8. [บังคับ] เมื่อ input เป็น SQLite → ตรวจ is_olist_db() หรือ Known Template ก่อนเสมอ
+   - ถ้าตรง → ใช้ Template Query โดยตรง ห้ามใช้ auto-detect FK
+   - ถ้าไม่ตรง → ค่อยใช้ detect_foreign_keys() + build_joined_dataset()
+9. รัน Auto-Profiling Script → สร้าง DATASET_PROFILE block
+10. สร้าง Dataset Brief ส่ง Dana
+11. บันทึก lesson learned
+```
+
+> **กฎเหล็ก:** ขั้นตอน 8 ต้องทำก่อนทุกครั้ง — การ skip Known Template check คือต้นเหตุของ join ผิดและ target_column=unknown
+
+---
+
+## SQLite Multi-Table Handler (บังคับใช้เมื่อ input เป็น .sqlite)
+
+เมื่อ input เป็น SQLite ไฟล์ Scout **ต้อง** รัน script นี้ก่อนเสมอ เพื่อ auto-detect FK และ join ตารางให้ครบ ห้ามส่ง single table ให้ Dana โดยไม่ผ่านขั้นตอนนี้
+
+```python
+import sqlite3
+import pandas as pd
+import numpy as np
+from pathlib import Path
+
+def detect_foreign_keys(conn, tables, sample_size=500):
+    """หา FK ด้วย column name match + value overlap"""
+    table_dfs = {}
+    for t in tables:
+        table_dfs[t] = pd.read_sql_query(f"SELECT * FROM {t} LIMIT {sample_size}", conn)
+
+    fk_pairs = []
+    for t1 in tables:
+        for t2 in tables:
+            if t1 >= t2:
+                continue
+            df1, df2 = table_dfs[t1], table_dfs[t2]
+            for col1 in df1.columns:
+                for col2 in df2.columns:
+                    # ชื่อ column ต้องตรงกัน (FK convention)
+                    if col1 != col2:
+                        continue
+                    if 'id' not in col1.lower() and col1 not in ['order_id','customer_id','seller_id','product_id','review_id']:
+                        continue
+                    # value overlap > 50% → FK
+                    vals1 = set(df1[col1].dropna().astype(str))
+                    vals2 = set(df2[col2].dropna().astype(str))
+                    if not vals1 or not vals2:
+                        continue
+                    overlap = len(vals1 & vals2) / min(len(vals1), len(vals2))
+                    if overlap > 0.5:
+                        fk_pairs.append((t1, t2, col1, round(overlap, 2)))
+                        print(f"[STATUS] FK detected: {t1}.{col1} ↔ {t2}.{col2} (overlap={overlap:.0%})")
+    return fk_pairs
+
+def build_joined_dataset(conn, tables, fk_pairs):
+    """Join ตารางตาม FK ที่พบ โดยใช้ domain-aware base table selection"""
+    sizes = {}
+    for t in tables:
+        count = pd.read_sql_query(f"SELECT COUNT(*) as n FROM {t}", conn).iloc[0,0]
+        sizes[t] = count
+
+    fk_tables = set()
+    for t1, t2, col, _ in fk_pairs:
+        fk_tables.add(t1)
+        fk_tables.add(t2)
+
+    if not fk_tables:
+        base_table = max(sizes, key=sizes.get)
+        print(f"[WARN] ไม่พบ FK — ใช้ตารางใหญ่ที่สุด: {base_table} ({sizes[base_table]:,} rows)")
+        return pd.read_sql_query(f"SELECT * FROM {base_table}", conn), base_table
+
+    # ===== DOMAIN-AWARE BASE TABLE SELECTION =====
+    # Priority 1: ชื่อตารางที่เป็น fact table ของ domain นั้นๆ
+    FACT_TABLE_PRIORITY = [
+        # E-commerce / Retail
+        'orders', 'order', 'transactions', 'transaction', 'sales', 'sale',
+        # HR / People
+        'employees', 'employee', 'staff',
+        # Finance
+        'payments', 'payment', 'invoices', 'invoice',
+        # Healthcare
+        'patients', 'patient', 'visits', 'visit',
+        # Generic
+        'facts', 'fact', 'events', 'event', 'logs', 'log',
+    ]
+    base_table = None
+    for priority_name in FACT_TABLE_PRIORITY:
+        for t in tables:
+            if t.lower() == priority_name and t in fk_tables:
+                base_table = t
+                print(f"[STATUS] Base table (domain priority): {base_table} ({sizes[base_table]:,} rows)")
+                break
+        if base_table:
+            break
+
+    # Priority 2: ตารางที่ชื่อมี keyword ของ fact table
+    if not base_table:
+        for priority_name in FACT_TABLE_PRIORITY:
+            for t in fk_tables:
+                if priority_name in t.lower() and t.lower() != 'geolocation':
+                    base_table = t
+                    print(f"[STATUS] Base table (keyword match): {base_table} ({sizes[base_table]:,} rows)")
+                    break
+            if base_table:
+                break
+
+    # Priority 3: ตารางที่ใหญ่ที่สุด (ยกเว้น geolocation และ dimension tables)
+    if not base_table:
+        SKIP_TABLES = ['geolocation', 'geo', 'zip', 'postal', 'translation', 'category']
+        eligible = {t: s for t, s in sizes.items()
+                    if t in fk_tables and not any(skip in t.lower() for skip in SKIP_TABLES)}
+        base_table = max(eligible, key=eligible.get) if eligible else max(fk_tables, key=lambda t: sizes.get(t, 0))
+        print(f"[STATUS] Base table (fallback largest): {base_table} ({sizes[base_table]:,} rows)")
+
+    print(f"[STATUS] Base table: {base_table} ({sizes[base_table]:,} rows)")
+    df_base = pd.read_sql_query(f"SELECT * FROM {base_table}", conn)
+
+    joined = {base_table}
+    for t1, t2, col, overlap in sorted(fk_pairs, key=lambda x: -x[3]):
+        other = t2 if t1 == base_table or t1 in joined else t1
+        anchor = t1 if other == t2 else t2
+        if other in joined:
+            continue
+        if anchor not in joined:
+            continue
+        try:
+            df_other = pd.read_sql_query(f"SELECT * FROM {other}", conn)
+            # rename columns ที่ซ้ำ (ยกเว้น join key)
+            rename = {c: f"{other}_{c}" for c in df_other.columns if c in df_base.columns and c != col}
+            df_other = df_other.rename(columns=rename)
+            df_base = df_base.merge(df_other, on=col, how='left')
+            joined.add(other)
+            print(f"[STATUS] Joined: {anchor} ← {other} on {col} → {df_base.shape}")
+        except Exception as e:
+            print(f"[WARN] Join {other} failed: {e}")
+
+    return df_base, base_table
+
+# ========== VALIDATION GATE ==========
+def validate_output(df_out, sizes, base_table):
+    """ตรวจสอบว่า output rows สมเหตุสมผล"""
+    largest = max(sizes.values())
+    ratio = len(df_out) / largest
+
+    print(f"\n[VALIDATION GATE]")
+    print(f"  Output rows    : {len(df_out):,}")
+    print(f"  Largest input  : {largest:,} ({base_table})")
+    print(f"  Ratio          : {ratio:.1%}")
+
+    if len(df_out) < largest * 0.1:
+        print(f"[GATE FAIL] Output เล็กกว่า 10% ของ input — Join ไม่สมบูรณ์หรือเลือกตารางผิด")
+        print(f"[GATE FAIL] ห้าม handoff ต่อ — Scout ต้อง retry join")
+        return False
+    elif len(df_out) < largest * 0.5:
+        print(f"[WARN] Output เล็กกว่า 50% ของ input — ตรวจสอบว่า join ถูกต้อง")
+    else:
+        print(f"[GATE PASS] Output size ปกติ ✓")
+    return True
+```
+
+**กฎ Scout สำหรับ SQLite:**
+1. รัน `detect_foreign_keys()` ก่อนเสมอ
+2. รัน `build_joined_dataset()` เพื่อ join ข้อมูล
+3. รัน `validate_output()` ก่อน handoff — **ถ้า GATE FAIL ห้าม handoff ให้ retry**
+4. ถ้า retry 2 ครั้งแล้วยัง FAIL → `NEED_CLAUDE: join ล้มเหลว` แล้วรอ user
+
+---
+
+## Known Dataset JOIN Templates (ใช้ทันทีถ้า input ตรงกับ dataset ที่รู้จัก)
+
+> **กฎ:** ถ้าตรวจพบว่า SQLite มีตารางตรงกับ template ด้านล่าง → ใช้ query นี้โดยตรง **ห้ามให้ auto-detect เดาเอง** เพราะเคยผิดมาแล้ว
+
+### Olist E-Commerce (Brazil)
+ตรวจสอบ: มีตาราง `orders`, `order_reviews`, `order_items`, `order_payments`, `products`, `customers`
+
+```python
+OLIST_JOIN_QUERY = """
+SELECT
+    o.order_id,
+    o.customer_id,
+    o.order_status,
+    o.order_purchase_timestamp,
+    o.order_approved_at,
+    o.order_delivered_carrier_date,
+    o.order_delivered_customer_date,
+    o.order_estimated_delivery_date,
+    r.review_score,
+    r.review_creation_date,
+    r.review_answer_timestamp,
+    oi.product_id,
+    oi.seller_id,
+    oi.price,
+    oi.freight_value,
+    op.payment_type,
+    op.payment_installments,
+    op.payment_value,
+    p.product_category_name,
+    p.product_weight_g,
+    c.customer_state,
+    c.customer_city
+FROM orders o
+JOIN order_reviews r ON o.order_id = r.order_id
+JOIN order_items oi  ON o.order_id = oi.order_id
+JOIN order_payments op ON o.order_id = op.order_id AND op.payment_sequential = 1
+JOIN products p      ON oi.product_id = p.product_id
+JOIN customers c     ON o.customer_id = c.customer_id
+"""
+
+def is_olist_db(tables):
+    required = {'orders','order_reviews','order_items','order_payments','products','customers'}
+    return required.issubset(set(tables))
+```
+
+**Validation เพิ่มเติมสำหรับ Olist:** ต้องตรวจสอบว่า output มี column `review_score` ก่อน handoff เสมอ:
+```python
+def validate_olist_output(df):
+    if 'review_score' not in df.columns:
+        print('[GATE FAIL] review_score ไม่อยู่ใน output — JOIN ผิด ห้าม handoff')
+        return False
+    if df['review_score'].isna().mean() > 0.5:
+        print('[GATE FAIL] review_score มี NaN >50% — JOIN ผิด ห้าม handoff')
+        return False
+    print(f'[GATE PASS] review_score OK — dist: {dict(df["review_score"].value_counts().sort_index())}')
+    return True
 ```
 
 ---
@@ -112,34 +339,84 @@ miss = (df.isnull().mean() * 100).sort_values(ascending=False)
 top_miss = miss[miss > 0].head(5).round(2).to_dict()
 
 # --- guess target column ---
-# priority 1: ชื่อ column ที่บ่งชัดว่าเป็น target
-TARGET_KEYWORDS = [
-    "survived","target","label","class","churn","fraud",
-    "default","outcome","result","y","status","response",
-    "converted","clicked","bought","cancelled","returned",
+# คอลัมน์ที่ห้ามเป็น target เด็ดขาด (ไม่มีความหมายทางธุรกิจ)
+FORBIDDEN_TARGET_SUFFIXES = [
+    '_cm', '_g', '_mm', '_kg', '_lb',                    # หน่วยวัด physical
+    '_lenght', '_length', '_width', '_height',            # ขนาด physical (รวม typo _lenght)
+    '_lat', '_lng', '_latitude', '_longitude',   # พิกัด GPS
+    '_zip', '_prefix', '_code',                  # รหัสพื้นที่
+]
+FORBIDDEN_TARGET_KEYWORDS = [
+    'zip_code', 'zip_prefix', 'geolocation', 'latitude', 'longitude',
+    'product_id', 'order_id', 'customer_id', 'seller_id', 'review_id',
+    'product_name_lenght', 'product_description_lenght',
+    'product_weight_g', 'product_length_cm', 'product_height_cm',
+    'product_width_cm', 'product_photos_qty',
+]
+
+def is_forbidden_target(col):
+    col_l = col.lower()
+    if col_l in [k.lower() for k in FORBIDDEN_TARGET_KEYWORDS]:
+        return True
+    if any(col_l.endswith(s) for s in FORBIDDEN_TARGET_SUFFIXES):
+        return True
+    if col_l.endswith('_id') or col_l.startswith('id_'):
+        return True
+    return False
+
+# Priority 1: Business-meaningful target keywords (เรียงตามความสำคัญ)
+BUSINESS_TARGET_KEYWORDS = [
+    # E-commerce
+    "review_score", "order_status", "payment_value", "freight_value",
+    "delivery_days", "delay", "churn",
+    # Generic ML targets
+    "target", "label", "survived", "fraud", "default", "outcome",
+    "result", "response", "converted", "clicked", "bought",
+    "cancelled", "returned", "status", "class",
 ]
 target_col = None
-for kw in TARGET_KEYWORDS:
+for kw in BUSINESS_TARGET_KEYWORDS:
     for col in df.columns:
         if col.lower() == kw or col.lower().startswith(kw):
-            target_col = col
-            break
+            if not is_forbidden_target(col):
+                target_col = col
+                print(f"[STATUS] Target selected (business keyword): {target_col}")
+                break
     if target_col:
         break
 
-# priority 2: numeric binary column (0/1 เท่านั้น)
+# Priority 2: Binary 0/1 column (ไม่ใช่ forbidden)
 if not target_col:
     for col in df.columns:
+        if is_forbidden_target(col):
+            continue
         if pd.api.types.is_numeric_dtype(df[col]) and set(df[col].dropna().unique()).issubset({0, 1, 0.0, 1.0}):
             target_col = col
+            print(f"[STATUS] Target selected (binary column): {target_col}")
             break
 
-# priority 3: numeric col ≤10 unique values (classification-like)
+# Priority 3: Categorical column ≤10 unique values (ไม่ใช่ forbidden)
+if not target_col:
+    for col in df.columns:
+        if is_forbidden_target(col):
+            continue
+        if df[col].dtype == 'object' and 2 <= df[col].nunique() <= 10:
+            target_col = col
+            print(f"[STATUS] Target selected (categorical): {target_col}")
+            break
+
+# Priority 4: Numeric ≤10 unique values (ไม่ใช่ forbidden)
 if not target_col:
     for col in reversed(df.columns):
+        if is_forbidden_target(col):
+            continue
         if pd.api.types.is_numeric_dtype(df[col]) and df[col].nunique() <= 10:
             target_col = col
+            print(f"[STATUS] Target selected (numeric low-cardinality): {target_col}")
             break
+
+if not target_col:
+    print(f"[WARN] ไม่พบ target column ที่เหมาะสม — Eddie จะต้องเลือกเอง")
 
 # --- problem type detection ---
 problem_type = "unknown"

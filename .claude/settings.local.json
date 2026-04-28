@@ -17,7 +17,12 @@
       "Bash(echo \"\")",
       "Bash(cat)",
       "Bash(.venv/Scripts/python.exe -m py_compile orchestrator.py)",
-      "Bash(python -m py_compile \"C:/Users/Amorntep/DATA-Agent/orchestrator.py\")"
+      "Bash(python -m py_compile \"C:/Users/Amorntep/DATA-Agent/orchestrator.py\")",
+      "Bash(python *)",
+      "Bash(dir C:\\\\Users\\\\Amorntep\\\\DATA-Agent\\\\projects\\\\Olist\\\\output *)",
+      "Bash(python3 -c \"import sqlite3; conn=sqlite3.connect\\('C:/Users/Amorntep/DATA-Agent/projects/Olist/input/olist.sqlite'\\); tables=conn.execute\\(\\\\\"SELECT name FROM sqlite_master WHERE type='table'\\\\\"\\).fetchall\\(\\); print\\([t[0] for t in tables]\\)\")",
+      "Bash(python3 *)",
+      "Bash(dir \"C:\\\\Users\\\\Amorntep\\\\DATA-Agent\\\\projects\\\\Olist\\\\output\" /s /bCtrl + Shift + ,)"
     ]
   }
 }

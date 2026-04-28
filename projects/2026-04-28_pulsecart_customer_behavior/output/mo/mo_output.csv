@@ -1,0 +1,6 @@
+Algorithm,CV F1 Mean,CV F1 Std,Test Accuracy,Test F1 Weighted,Test F1,Test ROC AUC,Test Recall,Test Precision,Rank
+Logistic Regression,1.0,0.0,1.0,1.0,1.0,1.0,1.0,1.0,1
+Random Forest,1.0,0.0,1.0,1.0,1.0,1.0,1.0,1.0,2
+XGBoost,1.0,0.0,1.0,1.0,1.0,1.0,1.0,1.0,3
+LightGBM,1.0,0.0,1.0,1.0,1.0,1.0,1.0,1.0,4
+KNN,0.8573,0.0228,0.9754,0.9743,0.8952,0.9725,0.8103,1.0,5

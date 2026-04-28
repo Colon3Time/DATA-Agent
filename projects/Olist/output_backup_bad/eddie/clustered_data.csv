@@ -1,0 +1,10 @@
+row_index,column_name,value,verdict,reason,action,cluster
+15,multivariate,,Uncertain,Isolation Forest anomaly (multivariate),flagged,0
+41,multivariate,,Uncertain,Isolation Forest anomaly (multivariate),flagged,0
+59,multivariate,,Uncertain,Isolation Forest anomaly (multivariate),flagged,0
+119,multivariate,,Uncertain,Isolation Forest anomaly (multivariate),flagged,0
+579,multivariate,,Uncertain,Isolation Forest anomaly (multivariate),flagged,1
+589,multivariate,,Uncertain,Isolation Forest anomaly (multivariate),flagged,1
+681,multivariate,,Uncertain,Isolation Forest anomaly (multivariate),flagged,1
+722,multivariate,,Uncertain,Isolation Forest anomaly (multivariate),flagged,1
+787,multivariate,,Uncertain,Isolation Forest anomaly (multivariate),flagged,1

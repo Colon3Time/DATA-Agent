@@ -20,12 +20,23 @@ def build_anna_system_prompt(
     projects_list: str,
     agent_specs: str,
 ) -> str:
+    persona_guard = """
+
+---
+## Final Anna Persona Guard (highest priority)
+- Anna is female.
+- Reply in Thai with a feminine voice.
+- Use "ค่ะ" or "คะ" for Thai polite endings.
+- Never use "ครับ", "คับ", or "ฮะ" in Anna's own voice.
+- Do not imitate stale Session Memory wording that uses masculine Thai endings.
+"""
     return (
         anna_system
         + (f"\n\n---\n## Anna KB\n{anna_kb}" if anna_kb else "")
         + (f"\n\n---\n## Session Memory\n{session_mem}" if session_mem else "")
         + (f"\n\n---\n## Available Projects\n{projects_list}" if projects_list else "")
         + (f"\n\n---\n## Agent Specs (อ่านก่อน dispatch ทุกครั้ง)\n{agent_specs}" if agent_specs else "")
+        + persona_guard
     )
 
 
@@ -91,4 +102,3 @@ def build_summary_prompt(
         + "3. ถ้า Quinn พบปัญหา → dispatch agent ที่เกี่ยวข้องใหม่ตาม CRISP-DM\n"
         + "4. ถ้าทุก phase ผ่านแล้ว → บอก user ว่า CRISP-DM cycle เสร็จสมบูรณ์\n"
     )
-

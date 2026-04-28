@@ -1,0 +1,56 @@
+{
+  "dataset_name": "UCI Bank Marketing Dataset (Bank Marketing Data Set)",
+  "source": "https://archive.ics.uci.edu/ml/datasets/Bank+Marketing",
+  "original_paper": "Moro et al. (2014) — A Data-Driven Approach to Predict the Success of Bank Telemarketing",
+  "business_context": "การตลาดทางโทรศัพท์ของธนาคารโปรตุเกส (Portuguese bank) — โทรเสนอสินเชื่อระยะยาว (term deposit) ให้ลูกค้า",
+  "goal": "ทำนายว่าลูกค้าจะสมัคร term deposit (yes/no) เพื่อ optimize การโทร ลด cost และเพิ่ม conversion rate",
+  "column_descriptions": {
+    "age": "อายุของลูกค้า (numeric)",
+    "job": "อาชีพ (categorical): admin., blue-collar, entrepreneur, housemaid, management, retired, self-employed, services, student, technician, unemployed, unknown",
+    "marital": "สถานภาพสมรส (categorical): divorced, married, single, unknown",
+    "education": "ระดับการศึกษา (categorical): basic.4y, basic.6y, basic.9y, high.school, illiterate, professional.course, university.degree, unknown",
+    "default": "มีหนี้เสียหรือไม่ (categorical): no, yes, unknown",
+    "housing": "มีสินเชื่อบ้านหรือไม่ (categorical): no, yes, unknown",
+    "loan": "มีสินเชื่อส่วนบุคคลหรือไม่ (categorical): no, yes, unknown",
+    "contact": "รูปแบบการติดต่อ (categorical): cellular, telephone",
+    "month": "เดือนสุดท้ายที่ติดต่อ (categorical): mar, apr, may, jun, jul, aug, sep, oct, nov, dec",
+    "day_of_week": "วันสุดท้ายที่ติดต่อ (categorical): mon, tue, wed, thu, fri",
+    "duration": "ระยะเวลาการโทรครั้งสุดท้าย (วินาที) — ⚠️ Highly predictive but should be removed in real prediction because it's unknown before call ends",
+    "campaign": "จำนวนครั้งที่ติดต่อลูกค้ารายนี้ใน campaign นี้",
+    "pdays": "จำนวนวันตั้งแต่นัดหมายครั้งล่าสุด (-1 = ไม่เคยติดต่อมาก่อน)",
+    "previous": "จำนวนครั้งที่ติดต่อก่อน campaign นี้",
+    "poutcome": "ผลลัพธ์ของ campaign ก่อนหน้า (categorical): failure, nonexistent, success",
+    "emp.var.rate": "อัตราการจ้างงาน (employment variation rate) — quarterly indicator",
+    "cons.price.idx": "ดัชนีราคาผู้บริโภค (consumer price index) — monthly indicator",
+    "cons.conf.idx": "ดัชนีความเชื่อมั่นผู้บริโภค (consumer confidence index) — monthly indicator",
+    "euribor3m": "อัตราดอกเบี้ย Euribor 3 เดือน (daily indicator)",
+    "nr.employed": "จำนวนพนักงาน (number of employees) — quarterly indicator",
+    "y": "Target: ลูกค้าสมัคร term deposit หรือไม่ (yes/no) — binary classification"
+  },
+  "standard_cleaning_practices": [
+    "1. แก้ 'unknown' values ใน job, marital, education, default, housing, loan, poutcome → ควร impute หรือ treat เป็น missing หรือเก็บเป็น category 'unknown' แล้วแต่ strategy",
+    "2. contact column มีค่า 'telephone' และ 'cellular' — บางวรรณกรรมรวม contact type หรือใช้ one-hot encoding",
+    "3. duration column — ควรถอดออกจาก feature set ถ้าต้องการทำนายก่อนโทร (เพราะไม่รู้ duration จนกว่าสนทนาจบ) แต่สามารถใช้ถ้าทำหลังโทรเสร็จ",
+    "4. pdays: ค่า -1 หมายถึงไม่เคยติดต่อมาก่อน ควร treat เป็น categorical flag (never_contacted) หรือ impute ด้วยค่าที่เหมาะสม",
+    "5. เลขอัตราส่วนไม่สมดุล (imbalanced): target y=yes มีเพียง ~11% → ต้องใช้ stratified sampling ใน train/test split",
+    "6. ไม่ควรมี outliers ที่ต้องลบใน data นี้ เพราะเป็นข้อมูล real-world",
+    "7. ไม่มี duplicate rows ใน dataset นี้",
+    "8. categorical features: job, marital, education, default, housing, loan, contact, month, day_of_week, poutcome ควรทำ one-hot encoding หรือ target encoding",
+    "9. numerical features: age, campaign, pdays, previous, emp.var.rate, cons.price.idx, cons.conf.idx, euribor3m, nr.employed — ควร standard scaling",
+    "10. ระวัง data leakage จาก duration และ poutcome (poutcome อาจมี future information ถ้าเป็น campaign ก่อนหน้า)"
+  ],
+  "potential_pitfalls": [
+    "⚠️ duration มี correlation สูงกับ target (~0.4) — ควรพิจารณาถอดถ้าต้องการทำนายก่อนโทร",
+    "⚠️ poutcome = 'nonexistent' (ลูกค้าใหม่) vs 'failure'/'success' (ลูกค้าเก่า) — ต้องแยก context",
+    "⚠️ Social/economic features (emp.var.rate, euribor3m, etc.) อาจมี temporal leakage ถ้าใช้ train/test โดยไม่แยก time period",
+    "⚠️ imbalanced target ~11% yes → ต้องใช้ class_weight หรือ sampling technique"
+  ],
+  "recommended_feature_engineering": [
+    "contact_weekday: รวม month + day_of_week เป็น timestamp",
+    "was_contacted_before: flag 1 ถ้า pdays != -1 หรือ previous > 0",
+    "age_group: binning age เป็นช่วง (18-25, 26-35, 36-45, 46-55, 56-65, 65+)",
+    "campaign_efficiency: duration / campaign (ความยาวโทรต่อจำนวนครั้ง)",
+    "contact_hour: ไม่มีในชุดข้อมูลนี้ — ถ้ามีให้เพิ่ม",
+    "is_summer: flag สำหรับเดือน hot (jun, jul, aug)"
+  ]
+}

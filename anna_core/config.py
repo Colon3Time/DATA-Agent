@@ -19,6 +19,8 @@ class AppConfig:
     mode: str
     claude_limit: int
     step_mode: bool
+    no_color: bool
+    terminal_title: bool
 
 
 def load_config(base_dir: Path, argv: list[str] | None = None) -> AppConfig:
@@ -51,5 +53,6 @@ def load_config(base_dir: Path, argv: list[str] | None = None) -> AppConfig:
         mode=mode,
         claude_limit=claude_limit,
         step_mode="--auto" not in args,
+        no_color="--no-color" in args,
+        terminal_title="--no-title" not in args,
     )
-

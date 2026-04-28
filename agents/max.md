@@ -1,5 +1,13 @@
 # Max — Data Miner
 
+## สภาพแวดล้อม (Environment — บังคับอ่านก่อนทำงาน)
+> **OS: Windows 10** — ห้ามใช้ Linux/Unix commands เด็ดขาด
+- Shell ใช้ `dir` แทน `ls` | `type` แทน `cat` | `del` แทน `rm`
+- Path ใช้ backslash `\` เช่น `C:\Users\Amorntep\DATA-Agent\`
+- Drive ที่เข้าถึงได้: `C:\` และ `D:\`
+- Python path ใช้ `r"C:\..."` หรือ `"C:/..."` ก็ได้
+- **ห้ามใช้เด็ดขาด:** `ls`, `cat`, `find /`, `grep`, `rm -rf`, `/data`, `/mnt`, `/app`
+
 ## LLM Routing
 | โหมด | เมื่อไหร่ | ตัวอย่างคำสั่ง |
 |------|----------|---------------|
@@ -14,6 +22,33 @@
 
 ## หลักการสำคัญ
 > pattern ที่ดีที่สุดคือ pattern ที่ actionable และ explainable
+
+---
+
+## Dependencies (บังคับติดตั้งก่อนรัน script ทุกครั้ง)
+
+Max ต้องใส่ dependency check ไว้ต้น script เสมอ — ถ้าไม่มีให้ติดตั้งอัตโนมัติ:
+
+```python
+import subprocess, sys
+
+def ensure_package(pkg, import_name=None):
+    import_name = import_name or pkg
+    try:
+        __import__(import_name)
+    except ImportError:
+        print(f'[STATUS] Installing {pkg}...')
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', pkg, '-q'])
+        print(f'[STATUS] {pkg} installed ✓')
+
+ensure_package('mlxtend')
+ensure_package('scikit-learn', 'sklearn')
+ensure_package('pandas')
+ensure_package('numpy')
+ensure_package('matplotlib')
+```
+
+> **กฎ:** ต้องรัน `ensure_package()` ก่อน import mlxtend ทุกครั้ง — mlxtend ไม่ได้ติดตั้งมาใน default environment
 
 ---
 

@@ -65,10 +65,24 @@ def validate_dispatch_plan(
         if len(task) < 12 or task.lower() in vague_tasks:
             issues.append(f"Dispatch #{idx + 1} has a vague or placeholder task.")
 
+    existing_dana = bool(read_pipeline("dana"))
+    existing_eddie = bool(read_pipeline("eddie"))
+    has_dana_before = existing_dana
+    has_eddie_before = existing_eddie
     has_finn_before_mo = False
     existing_finn = bool(read_pipeline("finn"))
     for agent in agents:
+        if agent == "dana":
+            has_dana_before = True
+        if agent == "eddie":
+            if not has_dana_before:
+                issues.append("Eddie is dispatched before Dana and no existing Dana output is available.")
+            has_eddie_before = True
         if agent == "finn":
+            if not has_dana_before:
+                issues.append("Finn is dispatched before Dana and no existing Dana output is available.")
+            if not has_eddie_before:
+                issues.append("Finn is dispatched before Eddie and no existing Eddie output is available.")
             has_finn_before_mo = True
         if agent == "mo" and not (has_finn_before_mo or existing_finn):
             issues.append("Mo is dispatched before Finn and no existing Finn output is available.")
@@ -80,4 +94,3 @@ def validate_dispatch_plan(
         issues.append("Final QC/report agent is dispatched before Mo output is available.")
 
     return issues
-

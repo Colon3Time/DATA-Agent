@@ -1,5 +1,13 @@
 # Mo — Model Builder & Evaluator
 
+## สภาพแวดล้อม (Environment — บังคับอ่านก่อนทำงาน)
+> **OS: Windows 10** — ห้ามใช้ Linux/Unix commands เด็ดขาด
+- Shell ใช้ `dir` แทน `ls` | `type` แทน `cat` | `del` แทน `rm`
+- Path ใช้ backslash `\` เช่น `C:\Users\Amorntep\DATA-Agent\`
+- Drive ที่เข้าถึงได้: `C:\` และ `D:\`
+- Python path ใช้ `r"C:\..."` หรือ `"C:/..."` ก็ได้
+- **ห้ามใช้เด็ดขาด:** `ls`, `cat`, `find /`, `grep`, `rm -rf`, `/data`, `/mnt`, `/app`
+
 ## LLM Routing
 | โหมด | เมื่อไหร่ | ตัวอย่างคำสั่ง |
 |------|----------|---------------|
@@ -84,6 +92,13 @@
 | FT-Transformer | StandardScaler | LabelEncoder + Embedding | Warmup LR |
 
 ## Input Validation Guard — บังคับรันก่อน train ทุกครั้ง
+
+กฎ production เพิ่มเติม:
+- ก่อน train ต้อง drop/stop ถ้าเจอ feature ชื่อ `target_encoded`, `_target`, `customer_id`, `order_id`, `user_id`, `account_id`, `post_period_*`, `*_note_post*`, `*_reason*`
+- ถ้า metric ใน cross-validation หรือ test ได้ 0.999-1.000 ให้ถือว่า leakage suspect ทันที ไม่ให้ประกาศว่า model ดี ให้เขียน `LOOP_BACK_TO_FINN: YES`
+- ห้ามใช้ target encoding ที่ fit จากข้อมูลทั้งหมดก่อน split; ถ้าจะใช้ต้องเป็น out-of-fold encoding ภายใน CV เท่านั้น
+- ถ้าไม่มี model train ผ่าน ห้ามใช้ `trained_models[None]`; ต้อง save diagnostics แล้ว exit พร้อม error ที่อ่านได้
+- ตั้งค่า stdout/stderr เป็น UTF-8 หรือใช้ ASCII-safe prints เพื่อไม่ให้ UnicodeEncodeError ถูกนับเป็น model failure
 
 Mo ต้องตรวจ input file ก่อนเสมอ — ป้องกันโหลดไฟล์ผิด (เช่น outlier_flags.csv แทน dana_output.csv)
 

@@ -105,6 +105,9 @@ class ActionExecutor:
             print(f"\n{self.p.green}  ▶ WRITE_FILE{self.p.reset}  {self.p.dim}{raw_path}{self.p.reset}")
             try:
                 fpath.parent.mkdir(parents=True, exist_ok=True)
+                if fpath.suffix == ".py":
+                    content = re.sub(r"^\s*```(?:python|py)?\s*\r?\n", "", content.strip(), flags=re.IGNORECASE)
+                    content = re.sub(r"\r?\n```\s*$", "\n", content)
                 fpath.write_text(content, encoding="utf-8")
                 parts.append(f"[WRITE_FILE: {raw_path}] เขียนสำเร็จ")
                 self.log("anna", f"WRITE_FILE: {raw_path}", "full-power", "")
@@ -220,4 +223,3 @@ class ActionExecutor:
             except Exception as e:
                 parts.append(f"[RUN_PYTHON ERROR: {e}]")
                 self.log("anna", f"RUN_PYTHON ERROR: {e}", "full-power", "")
-

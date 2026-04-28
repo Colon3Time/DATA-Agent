@@ -93,31 +93,45 @@ def run_python_script(
 ) -> ScriptRunResult:
     """Run an agent script and keep process control in shared state."""
     state.stop_requested.clear()
+    cmd = [
+        sys.executable,
+        str(script_path),
+        "--input",
+        input_path,
+        "--output-dir",
+        str(output_dir),
+    ]
+    try:
+        project_dir = output_dir.parent.parent
+        profile = project_dir / "output" / "scout" / "dataset_profile.md"
+        if profile.exists():
+            text = profile.read_text(encoding="utf-8", errors="ignore")
+            m = re.search(r"target_column\s*:\s*(\S+)", text)
+            if m and m.group(1).lower() != "unknown":
+                cmd.extend(["--target", m.group(1)])
+    except Exception:
+        pass
     proc = subprocess.Popen(
-        [
-            sys.executable,
-            str(script_path),
-            "--input",
-            input_path,
-            "--output-dir",
-            str(output_dir),
-        ],
+        cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
         encoding="utf-8",
-        env={**os.environ, "PYTHONUTF8": "1"},
+        env={**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"},
     )
-    state.current_proc = proc
+    with state._proc_lock:
+        state._active_procs.add(proc)
     try:
         stdout, stderr = proc.communicate(timeout=timeout_seconds)
     except (KeyboardInterrupt, subprocess.TimeoutExpired):
         proc.kill()
         proc.communicate()
-        state.current_proc = None
+        with state._proc_lock:
+            state._active_procs.discard(proc)
         raise KeyboardInterrupt
     finally:
-        state.current_proc = None
+        with state._proc_lock:
+            state._active_procs.discard(proc)
 
     return ScriptRunResult(
         stdout=stdout or "",

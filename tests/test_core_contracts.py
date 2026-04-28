@@ -5,6 +5,7 @@ from pathlib import Path
 from anna_core.anna_contract import validate_dispatch_plan
 from anna_core.config import load_config
 from anna_core.dispatcher import DispatchParser
+from anna_core.pipeline_store import PipelineStore
 from anna_core.runner import is_shell_command_allowed
 
 
@@ -57,6 +58,55 @@ class AnnaPlanValidationTests(unittest.TestCase):
         )
         self.assertFalse(issues)
 
+    def test_blocks_eddie_before_dana(self):
+        issues = validate_dispatch_plan(
+            [{"agent": "eddie", "task": "run EDA from the current project dataset"}],
+            active_project=Path("projects/demo"),
+            read_pipeline=lambda _agent: "",
+        )
+        self.assertTrue(any("Eddie is dispatched before Dana" in issue for issue in issues))
+
+    def test_blocks_finn_before_dana_and_eddie(self):
+        issues = validate_dispatch_plan(
+            [{"agent": "finn", "task": "engineer final features from the current project dataset"}],
+            active_project=Path("projects/demo"),
+            read_pipeline=lambda _agent: "",
+        )
+        self.assertTrue(any("Finn is dispatched before Dana" in issue for issue in issues))
+        self.assertTrue(any("Finn is dispatched before Eddie" in issue for issue in issues))
+
+    def test_allows_ordered_dana_eddie_finn_mo_plan(self):
+        issues = validate_dispatch_plan(
+            [
+                {"agent": "dana", "task": "clean scout_output.csv and save dana_output.csv"},
+                {"agent": "eddie", "task": "run EDA on dana_output.csv and save eddie_output.csv"},
+                {"agent": "finn", "task": "engineer final features and save finn_output.csv"},
+                {"agent": "mo", "task": "train model using finn_output.csv and compare algorithms"},
+            ],
+            active_project=Path("projects/demo"),
+            read_pipeline=lambda _agent: "",
+        )
+        self.assertFalse(issues)
+
+
+class PipelineStoreTests(unittest.TestCase):
+    def test_rebuild_ignores_report_only_data_handoff_agent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            project = base / "project"
+            max_dir = project / "output" / "max"
+            scout_dir = project / "output" / "scout"
+            max_dir.mkdir(parents=True)
+            scout_dir.mkdir(parents=True)
+            (max_dir / "max_report.md").write_text("report only", encoding="utf-8")
+            (scout_dir / "scout_output.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+
+            store = PipelineStore(base / "pipeline")
+            store.rebuild_from_project(project)
+
+            self.assertEqual(store.read("max"), "")
+            self.assertTrue(store.read("scout").endswith("scout_output.csv"))
+
 
 class RunnerPolicyTests(unittest.TestCase):
     def test_blocks_dangerous_shell(self):
@@ -73,12 +123,16 @@ class RunnerPolicyTests(unittest.TestCase):
 class ConfigTests(unittest.TestCase):
     def test_load_config_flags(self):
         with tempfile.TemporaryDirectory() as tmp:
-            cfg = load_config(Path(tmp), ["orchestrator_v3.py", "--mode", "full", "--claude-limit", "3", "--auto"])
+            cfg = load_config(
+                Path(tmp),
+                ["orchestrator_v3.py", "--mode", "full", "--claude-limit", "3", "--auto", "--no-color", "--no-title"],
+            )
             self.assertEqual(cfg.mode, "full")
             self.assertEqual(cfg.claude_limit, 3)
             self.assertFalse(cfg.step_mode)
+            self.assertTrue(cfg.no_color)
+            self.assertFalse(cfg.terminal_title)
 
 
 if __name__ == "__main__":
     unittest.main()
-

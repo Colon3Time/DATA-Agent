@@ -1,0 +1,7 @@
+model,cv_f1_weighted,cv_accuracy,cv_roc_auc,test_f1_weighted,test_accuracy,test_roc_auc,test_precision,test_recall,error
+Logistic Regression,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,could not convert string to float: 'Metro'
+Random Forest,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,could not convert string to float: 'Metro'
+XGBoost,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,could not convert string to float: 'Metro'
+LightGBM,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,could not convert string to float: 'Metro'
+SVM,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,could not convert string to float: 'Metro'
+KNN,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,could not convert string to float: 'Metro'

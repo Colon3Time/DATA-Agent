@@ -1,0 +1,14 @@
+project,dataset,metric,value,source,category
+2026-04-28_pulsecart_customer_behavior,customer_behavior,dataset_rows,2237,finn,dataset
+2026-04-28_pulsecart_customer_behavior,customer_behavior,dataset_features,28,finn,dataset
+2026-04-28_pulsecart_customer_behavior,customer_behavior,Accuracy,0.87,quinn/mo,model_performance
+2026-04-28_pulsecart_customer_behavior,customer_behavior,F1 Score,0.86,quinn/mo,model_performance
+2026-04-28_pulsecart_customer_behavior,customer_behavior,Auc Roc,0.92,quinn/mo,model_performance
+2026-04-28_pulsecart_customer_behavior,customer_behavior,Best Model,None,mo,model_selection
+2026-04-28_pulsecart_customer_behavior,customer_behavior,Selection Reason,"Restart Reason: Performance ต่ำกว่า threshold (0.4571 < 0.75) | เหตุผลที่เลือก: ML-based evaluation, not heuristic",mo,model_selection
+2026-04-28_pulsecart_customer_behavior,customer_behavior,Insight #1,**วิธีการที่ใช้:** Structured JSON Parsing + Keyword-Based Categorization,iris,business_insight
+2026-04-28_pulsecart_customer_behavior,customer_behavior,Insight #2,- Pipeline data ไม่มี column ชัดเจน ต้อง detect ประเภท insight จากเนื้อหา,iris,business_insight
+2026-04-28_pulsecart_customer_behavior,customer_behavior,Insight #3,"- ใช้ keywords เพื่อ map ไปยังหมวดธุรกิจ (segmentation, churn, trend)",iris,business_insight
+2026-04-28_pulsecart_customer_behavior,customer_behavior,Data Issue #1,Quinn Quality Check Report,quinn,data_quality
+2026-04-28_pulsecart_customer_behavior,customer_behavior,Data Issue #2,✅ Imbalance handling correct,quinn,data_quality
+2026-04-28_pulsecart_customer_behavior,customer_behavior,report_status,completed,rex,status

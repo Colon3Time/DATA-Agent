@@ -1,0 +1,25 @@
+{
+  "status": "no_target",
+  "message": "\u0e44\u0e21\u0e48\u0e1e\u0e1a target column \u0e17\u0e35\u0e48\u0e40\u0e2b\u0e21\u0e32\u0e30\u0e2a\u0e21\u0e43\u0e19\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25",
+  "columns_found": [
+    "region",
+    "plan_type",
+    "age",
+    "account_tenure_days",
+    "avg_order_value",
+    "app_sessions_last_30d",
+    "support_tickets_90d",
+    "late_delivery_rate",
+    "avg_delivery_delay_hours",
+    "discount_ratio",
+    "product_variety_score",
+    "return_rate_90d",
+    "competitor_price_index",
+    "days_since_last_order",
+    "region_encoded",
+    "plan_type_encoded",
+    "is_outlier",
+    "account_status_30d"
+  ],
+  "input_file": "C:\\Users\\Amorntep\\DATA-Agent\\projects\\2026-04-28_pulsecart_customer_behavior\\output\\finn\\finn_output.csv"
+}

@@ -1,0 +1,16 @@
+{
+  "Phase 1 Results": "Complete",
+  "Best Model": "Logistic Regression",
+  "Best F1": 0.0,
+  "DL_ESCALATE": "YES",
+  "Loop Back To Finn": "NO",
+  "Preprocessing Requirement": {
+    "scaling": "StandardScaler",
+    "encoding": "One-Hot",
+    "special": "class_weight='balanced' where supported; no imblearn dependency",
+    "needs_update": false,
+    "reason": "Default preprocessing \u0e17\u0e33\u0e07\u0e32\u0e19\u0e44\u0e14\u0e49\u0e14\u0e35 \u2014 \u0e44\u0e21\u0e48\u0e15\u0e49\u0e2d\u0e07 loop back"
+  },
+  "Imbalance Ratio": "4.8:1",
+  "SMOTE Applied": false
+}
