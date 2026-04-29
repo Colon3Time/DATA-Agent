@@ -1,10 +1,12 @@
 import tempfile
+import shutil
 import unittest
 from pathlib import Path
 
 from anna_core.anna_contract import validate_dispatch_plan
 from anna_core.config import load_config
 from anna_core.dispatcher import DispatchParser
+from anna_core.mo_phase import detect_mo_phase, mo_script_matches_phase, sync_mo_canonical_report
 from anna_core.pipeline_store import PipelineStore
 from anna_core.runner import is_shell_command_allowed
 
@@ -114,6 +116,36 @@ class PipelineStoreTests(unittest.TestCase):
 
             self.assertEqual(store.read("max"), "")
             self.assertTrue(store.read("scout").endswith("scout_output.csv"))
+
+
+class MoPhaseGuardTests(unittest.TestCase):
+    def test_detects_mo_phase_from_task(self):
+        self.assertEqual(detect_mo_phase("Dispatch Mo Phase 2 Tune with RandomizedSearchCV"), 2)
+        self.assertEqual(detect_mo_phase("Dispatch Mo Phase 3 Validate tuned model against default"), 3)
+
+    def test_blocks_phase2_script_for_phase3_dispatch(self):
+        tmp = Path("tmp") / "test_mo_phase_script"
+        shutil.rmtree(tmp, ignore_errors=True)
+        tmp.mkdir(parents=True, exist_ok=True)
+        try:
+            script = tmp / "mo_script.py"
+            script.write_text("from sklearn.model_selection import RandomizedSearchCV\n# Phase 2 tuning\n", encoding="utf-8")
+            self.assertTrue(mo_script_matches_phase(script, 2))
+            self.assertFalse(mo_script_matches_phase(script, 3))
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_syncs_mo_report_to_phase2_results(self):
+        out = Path("tmp") / "test_mo_phase_report"
+        shutil.rmtree(out, ignore_errors=True)
+        out.mkdir(parents=True, exist_ok=True)
+        try:
+            (out / "mo_report.md").write_text("Mo Model Report - Phase 1: Explore", encoding="utf-8")
+            (out / "model_results.md").write_text("Mo Model Report - Phase 2: Hyperparameter Tuning", encoding="utf-8")
+            sync_mo_canonical_report(out, 2)
+            self.assertIn("Phase 2", (out / "mo_report.md").read_text(encoding="utf-8"))
+        finally:
+            shutil.rmtree(out, ignore_errors=True)
 
 
 class RunnerPolicyTests(unittest.TestCase):

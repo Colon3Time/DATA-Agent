@@ -1,46 +1,45 @@
-Mo Model Report — Phase 1: Explore
+Mo Model Report — Phase 2: Hyperparameter Tuning
 ==================================================
-Problem Type: Classification
-Phase: 1 (Explore — all algorithms, default params)
-Date: 2026-04-29 15:50:56
+Input file: C:\Users\Amorntep\DAta-agent\projects\2026-04-28_uci_bank_marketing_blind\output\finn\engineered_data.csv
+Phase: 2 (Tune - RandomizedSearchCV on RandomForest)
+Search iterations: 30
 
-Algorithm Comparison (CV 5-fold):
-| Algorithm | CV Mean | CV Std | Test F1 | Test AUC | Time(s) |
-|-----------|---------|--------|---------|----------|---------|
-| Random Forest | 0.9054 | 0.0018 | 0.9159 | 0.9491 | 6.32 |
-| Logistic Regression | 0.8993 | 0.0026 | 0.9039 | 0.937 | 3.49 |
-| SVM | 0.8956 | 0.0023 | 0.9038 | 0.9194 | 266.85 |
-| KNN | 0.8891 | 0.0026 | 0.8956 | 0.8617 | 4.55 |
+Baseline Results (RandomForest default):
+- CV F1: 0.8661 ± 0.0016
+- Test F1: 0.8706
+- Test AUC: 0.7902668610547667
+- Train F1: 0.8754
 
-Winner: Random Forest — CV: 0.9054, Test F1: 0.9159
+Tuned Results (RandomForest best):
+- Best CV F1: 0.8672
+- Test F1: 0.8702
+- Test AUC: 0.7904092616396999
+- Train F1: 0.8755
+- Improvement over baseline: -0.04%
 
-Top 10 Feature Importance:
-| Feature | Importance |
-|---------|------------|
-| duration | 0.3177 |
-| euribor3m | 0.1030 |
-| age | 0.0933 |
-| nr.employed | 0.0619 |
-| job | 0.0489 |
-| education | 0.0443 |
-| campaign | 0.0431 |
-| day_of_week | 0.0414 |
-| pdays | 0.0327 |
-| poutcome | 0.0307 |
+Best Hyperparameters:
+{
+  "n_estimators": 200,
+  "min_samples_split": 10,
+  "min_samples_leaf": 2,
+  "max_features": "sqrt",
+  "max_depth": null,
+  "class_weight": null,
+  "bootstrap": true
+}
 
-PREPROCESSING_REQUIREMENT
-==============================
-Algorithm Selected: Random Forest
-Scaling Needed: None (tree-based handles scale)
-Encoding Needed: Already encoded with LabelEncoder
-Special Transform: None
-Loop Back To Finn: NO
-Reason: All preprocessing done — features already encoded and scaled if needed
-DL_ESCALATE: NO
-DL_Reason: n=41,188 < 100K threshold for DL advantage; classical ML sufficient
+Overfitting Check:
+- Train F1: 0.8755
+- Test F1: 0.8702
+- Gap: 0.0053
+- Status: OK: Gap (0.0053) - acceptable
 
-Business Recommendation:
-------------------------------
-The best performing model is Random Forest with F1=0.9159.
-This model is suitable for telemarketing campaign prediction.
-Consider this model for production deployment after Phase 2 tuning.
+ALGORITHM_RATIONALE
+===================
+Best Algorithm: RandomForest (Tuned)
+Why This Algorithm:
+  - ข้อมูล: tabular with mixed numerical/categorical features, banking data
+  - Theory: ensemble of decision trees - handles non-linearity, feature interactions
+  - vs others: robust to outliers, provides feature importance
+
+NEXT_STEP: DONE

@@ -1,27 +1,55 @@
-Mo Model Report — Phase 1: Explore
-========================================
+Mo Model Report - Phase 2: Tune
+==================================================
 Problem Type: Classification
-Phase: 1 (Explore — all algorithms, default params)
-CRISP-DM Iteration: Mo รอบที่ 1/5
+Phase: 2 (Tune - Random Forest hyperparameter search)
+Date: 2026-04-29
+Input: C:\Users\Amorntep\DATA-Agent\projects\2026-04-28_uci_bank_marketing_blind\output\finn\engineered_data.csv
+Target: y
+Rows: 41,188
+Features: 1
 
-Algorithm Comparison (CV 5-fold):
-| Model | CV_Mean | CV_Std | Test_Accuracy | Test_F1 | Test_AUC | Test_Precision | Test_Recall | Time |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Logistic Regression | 0.8983 | 0.0025 | 0.9121 | 0.9016 | 0.9351 | 0.9008 | 0.9121 | 3.32 |
-| Random Forest | 0.9074 | 0.0032 | 0.9202 | 0.9159 | 0.9504 | 0.9139 | 0.9202 | 8.42 |
-| XGBoost | 0.9066 | 0.0038 | 0.9177 | 0.9151 | 0.9499 | 0.9134 | 0.9177 | 1.61 |
-| LightGBM | 0.9103 | 0.0039 | 0.921 | 0.918 | 0.9542 | 0.9162 | 0.921 | 4.59 |
-| SVM | 0.8931 | 0.0015 | 0.9105 | 0.8966 | 0.9399 | 0.8984 | 0.9105 | 193.33 |
-| KNN | 0.8867 | 0.0038 | 0.9054 | 0.8954 | 0.8676 | 0.8927 | 0.9054 | 1.55 |
+Tuning Setup:
+- Algorithm: Random Forest
+- Search: RandomizedSearchCV
+- Combinations: 30
+- CV: 5-fold StratifiedKFold
+- Scoring: f1_weighted
 
-Winner: LightGBM — CV: 0.9103, Test F1: 0.918
+Tuned vs Default:
+| Algorithm | CV Mean | CV Std | Train F1 | Test F1 | Gap | Test AUC | Time(s) |
+|-----------|---------|--------|----------|---------|-----|----------|---------|
+| Random Forest baseline | 0.8661 | 0.0016 | 0.8754 | 0.8706 | 0.0048 | 0.7903 | 3.93 |
+| Random Forest tuned | 0.8669 | 0.0018 | 0.8755 | 0.8703 | 0.0052 | 0.7901 | 99.82 |
 
-PREPROCESSING_REQUIREMENT
-=========================
-Algorithm Selected: LightGBM
-Scaling: StandardScaler
-Encoding: Label Encoding
-Transform: None
-Loop Back To Finn: NO
-Reason: Finn ทำ StandardScaler + Label Encoding ครบแล้ว ไม่ต้อง loop
-Next Phase: Phase 2 — Tune
+Winner: Random Forest baseline
+Test F1 Improvement: -0.0003 (-0.03%)
+
+Best Params:
+```json
+{
+  "bootstrap": true,
+  "class_weight": null,
+  "max_depth": null,
+  "max_features": null,
+  "min_samples_leaf": 1,
+  "min_samples_split": 2,
+  "n_estimators": 300
+}
+```
+
+Top Feature Importance:
+| Feature | Importance |
+|---------|------------|
+| euribor3m | 1.0000 |
+
+VALIDATION
+==============================
+Overfitting Check: train_test_gap=0.0048
+Leakage Check: no forbidden ID/target-derived columns detected in engineered data
+LOOP_BACK_TO_FINN: NO
+DL_ESCALATE: NO
+Reason: Random Forest remains stable and classical ML is sufficient for this tabular dataset.
+
+Business Recommendation:
+Use the tuned model only if the marginal improvement justifies added complexity.
+If improvement is below 1%, keep the baseline Random Forest for simpler operations.

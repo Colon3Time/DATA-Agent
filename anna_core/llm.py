@@ -48,6 +48,39 @@ class LLMClient:
         self.claude_limit = claude_limit if claude_limit is not None else self.codex_limit
         self.palette = palette
 
+    @staticmethod
+    def _restart_sensitive_snapshot(workdir: Path) -> dict[Path, int | None]:
+        paths = [workdir / "orchestrator_v3.py"]
+        anna_core = workdir / "anna_core"
+        if anna_core.exists():
+            paths.extend(
+                p
+                for p in anna_core.rglob("*")
+                if p.is_file()
+                and "__pycache__" not in p.parts
+                and p.suffix.lower() in {".py", ".json", ".toml", ".yaml", ".yml", ".md"}
+            )
+
+        snapshot: dict[Path, int | None] = {}
+        for path in paths:
+            try:
+                snapshot[path] = path.stat().st_mtime_ns
+            except OSError:
+                snapshot[path] = None
+        return snapshot
+
+    @staticmethod
+    def _restart_sensitive_changes(before: dict[Path, int | None]) -> list[Path]:
+        changed: list[Path] = []
+        for path, old_mtime in before.items():
+            try:
+                new_mtime = path.stat().st_mtime_ns
+            except OSError:
+                new_mtime = None
+            if new_mtime != old_mtime:
+                changed.append(path)
+        return changed
+
     def call_deepseek(
         self,
         system_prompt: str,
@@ -145,10 +178,13 @@ class LLMClient:
         prompt = (
             f"{system_prompt}\n\n"
             f"User request:\n{user_message}\n\n"
-            "Return only the answer content. If you need to propose file edits, "
-            "describe them clearly in the response."
+            "You are running inside the project workspace. If the request requires "
+            "file changes, edit the files directly and then report what changed. "
+            "Do not stop at a proposal unless the task is genuinely unsafe or blocked."
         )
         output_file: str | None = None
+        workdir = Path.cwd()
+        restart_snapshot = self._restart_sensitive_snapshot(workdir)
         try:
             with tempfile.NamedTemporaryFile(prefix="codex-last-message-", suffix=".txt", delete=False) as tmp:
                 output_file = tmp.name
@@ -156,12 +192,12 @@ class LLMClient:
                 codex_bin,
                 "exec",
                 "--ephemeral",
-                "--ignore-user-config",
                 "--skip-git-repo-check",
                 "--cd",
-                str(Path.cwd()),
+                str(workdir),
+                "--full-auto",
                 "--sandbox",
-                "read-only",
+                "workspace-write",
                 "--model",
                 self.codex_model,
                 "--output-last-message",
@@ -174,7 +210,7 @@ class LLMClient:
                 text=True,
                 encoding="utf-8",
                 capture_output=True,
-                timeout=180,
+                timeout=600,
             )
             if result.returncode != 0:
                 stderr = (result.stderr or result.stdout or "").strip()
@@ -185,6 +221,22 @@ class LLMClient:
                 output_text = (result.stdout or "").strip()
             if output_text:
                 print(output_text)
+            restart_changes = self._restart_sensitive_changes(restart_snapshot)
+            if restart_changes:
+                rel_changes = [
+                    str(path.relative_to(workdir)) if path.is_relative_to(workdir) else str(path)
+                    for path in restart_changes[:5]
+                ]
+                more = "" if len(restart_changes) <= 5 else f" (+{len(restart_changes) - 5} more)"
+                restart_notice = (
+                    "\n\n[RESTART_REQUIRED]\n"
+                    "Codex แก้ไฟล์ source/config ของ orchestrator แล้ว: "
+                    + ", ".join(rel_changes)
+                    + more
+                    + "\nต้อง restart orchestrator เพื่อใช้ผลแก้ใน process ที่กำลังรันอยู่"
+                )
+                print(restart_notice)
+                output_text = (output_text + restart_notice).strip()
             return output_text
         except Exception as e:
             print(f"\n{p.yellow}  [WARN] CODEX CLI error ({e}) -> fallback DeepSeek{p.reset}")

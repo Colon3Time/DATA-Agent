@@ -1,9 +1,5 @@
-
-Self-Improvement Report — Mo
-============================
-Phase ที่ผ่าน: 1
-Algorithm ที่ชนะ: Random Forest
-Tuning improvement: Pending (Phase 2)
-วิธีใหม่ที่พบ: Not applicable
-Knowledge Base: LightGBM ไม่สามารถ import ได้ — ใช้ Random Forest แทน
-Note: install lightgbm via 'pip install lightgbm' เพื่อให้มีตัวเลือกเพิ่ม
+Mo Self-Improvement - Phase 2
+================================
+- Phase marker was added so this task is not treated as Phase 1 Explore again.
+- Future restart tasks from Quinn should state: Phase 2 Tune only, use previous best algorithm, output train_f1/test_f1/gap.
+- model_comparison.csv is now written alongside mo_output.csv for Quinn compatibility.

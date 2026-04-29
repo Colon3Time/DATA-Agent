@@ -41,6 +41,7 @@ from anna_core.pipeline_runtime import (
     group_dispatches,
     list_projects,
 )
+from anna_core.mo_phase import detect_mo_phase, mo_script_matches_phase, sync_mo_canonical_report
 from anna_core.project import AgentSpecLoader, ProjectDetector
 from anna_core.runner import run_python_script
 from anna_core.state import OrchestratorState
@@ -461,6 +462,26 @@ def get_system_prompt(agent_name: str, task: str = "") -> str:
         "- output ทุกไฟล์ต้อง save ใน OUTPUT_DIR\n"
         "- ต้องมี print('[STATUS] ...') เพื่อแสดงความคืบหน้า\n"
     )
+    if agent_name == "mo":
+        mo_phase = detect_mo_phase(task)
+        if mo_phase == 2:
+            base += (
+                "\n\n---\n## Mo Phase 2 Dispatch Guard (บังคับ)\n"
+                "- งานนี้คือ Phase 2 Tune เท่านั้น ห้ามทำ Phase 1 Explore ซ้ำ\n"
+                "- ต้องอ่านผล Phase 1 เดิมเพื่อหา best algorithm แล้ว tune เฉพาะ algorithm นั้น\n"
+                "- ต้องใช้ RandomizedSearchCV จริง และบันทึก best_params_, best_score_, CV setup, train/test metrics\n"
+                "- ต้องเปรียบเทียบ tuned model กับ default model ของ algorithm เดียวกัน\n"
+                "- ต้องเขียน output/mo/mo_report.md ใหม่เป็น Phase 2 report ห้ามคง report Phase 1 เดิมไว้\n"
+                "- ถ้า best algorithm จาก Phase 1 คือ Random Forest ให้ tune RandomForestClassifier เท่านั้น\n"
+            )
+        elif mo_phase == 3:
+            base += (
+                "\n\n---\n## Mo Phase 3 Dispatch Guard (บังคับ)\n"
+                "- งานนี้คือ Phase 3 Validate เท่านั้น ห้ามทำ Phase 1 Explore หรือ Phase 2 Tune ซ้ำ\n"
+                "- ต้อง validate tuned model จาก Phase 2 และเปรียบเทียบกับ default model\n"
+                "- ต้องรายงาน final validation metrics, overfitting gap, leakage check, และเลือก final model\n"
+                "- ต้องเขียน output/mo/mo_report.md ใหม่เป็น Phase 3 report ห้ามคง report Phase 1/2 เดิมไว้\n"
+            )
     kb = load_relevant_kb(agent_name, task) if task else load_kb(agent_name)
     if kb:
         base += f"\n\n---\n## Knowledge Base — {agent_name}\n{kb}"
@@ -824,7 +845,7 @@ _GATE_RERUN_FROM: dict[str, tuple[str, str]] = {
     "dana":  ("scout",  "scout_output.csv"),
     "eddie": ("dana",   "dana_output.csv"),
     "finn":  ("eddie",  "eddie_output.csv"),
-    "mo":    ("finn",   "finn_output.csv"),
+    "mo":    ("finn",   "engineered_data.csv"),
 }
 
 
@@ -929,6 +950,13 @@ def resolve_agent_input(agent_name: str, prev_agent: str, project_dir: Path | No
             print(f"{CY}  ⟳ Dana input → scout_output.csv (forced){RST}")
             log_raw("system", f"Dana input forced to scout_output.csv", task="dana")
             return str(scout_csv)
+
+    if agent_name == "mo" and project_dir:
+        engineered_csv = project_dir / "output" / "finn" / "engineered_data.csv"
+        if engineered_csv.exists():
+            print(f"{CY}  ⟳ Mo input → finn/engineered_data.csv (forced){RST}")
+            log_raw("system", "Mo input forced to finn/engineered_data.csv", task="mo")
+            return str(engineered_csv)
 
     raw_input_path = pipeline_read(prev_agent) if prev_agent else ""
     input_path = resolve_input_path(prev_agent, raw_input_path, project_dir)
@@ -1068,6 +1096,9 @@ def run_existing_script_agent(
     if returncode != 0:
         output_path, _success = handle_failed_script(agent_name, task, script, input_path, output_dir, stderr)
 
+    if agent_name == "mo":
+        sync_mo_canonical_report(output_dir, detect_mo_phase(task))
+
     report_summary = read_report_summary(output_dir, agent_name)
     action_msg = f"รัน script {script.name} สำเร็จ"
     if report_summary:
@@ -1141,6 +1172,9 @@ def run_generated_script_agent(
             print(f"{RD}  ✗ Auto-fix ทั้งหมดล้มเหลว — ใช้ report แทน{RST}")
             output_path = str(report_path)
 
+    if agent_name == "mo":
+        sync_mo_canonical_report(output_dir, detect_mo_phase(task))
+
     if agent_name == "scout" and project_dir:
         output_path = scout_input_csv(project_dir) or output_path
 
@@ -1190,7 +1224,13 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
     # ── Priority 1: script จริง (+ auto-fix via DeepSeek ถ้า error) ──────────
     script = find_agent_script(agent_name, project_dir)
     if script and output_dir and not discover:
-        return run_existing_script_agent(agent_name, task, script, input_path, output_dir)
+        mo_phase = detect_mo_phase(task) if agent_name == "mo" else None
+        if agent_name != "mo" or mo_script_matches_phase(script, mo_phase):
+            return run_existing_script_agent(agent_name, task, script, input_path, output_dir)
+        print(
+            f"{YL}  ⟳ Mo Phase {mo_phase} requested but {script.name} is for another phase — regenerating script{RST}"
+        )
+        log_raw("system", f"Mo phase guard skipped stale script: {script}", task="mo-phase-guard")
 
     # ── ลบ script เก่าเฉพาะตอนจะสร้างใหม่ (Priority 1 ไม่ผ่าน) ──────────────
     delete_old_scripts(output_dir)
@@ -1264,6 +1304,7 @@ def response_has_anna_actions(response: str) -> bool:
         "UPDATE_KB",
         "ASK_DEEPSEEK",
         "ASK_CLAUDE",
+        "ASK_CODEX",
         "RESEARCH",
         "RUN_PYTHON",
     )

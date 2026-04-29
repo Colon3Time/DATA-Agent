@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from .mo_phase import detect_mo_phase
+
 
 def output_dir_for(project_dir: Path | None, agent_name: str) -> Path | None:
     return (project_dir / "output" / agent_name) if project_dir else None
@@ -74,6 +76,15 @@ def build_agent_path_message(
         path_lines.append(f"Save CSV to     : {output_dir / f'{agent_name}_output.csv'}")
         path_lines.append(f"Save script to  : {output_dir / f'{agent_name}_script.py'}")
         path_lines.append(f"Save report to  : {output_dir / f'{agent_name}_report.md'}")
+    if agent_name == "mo" and project_dir:
+        phase = detect_mo_phase(task)
+        if phase == 2:
+            path_lines.append(f"Phase 1 report  : {project_dir / 'output' / 'mo' / 'mo_report.md'}")
+            path_lines.append("Required phase  : Phase 2 Tune; run RandomizedSearchCV, do not reuse Phase 1 report")
+        elif phase == 3:
+            path_lines.append(f"Phase 2 report  : {project_dir / 'output' / 'mo' / 'model_results.md'}")
+            path_lines.append(f"Phase 2 CSV     : {project_dir / 'output' / 'mo' / 'model_comparison.csv'}")
+            path_lines.append("Required phase  : Phase 3 Validate; compare tuned model against default")
     if agent_name == "scout" and project_dir:
         path_lines.append(f"Save dataset to : {project_dir / 'input'}/ ← ไฟล์ข้อมูลจริงต้องอยู่ที่นี่เท่านั้น")
     return "\n".join(path_lines) + f"\n\nTask: {task}" if path_lines else task

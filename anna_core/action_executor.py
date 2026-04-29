@@ -191,12 +191,12 @@ class ActionExecutor:
             parts.append(f"[ASK_DEEPSEEK]\nQ: {q[:200]}\nA: {ans[:1000]}")
 
     def _ask_claude(self, response: str, parts: list[str]) -> None:
-        for match in re.finditer(r"<ASK_CLAUDE>(.*?)</ASK_CLAUDE>", response, re.DOTALL):
+        for match in re.finditer(r"<ASK_(?:CLAUDE|CODEX)>(.*?)</ASK_(?:CLAUDE|CODEX)>", response, re.DOTALL):
             q = match.group(1).strip()
-            print(f"\n{self.p.magenta}  ▶ ASK_CLAUDE{self.p.reset}")
-            self.log("anna", f"ASK_CLAUDE: {q[:80]}", "full-power", "")
-            ans = self.ask_claude("You are a helpful AI assistant.", q, "CLAUDE direct")
-            parts.append(f"[ASK_CLAUDE]\nQ: {q[:200]}\nA: {ans[:1000]}")
+            print(f"\n{self.p.magenta}  ▶ ASK_CODEX{self.p.reset}")
+            self.log("anna", f"ASK_CODEX: {q[:80]}", "full-power", "")
+            ans = self.ask_claude("You are a helpful AI assistant.", q, "CODEX direct")
+            parts.append(f"[ASK_CODEX]\nQ: {q[:200]}\nA: {ans[:1000]}")
 
     def _research(self, response: str, parts: list[str]) -> None:
         for match in re.finditer(r"<RESEARCH>(.*?)</RESEARCH>", response, re.DOTALL):
