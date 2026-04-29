@@ -1,6 +1,6 @@
 # Iris Chief Insight Report
-**Date:** 2026-04-28 23:29
-**Input:** C:\Users\Amorntep\DATA-Agent\projects\2026-04-28_uci_bank_marketing_blind\output\quinn\quinn_output.csv
+**Date:** 2026-04-29 22:12
+**Input:** C:\Users\Amorntep\DAta-agent\projects\2026-04-28_uci_bank_marketing_blind\input\uci_raw\bank-additional\bank-additional\bank-additional-full.csv
 
 ## Business Context
 - **Industry:** Banking / Financial Services — Term Deposit Subscription

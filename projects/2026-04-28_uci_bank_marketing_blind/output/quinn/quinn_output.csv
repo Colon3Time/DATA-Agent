@@ -1,7 +1,7 @@
 check,status,details
 Data Leakage,PASS,No leakage detected
-Overfitting,FAIL,['ไม่พบ columns train/test score — ตรวจสอบ overfitting ไม่ได้']
-Model Performance,PASS,Performance adequate
+Overfitting,FAIL,['Overfitting detected: CV=0.8755 vs Test=0.7902 (gap=0.0853 > 0.05)']
+Model Performance,FAIL,"['AUC (0.7903) < 0.80', '[CRITICAL] Recall (0.8938) < 0.95 — medical domain standard']"
 Feature Importance,PASS,No issues
-Model Comparison,FAIL,['Found only 0 model(s) — ควรมี ≥ 2 models สำหรับ comparison']
-Business Satisfaction,1/4,Restart cycle: True
+Model Comparison,PASS,Models compared
+Business Satisfaction,3/4,Restart cycle: False

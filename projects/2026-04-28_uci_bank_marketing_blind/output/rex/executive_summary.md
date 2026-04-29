@@ -10,11 +10,11 @@
 • s
 
 💡 Key Business Insights:
-• *Date:** 2026-04-28 23:29
-• *Input:** C:\Users\Amorntep\DATA-Agent\projects\2026-04-28_uci_bank_marketing_blind\output\quinn\quinn_output.csv
-• *Output:** C:\Users\Amorntep\DATA-Agent\projects\2026-04-28_uci_bank_marketing_blind\output\iris
+• *Date:** 2026-04-29 22:12
+• *Input:** C:\Users\Amorntep\DAta-agent\projects\2026-04-28_uci_bank_marketing_blind\input\uci_raw\bank-additional\bank-additional\bank-additional-full.csv
+• *Output:** C:\Users\Amorntep\DAta-agent\projects\2026-04-28_uci_bank_marketing_blind\output\iris
 • *Received from:** Quinn
-• *Input summary:** Quinn output with 6 rows and 3 columns
+• *Input summary:** Quinn output with 41188 rows and 1 columns
 
 🎯 Recommendation:
 • Model is ready for deployment with monitoring

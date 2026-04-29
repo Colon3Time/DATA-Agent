@@ -17,11 +17,11 @@
 • s
 
 💡 Key Business Insights:
-• *Date:** 2026-04-28 23:29
-• *Input:** C:\Users\Amorntep\DATA-Agent\projects\2026-04-28_uci_bank_marketing_blind\output\quinn\quinn_output.csv
-• *Output:** C:\Users\Amorntep\DATA-Agent\projects\2026-04-28_uci_bank_marketing_blind\output\iris
+• *Date:** 2026-04-29 22:12
+• *Input:** C:\Users\Amorntep\DAta-agent\projects\2026-04-28_uci_bank_marketing_blind\input\uci_raw\bank-additional\bank-additional\bank-additional-full.csv
+• *Output:** C:\Users\Amorntep\DAta-agent\projects\2026-04-28_uci_bank_marketing_blind\output\iris
 • *Received from:** Quinn
-• *Input summary:** Quinn output with 6 rows and 3 columns
+• *Input summary:** Quinn output with 41188 rows and 1 columns
 
 🎯 Recommendation:
 • Model is ready for deployment with monitoring
@@ -57,11 +57,11 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ## 3. Business Insights
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- *Date:** 2026-04-28 23:29
-- *Input:** C:\Users\Amorntep\DATA-Agent\projects\2026-04-28_uci_bank_marketing_blind\output\quinn\quinn_output.csv
-- *Output:** C:\Users\Amorntep\DATA-Agent\projects\2026-04-28_uci_bank_marketing_blind\output\iris
+- *Date:** 2026-04-29 22:12
+- *Input:** C:\Users\Amorntep\DAta-agent\projects\2026-04-28_uci_bank_marketing_blind\input\uci_raw\bank-additional\bank-additional\bank-additional-full.csv
+- *Output:** C:\Users\Amorntep\DAta-agent\projects\2026-04-28_uci_bank_marketing_blind\output\iris
 - *Received from:** Quinn
-- *Input summary:** Quinn output with 6 rows and 3 columns
+- *Input summary:** Quinn output with 41188 rows and 1 columns
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ## 4. Recommendations
@@ -81,8 +81,8 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ## 5. Charts & Visuals
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-![Chart](D:\DATA-Agent-refactor-v2\projects\2026-04-28_uci_bank_marketing_blind\output\vera\charts\01_feature_importance.png)
-![Chart](D:\DATA-Agent-refactor-v2\projects\2026-04-28_uci_bank_marketing_blind\output\vera\charts\02_roc_curve.png)
-![Chart](D:\DATA-Agent-refactor-v2\projects\2026-04-28_uci_bank_marketing_blind\output\vera\charts\03_confusion_matrix.png)
-![Chart](D:\DATA-Agent-refactor-v2\projects\2026-04-28_uci_bank_marketing_blind\output\vera\charts\04_tsne_clusters.png)
-![Chart](D:\DATA-Agent-refactor-v2\projects\2026-04-28_uci_bank_marketing_blind\output\vera\charts\05_feature_distributions.png)
+![Chart](C:\Users\Amorntep\DAta-agent\projects\2026-04-28_uci_bank_marketing_blind\output\vera\charts\01_feature_importance.png)
+![Chart](C:\Users\Amorntep\DAta-agent\projects\2026-04-28_uci_bank_marketing_blind\output\vera\charts\02_roc_curve.png)
+![Chart](C:\Users\Amorntep\DAta-agent\projects\2026-04-28_uci_bank_marketing_blind\output\vera\charts\03_confusion_matrix.png)
+![Chart](C:\Users\Amorntep\DAta-agent\projects\2026-04-28_uci_bank_marketing_blind\output\vera\charts\04_tsne_clusters.png)
+![Chart](C:\Users\Amorntep\DAta-agent\projects\2026-04-28_uci_bank_marketing_blind\output\vera\charts\05_feature_distributions.png)

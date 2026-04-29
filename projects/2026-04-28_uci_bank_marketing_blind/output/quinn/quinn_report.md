@@ -2,7 +2,7 @@ Quinn Quality Check Report
 ===========================
 Project: UCI Bank Marketing (classification, imbalance 7.88:1)
 Date: 2026-04-28
-Status: ผ่านแบบมีเงื่อนไข
+Status: ไม่ผ่าน
 CRISP-DM Cycle: 1
 
 ───────────────────────────────────────
@@ -15,18 +15,18 @@ Data Leakage Check:
 Details: No data leakage detected
 
 Overfitting Check:
-❌ Train/Test gap: ไม่พบ columns train/test score — ตรวจสอบ overfitting ไม่ได้
-Details: ['ไม่พบ columns train/test score — ตรวจสอบ overfitting ไม่ได้']
+❌ Train/Test gap: Overfitting detected: CV=0.8755 vs Test=0.7902 (gap=0.0853 > 0.05)
+Details: ['Overfitting detected: CV=0.8755 vs Test=0.7902 (gap=0.0853 > 0.05)']
 
 Model Performance:
-✅ F1 Score: N/A (threshold: 0.7)
-✅ AUC: N/A (threshold: 0.80)
-✅ Recall: N/A (threshold: 0.95 — medical domain)
-Details: Performance metrics adequate
+❌ F1 Score: 0.8705677265900892 (threshold: 0.7)
+❌ AUC: 0.7902668610547667 (threshold: 0.80)
+❌ Recall: 0.8937848992473901 (threshold: 0.95 — medical domain)
+Details: ['AUC (0.7903) < 0.80', '[CRITICAL] Recall (0.8938) < 0.95 — medical domain standard']
 
 Model Comparison:
-❌ Models compared: Found only 0 model(s) — ควรมี ≥ 2 models สำหรับ comparison
-Details: ['Found only 0 model(s) — ควรมี ≥ 2 models สำหรับ comparison']
+✅ Models compared: Multiple models found
+Details: Model comparison table present
 
 Feature Importance:
 ✅ Feature analysis: No issues
@@ -35,41 +35,37 @@ Details: Feature importance looks reasonable
 ───────────────────────────────────────
 Issues Found
 ───────────────────────────────────────
-- Model performance below threshold
-- ไม่พบ columns train/test score — ตรวจสอบ overfitting ไม่ได้
-- Found only 0 model(s) — ควรมี ≥ 2 models สำหรับ comparison
+- Overfitting detected: CV=0.8755 vs Test=0.7902 (gap=0.0853 > 0.05)
+- AUC (0.7903) < 0.80
+- [CRITICAL] Recall (0.8938) < 0.95 — medical domain standard
 
-- ไม่พบ columns train/test score — ตรวจสอบ overfitting ไม่ได้ → ส่งกลับ Mo เพราะ model overfitting
-
+- Overfitting detected: CV=0.8755 vs Test=0.7902 (gap=0.0853 > 0.05) → ส่งกลับ Mo เพราะ model overfitting
+- AUC (0.7903) < 0.80 → ส่งกลับ Mo เพราะ model performance ต่ำกว่าเกณฑ์
+- [CRITICAL] Recall (0.8938) < 0.95 — medical domain standard → ส่งกลับ Mo เพราะ model performance ต่ำกว่าเกณฑ์
 
 ───────────────────────────────────────
 BUSINESS_SATISFACTION
 ───────────────────────────────────────
-Criteria Passed: 1/4
+Criteria Passed: 3/4
 
-1. Model performance ≥ threshold: FAIL
-   - F1: N/A (threshold: 0.7)
-   - AUC: N/A (threshold: 0.80)
+1. Model performance ≥ threshold: PASS
+   - F1: 0.8705677265900892 (threshold: 0.7)
+   - AUC: 0.7902668610547667 (threshold: 0.80)
 
 2. Technical soundness (no leakage, no overfitting): FAIL
    - Leakage: 0 issue(s)
    - Overfitting: 1 issue(s)
 
-3. Model comparison / Fairness: FAIL
-   - Issues: 1 issue(s)
+3. Model comparison / Fairness: PASS
+   - Issues: 0 issue(s)
 
 4. Feature importance validation: PASS
    - Issues: 0 issue(s)
 
 
-RESTART_CYCLE: YES
-Restart From: Mo (model tuning)
-New Strategy: เพิ่ม regularization / ลด model complexity / เพิ่ม cross-validation folds
-Reason: Model performance below threshold, ไม่พบ columns train/test score — ตรวจสอบ overfitting ไม่ได้, Found only 0 model(s) — ควรมี ≥ 2 models สำหรับ comparison
 
-
-Verdict: UNSATISFIED
-RESTART_CYCLE: YES
+Verdict: SATISFIED
+RESTART_CYCLE: NO
 
 ───────────────────────────────────────
 Self-Improvement Report

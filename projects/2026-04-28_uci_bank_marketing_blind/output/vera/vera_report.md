@@ -14,8 +14,8 @@
 **ROC Curve** — เป็น chart ที่สำคัญที่สุด เพราะแสดง AUC score ซึ่งเป็น metric หลักที่ Mo ใช้ประเมิน model
 
 ## Data Summary
-- Total rows: 41188
-- Total columns: 4
+- Total rows: 2
+- Total columns: 13
 
 ## Self-Improvement Report
 ==============================
@@ -29,7 +29,7 @@
 ## Agent Report — Vera
 ==============================
 รับจาก     : User (via script execution)
-Input      : C:\Users\Amorntep\DATA-Agent\projects\2026-04-28_uci_bank_marketing_blind\output\mo\mo_output.csv
+Input      : C:\Users\Amorntep\DAta-agent\projects\2026-04-28_uci_bank_marketing_blind\output\mo\mo_output.csv
 ทำ         : สร้าง 6 visualizations จาก report ของ Dana, Eddie, Finn, Mo
 พบ         : 1) Mo report AUC score ชัดเจน  2) Feature importance proxy ใช้ได้  3) t-SNE ต้อง sample data
 เปลี่ยนแปลง: ใช้ correlation-based importance แทน feature importance จาก model
