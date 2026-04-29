@@ -21,7 +21,8 @@ class KnowledgeBase:
             self.log(role, content, task, output)
 
     def load(self, agent_name: str) -> str:
-        files = sorted(self.knowledge_dir.glob(f"{agent_name}_*.md"))
+        files = sorted(self.knowledge_dir.glob("global_*.md"))
+        files.extend(sorted(self.knowledge_dir.glob(f"{agent_name}_*.md")))
         if not files:
             return ""
         parts: list[str] = []
@@ -105,4 +106,3 @@ class KnowledgeBase:
                 f"(deprecated={removed_deprecated}, duplicate={removed_total-removed_deprecated})",
                 task="kb_consolidate",
             )
-

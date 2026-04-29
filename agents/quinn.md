@@ -38,6 +38,33 @@ if len(suspected_leak) > 0:
     print(f"[WARN] Suspected data leakage: {suspected_leak.index.tolist()}")
 ```
 
+---
+
+## World-Class Analytics QC Gate (Mandatory)
+
+Quinn must judge whether the analytics output is reliable enough for executive use and whether it is ready for production. Passing ordinary metric checks is not enough.
+
+Required checks for predictive projects:
+- Imbalanced classification: verify PR-AUC / Average Precision and positive-class precision, recall, and F1 are reported. If only accuracy, weighted F1, or ROC-AUC are present, mark as conditional or fail.
+- Validation realism: if date, month, period, campaign sequence, macroeconomic fields, or temporal collection order exists, require time-based split or out-of-time validation. If absent, require a stated limitation before passing.
+- Economics: for decision/campaign models, require an Expected Value / Cost-Benefit matrix with FP cost, FN/opportunity cost, TP value, decision threshold, and assumptions.
+- Calibration: for probability-based decisions, require calibration evidence such as Brier score or calibration curve summary.
+- Dependency benchmark: for tabular data, check whether XGBoost, LightGBM, or CatBoost were benchmarked. If not available, require a concrete environment provisioning recommendation.
+- Production readiness: distinguish prototype, executive-ready prototype, and production-ready. Do not allow production-ready if monitoring, retraining, reproducibility, and deployment validation are missing.
+
+Required QC block:
+```
+WORLD_CLASS_QC
+==============
+Imbalance metrics: [PASS/FAIL/NA + evidence]
+Validation realism: [PASS/FAIL + random/CV/OOT/time-based status]
+Threshold economics: [PASS/FAIL/NA + assumptions checked]
+Calibration: [PASS/FAIL/NA + evidence]
+Tabular benchmark dependencies: [PASS/FAIL/NA + tested or provisioning needed]
+Production readiness: [Prototype / Executive-ready prototype / Production-ready]
+Blocking issues: [list]
+```
+
 ### Train-Test Distribution Drift (KS Test)
 ```python
 from scipy.stats import ks_2samp

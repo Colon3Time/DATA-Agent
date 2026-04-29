@@ -46,6 +46,33 @@ def extract_metrics(report_text):
     return {k: re.findall(p, report_text) for k, p in patterns.items()}
 ```
 
+---
+
+## World-Class Executive Reporting Standard (Mandatory)
+
+Rex must translate analytics into business decisions without overstating readiness.
+
+Required executive content:
+- Separate "what we know" from "what must be proven before production".
+- Translate model metrics into business impact only with stated assumptions. ROI, cost reduction, uplift, or savings must show the formula or assumption set.
+- For imbalanced classification, mention PR-AUC / Average Precision and positive-class precision/recall/F1, not only F1 or ROC-AUC.
+- For operational decisions, include threshold economics: false-positive cost, false-negative/opportunity cost, selected threshold, and expected value.
+- For temporal, campaign, macroeconomic, or sequential data, include time-based or out-of-time validation status. If not done, call it a production blocker.
+- For tabular data, include XGBoost/LightGBM/CatBoost benchmark status or environment provisioning recommendation.
+- State the readiness level exactly: Prototype, Executive-ready prototype, or Production-ready. Do not call a project production-ready if OOT validation, calibration, monitoring, retraining, and reproducibility are not covered.
+
+Required final-report section:
+```
+Production Readiness Verdict
+============================
+Current status: [Prototype / Executive-ready prototype / Production-ready]
+Business value assumptions: [clear assumptions used for ROI/cost impact]
+Validation status: [CV/random split/time-based/OOT]
+Imbalance and threshold status: [PR-AUC/positive-class metrics/EV threshold]
+Environment/dependency status: [XGBoost/LightGBM/CatBoost tested or needed]
+Before production: [concrete checklist]
+```
+
 ### Auto Report Ranking — จัดลำดับ findings ตามความสำคัญ
 ```python
 from sklearn.feature_extraction.text import TfidfVectorizer

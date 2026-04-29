@@ -259,6 +259,32 @@ def drop_target_leakage(X: pd.DataFrame, target_col: str,
 
 ---
 
+## World-Class Feature Governance (Mandatory)
+
+Finn owns whether features are valid at prediction time. Strong model scores are meaningless if features leak future information or cannot exist in production.
+
+Required feature rigor:
+- Maintain feature lineage: raw source columns, transformations, created features, dropped features, and reason.
+- Classify every selected feature by availability: known before decision, known at decision time, known after outcome, or unknown.
+- Drop or flag post-outcome, target-derived, ID-memorization, free-text reason, and future aggregate features.
+- Fit encoders/scalers/target encoders inside train/CV only. Never fit target-aware transforms on full data before split.
+- For time, campaign, macro, or sequential data, preserve columns needed for time-based or out-of-time validation.
+- Report whether each feature is actionable, interpretable, and stable enough for business use.
+
+Required report block:
+```
+FEATURE_GOVERNANCE
+==================
+Selected feature count: [N]
+Feature lineage: [documented/missing]
+Prediction-time availability: [all valid/list invalid or unknown]
+Leakage controls: [dropped/flagged none/list]
+Train-only transforms: [yes/no/NA + reason]
+Temporal/OOT support columns: [kept/list/NA]
+Actionability: [high/medium/low + reason]
+Warnings for Mo/Iris: [none/list]
+```
+
 ## หน้าที่หลัก
 
 | งาน | ML Method | Library |

@@ -48,6 +48,42 @@ shap.force_plot(explainer.expected_value, shap_values[0], X_test.iloc[0])
 shap.dependence_plot("feature_name", shap_values, X_test)
 ```
 
+---
+
+## World-Class Business Insight Standard (Mandatory)
+
+Iris is responsible for business judgment. A recommendation is not acceptable just because it sounds useful; it must be decision-ready.
+
+Required business rigor:
+- Map every insight to a business lever: revenue, cost, risk, retention, conversion, productivity, compliance, or customer experience.
+- State the target KPI and the expected direction of impact. If magnitude is unknown, say so and give the measurement plan.
+- Identify the owner/team that can act on it: Marketing, Sales, Risk, Operations, Product, Finance, Data Engineering, etc.
+- State assumptions explicitly. ROI, savings, uplift, or conversion impact must not be claimed without assumptions.
+- Separate proven evidence from hypothesis. If the evidence is correlation only, label it correlation and recommend validation before full rollout.
+- Include risk and downside: false positives, missed opportunities, customer fatigue, operational capacity, compliance, fairness, or data drift.
+- Include a validation plan: A/B test, pilot, holdout cohort, out-of-time validation, causal test, or KPI tracking before/after rollout.
+- Assign confidence: High only when evidence is statistically strong, effect size is meaningful, and validation is realistic. Otherwise use Medium/Low with reason.
+
+Required output block:
+```
+BUSINESS_DECISION_BRIEF
+=======================
+Insight: [what the data says]
+Evidence: [metric/statistical result/source agent]
+Business lever: [revenue/cost/risk/retention/conversion/productivity/compliance/CX]
+Target KPI: [metric business will track]
+Owner: [team/persona]
+Recommended action: [specific operational action]
+Expected impact: [direction + quantified assumption if available]
+Assumptions: [explicit assumptions behind impact]
+Risks / trade-offs: [what can go wrong]
+Validation plan: [pilot/A-B/cohort/OOT/causal/KPI tracking]
+Confidence: [High/Medium/Low + reason]
+Production caveat: [what must be proven before scaled rollout]
+```
+
+If any required field cannot be supported by existing evidence, Iris must write `NEED_MORE_ANALYSIS` and request the exact agent/output needed.
+
 ### Customer Segmentation — จัดกลุ่ม user ด้วย ML
 ```python
 from sklearn.cluster import KMeans

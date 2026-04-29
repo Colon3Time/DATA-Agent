@@ -157,6 +157,9 @@ _PIPELINE_KW = {
     "pipeline", "dataset", "data", "โมเดล", "model", "train", "predict",
     "insight", "visualization", "report", "clean", "ข้อมูล", "สร้าง", "project",
     "csv", "excel", "xlsx", "json", "ml", "deep", "learning", "sklearn",
+    "world-class", "world class", "production-ready", "production readiness",
+    "business rigor", "executive-ready", "cost-benefit", "expected value",
+    "pr-auc", "oot", "out-of-time", "calibration",
 }
 _CHAT_KW = {
     "สวัสดี", "hello", "hi", "ขอบคุณ", "thanks", "ok", "โอเค", "เข้าใจ",
@@ -462,6 +465,64 @@ def get_system_prompt(agent_name: str, task: str = "") -> str:
         "- output ทุกไฟล์ต้อง save ใน OUTPUT_DIR\n"
         "- ต้องมี print('[STATUS] ...') เพื่อแสดงความคืบหน้า\n"
     )
+    if agent_name in {"mo", "iris", "quinn", "rex"}:
+        base += (
+            "\n\n---\n## World-Class Analytics Standard (mandatory)\n"
+            "For any predictive analytics project, the work must be executive-ready and production-aware, not only metric-focused.\n"
+            "- Do not rely on F1/ROC-AUC alone when the target is imbalanced. Report PR-AUC / Average Precision and positive-class precision, recall, and F1.\n"
+            "- Include threshold strategy. For business campaigns, include an Expected Value / Cost-Benefit matrix with false-positive cost, false-negative/opportunity cost, and selected decision threshold.\n"
+            "- Use validation that matches deployment risk. If data has time, month, date, period, macroeconomic, campaign, or sequential fields, add time-based split or out-of-time validation. If unavailable, state why and mark as production limitation.\n"
+            "- Check calibration for probability models, preferably Brier score or calibration curve summary, before recommending automated decisions.\n"
+            "- Benchmark strong tabular models when dependencies exist: XGBoost, LightGBM, or CatBoost. If unavailable, report the dependency constraint and a concrete provisioning step before production.\n"
+            "- Separate prototype readiness from production readiness. A report may be executive-ready while still requiring OOT validation, dependency provisioning, monitoring, and retraining before production.\n"
+            "- Translate technical metrics into business impact with stated assumptions. Never present ROI or cost savings without the assumptions used.\n"
+        )
+    if agent_name == "scout":
+        base += (
+            "\n\n---\n## Scout Data Sourcing Rigor Guard (mandatory)\n"
+            "- Must include DATASET_RISK_REGISTER: source credibility, license, business fit, target suitability, recency/deployment fit, leakage risks, bias/coverage risks, data dictionary, and verdict.\n"
+            "- Do not present a dataset as production-grade unless source, license, target definition, recency, documentation, and limitations are documented.\n"
+        )
+    if agent_name == "dana":
+        base += (
+            "\n\n---\n## Dana Data Quality Governance Guard (mandatory)\n"
+            "- Must include DATA_QUALITY_AUDIT: raw/cleaned shape, completeness/validity change, removals, imputation, outlier strategy, train-only safeguards, bias/coverage impact, and downstream warnings.\n"
+            "- Cleaning must preserve raw meaning, document before/after effects, and avoid fitting target-aware transforms on future/test data.\n"
+        )
+    if agent_name == "eddie":
+        base += (
+            "\n\n---\n## Eddie Business EDA Guard (mandatory)\n"
+            "- Must include BUSINESS_EDA_FRAME: business question, decision owner, target KPI, strongest evidence, causality status, temporal/leakage risk, imbalance/skew risk, validation strategy, and next-agent warnings.\n"
+            "- Do not overstate correlations as causality; include effect size and business meaning for top findings.\n"
+        )
+    if agent_name == "finn":
+        base += (
+            "\n\n---\n## Finn Feature Governance Guard (mandatory)\n"
+            "- Must include FEATURE_GOVERNANCE: feature lineage, prediction-time availability, leakage controls, train-only transforms, temporal/OOT support columns, actionability, and warnings for Mo/Iris.\n"
+            "- Drop or flag post-outcome, target-derived, ID-memorization, and future aggregate features.\n"
+        )
+    if agent_name == "max":
+        base += (
+            "\n\n---\n## Max Pattern Validity Guard (mandatory)\n"
+            "- Must include PATTERN_VALIDITY for important patterns: evidence metric, sample size, stability check, spurious risk, business actionability, confidence, and whether to send to Iris.\n"
+            "- Exploratory or unstable patterns must be labeled as such and cannot become recommendations without validation.\n"
+        )
+    if agent_name == "vera":
+        base += (
+            "\n\n---\n## Vera Visualization Integrity Guard (mandatory)\n"
+            "- Must include VISUAL_QC for each important chart: source evidence, decision purpose, audience, chart rationale, misleading-risk check, accessibility check, and caveat status.\n"
+            "- Do not visualize unsupported claims; show uncertainty or caveats where evidence is incomplete.\n"
+        )
+    if agent_name == "iris":
+        base += (
+            "\n\n---\n## Iris Business Rigor Guard (mandatory)\n"
+            "- Every recommendation must map to a business lever: revenue, cost, risk, retention, conversion, productivity, compliance, or customer experience.\n"
+            "- Every recommendation must name an owner/team, target KPI, expected direction of impact, assumptions, implementation effort, and key risk.\n"
+            "- Separate proven insight from hypothesis. If evidence is correlational, label it correlational and propose validation such as A/B test, pilot, cohort analysis, or causal test.\n"
+            "- Include unit economics when relevant: CAC, LTV, margin, cost per action, conversion value, false-positive cost, opportunity cost, payback, or ROI assumptions.\n"
+            "- Do not recommend action from weak evidence. If statistical significance, effect size, sample size, or model validation is missing, mark confidence as Low/Medium and request more analysis.\n"
+            "- Required output block: BUSINESS_DECISION_BRIEF with Evidence, Business lever, KPI, Owner, Action, Expected impact, Assumptions, Risks, Validation plan, Confidence.\n"
+        )
     if agent_name == "mo":
         mo_phase = detect_mo_phase(task)
         if mo_phase == 2:
@@ -471,6 +532,8 @@ def get_system_prompt(agent_name: str, task: str = "") -> str:
                 "- ต้องอ่านผล Phase 1 เดิมเพื่อหา best algorithm แล้ว tune เฉพาะ algorithm นั้น\n"
                 "- ต้องใช้ RandomizedSearchCV จริง และบันทึก best_params_, best_score_, CV setup, train/test metrics\n"
                 "- ต้องเปรียบเทียบ tuned model กับ default model ของ algorithm เดียวกัน\n"
+                "- ต้องรายงาน PR-AUC, positive-class precision/recall/F1, calibration check, threshold strategy และ expected-value framework ถ้าเป็น classification\n"
+                "- ถ้าข้อมูลมีลำดับเวลา/month/date/period/macro variables ต้องเพิ่ม time-based หรือ out-of-time validation หรือเขียน limitation ชัดเจน\n"
                 "- ต้องเขียน output/mo/mo_report.md ใหม่เป็น Phase 2 report ห้ามคง report Phase 1 เดิมไว้\n"
                 "- ถ้า best algorithm จาก Phase 1 คือ Random Forest ให้ tune RandomForestClassifier เท่านั้น\n"
             )
@@ -480,6 +543,7 @@ def get_system_prompt(agent_name: str, task: str = "") -> str:
                 "- งานนี้คือ Phase 3 Validate เท่านั้น ห้ามทำ Phase 1 Explore หรือ Phase 2 Tune ซ้ำ\n"
                 "- ต้อง validate tuned model จาก Phase 2 และเปรียบเทียบกับ default model\n"
                 "- ต้องรายงาน final validation metrics, overfitting gap, leakage check, และเลือก final model\n"
+                "- ต้องมี production-readiness verdict: OOT/time split status, PR-AUC status, calibration status, cost-benefit threshold, dependency benchmark status\n"
                 "- ต้องเขียน output/mo/mo_report.md ใหม่เป็น Phase 3 report ห้ามคง report Phase 1/2 เดิมไว้\n"
             )
     kb = load_relevant_kb(agent_name, task) if task else load_kb(agent_name)
@@ -496,6 +560,15 @@ def extract_key_blocks(text: str) -> str:
         "BUSINESS_SATISFACTION",
         "DATASET_PROFILE",
         "PREPROCESSING_REQUIREMENT",
+        "DATASET_RISK_REGISTER",
+        "DATA_QUALITY_AUDIT",
+        "BUSINESS_EDA_FRAME",
+        "FEATURE_GOVERNANCE",
+        "PRODUCTION_READINESS",
+        "PATTERN_VALIDITY",
+        "BUSINESS_DECISION_BRIEF",
+        "VISUAL_QC",
+        "WORLD_CLASS_QC",
         "DL_ESCALATE",
         "RESTART_CYCLE",
         "Loop Back To Finn",
@@ -655,6 +728,11 @@ def validate_agent_output(agent_name: str, output_path: str,
 
     if agent_name == "scout" and proj:
         profile_path = proj / "output" / "scout" / "dataset_profile.md"
+        scout_report = proj / "output" / "scout" / "scout_report.md"
+        if scout_report.exists():
+            txt = scout_report.read_text(encoding="utf-8", errors="ignore").lower()
+            if "dataset_risk_register" not in txt:
+                return False, "Scout gate FAIL: missing DATASET_RISK_REGISTER"
         if profile_path.exists():
             import re as _re
             profile_text = profile_path.read_text(encoding="utf-8", errors="ignore")
@@ -680,6 +758,11 @@ def validate_agent_output(agent_name: str, output_path: str,
 
     elif agent_name == "dana" and proj:
         scout_csv = proj / "output" / "scout" / "scout_output.csv"
+        dana_report = proj / "output" / "dana" / "dana_report.md"
+        if dana_report.exists():
+            txt = dana_report.read_text(encoding="utf-8", errors="ignore").lower()
+            if "data_quality_audit" not in txt:
+                return False, "Dana gate FAIL: missing DATA_QUALITY_AUDIT"
         if scout_csv.exists() and p.suffix == ".csv":
             try:
                 import pandas as _pd
@@ -728,6 +811,8 @@ def validate_agent_output(agent_name: str, output_path: str,
         report = proj / "output" / "eddie" / "eddie_report.md"
         if report.exists():
             txt = report.read_text(encoding="utf-8", errors="ignore").lower()
+            if "business_eda_frame" not in txt:
+                return False, "Eddie gate FAIL: missing BUSINESS_EDA_FRAME"
             for required_kw in ("pipeline_spec", "problem_type", "target_column"):
                 if required_kw not in txt:
                     return False, f"Eddie gate FAIL: PIPELINE_SPEC ไม่มี '{required_kw}'"
@@ -776,6 +861,8 @@ def validate_agent_output(agent_name: str, output_path: str,
                 report = proj / "output" / "finn" / "finn_report.md"
                 if report.exists():
                     txt = report.read_text(encoding="utf-8", errors="ignore")
+                    if "feature_governance" not in txt.lower():
+                        return False, "Finn gate FAIL: missing FEATURE_GOVERNANCE"
                     m = re.search(r"target column\s*:\s*([^\s`]+)", txt, re.IGNORECASE)
                     if m and m.group(1).strip().lower() != target.lower():
                         return False, (
@@ -791,6 +878,18 @@ def validate_agent_output(agent_name: str, output_path: str,
                         return False, f"Finn gate FAIL: target '{target}' ถูกเลือกเป็น feature"
         except Exception as e:
             return False, f"Finn gate exception: {e}"
+
+    elif agent_name == "max" and proj:
+        report_candidates = [
+            proj / "output" / "max" / "max_report.md",
+            proj / "output" / "max" / "mining_results.md",
+            proj / "output" / "max" / "patterns_found.md",
+        ]
+        existing = [r for r in report_candidates if r.exists()]
+        if existing:
+            txt = "\n".join(r.read_text(encoding="utf-8", errors="ignore").lower() for r in existing)
+            if "pattern_validity" not in txt:
+                return False, "Max gate FAIL: missing PATTERN_VALIDITY"
 
     elif agent_name == "mo" and proj:
         report = proj / "output" / "mo" / "model_results.md"
@@ -817,10 +916,47 @@ def validate_agent_output(agent_name: str, output_path: str,
                     if token in txt:
                         suspect_msgs.append(f"leakage feature mentioned: {token}")
                         break
+                if any(term in txt for term in ("classification", "classifier", "binary", "multiclass")):
+                    required_groups = {
+                        "PR-AUC/Average Precision": ("pr-auc", "average precision"),
+                        "positive-class metrics": ("positive-class", "positive class", "minority class"),
+                        "threshold/cost-benefit": ("threshold", "expected value", "cost-benefit", "cost benefit"),
+                        "calibration": ("calibration", "brier"),
+                    }
+                    missing = [
+                        name for name, terms in required_groups.items()
+                        if not any(term in txt for term in terms)
+                    ]
+                    if missing:
+                        suspect_msgs.append("missing world-class classification evidence: " + ", ".join(missing))
+                    temporal_terms = ("date", "month", "period", "macro", "campaign")
+                    if any(term in txt for term in temporal_terms) and not any(
+                        term in txt for term in ("time-based", "out-of-time", "oot", "temporal split")
+                    ):
+                        suspect_msgs.append("temporal/macro risk mentioned without time-based or OOT validation")
             if suspect_msgs:
                 return False, "Mo gate FAIL: likely leakage — " + "; ".join(suspect_msgs)
         except Exception as e:
             return False, f"Mo gate exception: {e}"
+
+    elif agent_name == "iris" and proj:
+        report = proj / "output" / "iris" / "iris_report.md"
+        if report.exists():
+            txt = report.read_text(encoding="utf-8", errors="ignore").lower()
+            required_groups = {
+                "business decision brief": ("business_decision_brief", "business decision brief"),
+                "business lever/KPI": ("business lever", "revenue", "cost", "risk", "retention", "conversion", "kpi"),
+                "owner/action": ("owner", "team", "action"),
+                "assumptions/risks": ("assumption", "assumptions", "risk", "risks"),
+                "validation plan": ("validation plan", "a/b test", "pilot", "cohort", "causal"),
+                "confidence": ("confidence", "low", "medium", "high"),
+            }
+            missing = [
+                name for name, terms in required_groups.items()
+                if not any(term in txt for term in terms)
+            ]
+            if missing:
+                return False, "Iris gate FAIL: missing business rigor — " + ", ".join(missing)
 
     elif agent_name == "quinn" and proj:
         report = proj / "output" / "quinn" / "quinn_report.md"
@@ -828,6 +964,20 @@ def validate_agent_output(agent_name: str, output_path: str,
             txt = report.read_text(encoding="utf-8", errors="ignore").lower()
             if "restart_cycle: yes" in txt or "verdict: unsatisfied" in txt or "status: fail" in txt:
                 return False, "Quinn gate FAIL: QC verdict requires restart"
+            required = ("leakage", "overfitting", "drift", "calibration", "business_satisfaction")
+            missing = [term for term in required if term not in txt]
+            if missing:
+                return False, "Quinn gate FAIL: missing QC evidence — " + ", ".join(missing)
+
+    elif agent_name == "vera" and proj:
+        report = proj / "output" / "vera" / "vera_report.md"
+        if report.exists():
+            txt = report.read_text(encoding="utf-8", errors="ignore").lower()
+            if "visual_qc" not in txt:
+                return False, "Vera gate FAIL: missing VISUAL_QC"
+            charts_dir = proj / "output" / "vera" / "charts"
+            if charts_dir.exists() and not list(charts_dir.glob("*.png")):
+                return False, "Vera gate FAIL: charts/ exists but no PNG charts were produced"
 
     elif agent_name == "rex" and proj:
         quinn_report = proj / "output" / "quinn" / "quinn_report.md"
@@ -835,6 +985,29 @@ def validate_agent_output(agent_name: str, output_path: str,
             txt = quinn_report.read_text(encoding="utf-8", errors="ignore").lower()
             if "restart_cycle: yes" in txt or "verdict: unsatisfied" in txt:
                 return False, "Rex gate FAIL: Quinn failed, final success report is blocked"
+        rex_reports = [
+            proj / "output" / "rex" / "final_report.md",
+            proj / "output" / "rex" / "executive_summary.md",
+            proj / "output" / "rex" / "meeting_presentation.md",
+        ]
+        rex_dir = proj / "output" / "rex"
+        existing_reports = [p for p in rex_reports if p.exists()]
+        if rex_dir.exists():
+            existing_reports.extend(sorted(rex_dir.glob("meeting_presentation*.md")))
+        existing_reports = list(dict.fromkeys(existing_reports))
+        if existing_reports:
+            txt = "\n".join(p.read_text(encoding="utf-8", errors="ignore").lower() for p in existing_reports)
+            required_groups = {
+                "business impact assumptions": ("assumption", "assumptions", "cost", "roi"),
+                "production readiness": ("production readiness", "prototype", "monitoring", "retrain"),
+                "validation limitations": ("time-based", "out-of-time", "oot", "validation limitation"),
+            }
+            missing = [
+                name for name, terms in required_groups.items()
+                if not any(term in txt for term in terms)
+            ]
+            if missing:
+                return False, "Rex gate FAIL: missing executive rigor — " + ", ".join(missing)
 
     return True, base_msg
 
@@ -1887,14 +2060,14 @@ def run_all_pipeline_command(extra_instruction: str = "") -> None:
         blind_rule += " " + extra_instruction
 
     sequence: list[tuple[str, str]] = [
-        ("scout", "เริ่ม pipeline จากข้อมูลใน input/ ของ project นี้ ตรวจไฟล์ทั้งหมด เลือก dataset หลัก สร้าง scout_output.csv และ dataset_profile.md. " + blind_rule),
-        ("dana", "ทำ data cleaning จาก Scout output สร้าง dana_output.csv และ dana_report.md. ห้ามใช้ target ใน outlier detection และห้ามลบ target. " + blind_rule),
-        ("eddie", "ทำ EDA จาก Dana output หา pattern/relationships และเขียน PIPELINE_SPEC ให้ครบ สร้าง eddie_output.csv และ eddie_report.md. " + blind_rule),
-        ("finn", "ทำ feature engineering/feature selection จาก Eddie output สร้าง finn_output.csv และ finn_report.md. ใช้ target จาก Scout เท่านั้น เก็บ target เป็น label ห้ามเลือก target เป็น feature. " + blind_rule),
-        ("mo", "train และ compare models จาก Finn output สร้าง mo_output.csv, model report และ metrics. ถ้า F1/AUC/Accuracy ใกล้ 1.0 ให้ถือว่าอาจ leakage และรายงาน fail. " + blind_rule),
-        ("quinn", "ตรวจ QC/model/data/business satisfaction จากผลก่อนหน้า สร้าง quinn_output.csv และ quinn_report.md. ต้องตรวจ target consistency, leakage columns, perfect metrics, และ report/CSV contradiction. " + blind_rule),
-        ("iris", "สรุป business insights/action recommendations จากผล pipeline สร้าง iris_output.csv และ iris_report.md. " + blind_rule),
-        ("vera", "สร้าง visualization/report ที่เหมาะสมจากผล pipeline สร้าง vera_output.csv และ vera_report.md. " + blind_rule),
+        ("scout", "เริ่ม pipeline จากข้อมูลใน input/ ของ project นี้ ตรวจไฟล์ทั้งหมด เลือก dataset หลัก สร้าง scout_output.csv และ dataset_profile.md. ต้องมี DATASET_RISK_REGISTER ระบุ source credibility, license, business fit, target suitability, recency, leakage risk, bias/coverage risk และ verdict. " + blind_rule),
+        ("dana", "ทำ data cleaning จาก Scout output สร้าง dana_output.csv และ dana_report.md. ห้ามใช้ target ใน outlier detection และห้ามลบ target. ต้องมี DATA_QUALITY_AUDIT ระบุ before/after quality, removals, imputation, outlier strategy, train-only safeguards, bias impact และ downstream warnings. " + blind_rule),
+        ("eddie", "ทำ EDA จาก Dana output หา pattern/relationships และเขียน PIPELINE_SPEC ให้ครบ สร้าง eddie_output.csv และ eddie_report.md. ต้องมี BUSINESS_EDA_FRAME ระบุ business question, owner, KPI, effect size, causality status, temporal/leakage risk, imbalance/skew risk และ validation strategy. " + blind_rule),
+        ("finn", "ทำ feature engineering/feature selection จาก Eddie output สร้าง finn_output.csv และ finn_report.md. ใช้ target จาก Scout เท่านั้น เก็บ target เป็น label ห้ามเลือก target เป็น feature. ต้องมี FEATURE_GOVERNANCE ระบุ lineage, prediction-time availability, leakage controls, train-only transforms, temporal/OOT support, actionability และ warnings. " + blind_rule),
+        ("mo", "train และ compare models จาก Finn output สร้าง mo_output.csv, model report และ metrics. ถ้า F1/AUC/Accuracy ใกล้ 1.0 ให้ถือว่าอาจ leakage และรายงาน fail. ต้องมี PR-AUC/positive-class metrics/threshold economics/calibration/OOT readiness เมื่อเป็น classification. " + blind_rule),
+        ("quinn", "ตรวจ QC/model/data/business satisfaction จากผลก่อนหน้า สร้าง quinn_output.csv และ quinn_report.md. ต้องตรวจ target consistency, leakage columns, perfect metrics, report/CSV contradiction และ WORLD_CLASS_QC. " + blind_rule),
+        ("iris", "สรุป business insights/action recommendations จากผล pipeline สร้าง iris_output.csv และ iris_report.md. ต้องมี BUSINESS_DECISION_BRIEF ระบุ business lever, KPI, owner, assumptions, risks, validation plan, confidence และห้ามแนะนำ action จากหลักฐานอ่อนโดยไม่ติด caveat. " + blind_rule),
+        ("vera", "สร้าง visualization/report ที่เหมาะสมจากผล pipeline สร้าง vera_output.csv และ vera_report.md. ต้องมี VISUAL_QC สำหรับ chart สำคัญ ระบุ source evidence, decision purpose, chart rationale, misleading-risk check, accessibility และ caveat. " + blind_rule),
         ("rex", "รวม final executive report จากทุก agent สร้าง rex_output.csv และ final report. ห้ามสรุปว่า success ถ้า Quinn fail หรือ Mo metrics/report ขัดกัน. " + blind_rule),
     ]
 

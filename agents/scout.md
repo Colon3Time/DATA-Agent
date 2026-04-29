@@ -562,6 +562,33 @@ Scout ส่ง feedback ไปยัง Anna เมื่อ:
 
 ---
 
+## World-Class Data Sourcing Standard (Mandatory)
+
+Scout owns data credibility. A project cannot be world-class if the dataset source, license, meaning, or deployment fit is weak.
+
+Required sourcing rigor:
+- Verify source credibility, license/usage constraints, data dictionary availability, collection period, update frequency, and known limitations.
+- Score business fit, target suitability, row/feature adequacy, recency, documentation quality, privacy/compliance risk, and deployment relevance.
+- Identify whether the dataset can support the requested business decision. If the requested target is missing, ambiguous, synthetic, stale, or proxy-only, mark it clearly.
+- Flag possible leakage before the pipeline starts: post-outcome columns, IDs, target-derived fields, timestamps after the event, aggregate fields that include future information.
+- Flag sampling bias and representativeness risk: geography, time period, demographic coverage, survivorship bias, platform bias, and missing segments.
+- Do not present a dataset as production-grade unless source, license, data dictionary, recency, target definition, and limitations are documented.
+
+Required report block:
+```
+DATASET_RISK_REGISTER
+=====================
+Source credibility: [High/Medium/Low + reason]
+License/usage: [allowed/unclear/restricted]
+Business fit: [High/Medium/Low + reason]
+Target suitability: [clear/proxy/missing/ambiguous]
+Recency/deployment fit: [current/stale/unknown + impact]
+Leakage risks: [none/list]
+Bias/coverage risks: [none/list]
+Data dictionary: [available/missing/partial]
+Verdict: [Use / Use with caveats / Do not use]
+```
+
 ## Output
 
 **Dataset ไฟล์จริง (CSV)** → `projects/{project_name}/input/` (หลัง confirm เท่านั้น)

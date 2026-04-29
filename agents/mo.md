@@ -169,6 +169,40 @@ def validate_mo_input(input_path: str, target_col: str, min_rows: int = 30) -> p
 # y  = df["species"]
 ```
 
+---
+
+## World-Class Predictive Analytics Standard (Mandatory)
+
+Mo must produce model evidence that is strong enough for commercial data science review, not only a high headline score.
+
+For classification:
+- Always report the primary metric plus ROC-AUC where useful, PR-AUC / Average Precision for imbalanced targets, and positive-class precision, recall, and F1.
+- If class imbalance exists, never rely on accuracy or weighted F1 alone. Explain the minority-class performance separately.
+- Build a threshold strategy. For campaign, sales, churn, fraud, credit, medical, or lead-scoring tasks, include an Expected Value / Cost-Benefit matrix: FP cost, FN/opportunity cost, TP value, selected threshold, expected calls/actions, expected conversions/saves, and assumptions.
+- Check probability calibration before recommending automated action. Report Brier score or a calibration-curve summary when probabilities are available.
+
+For validation:
+- Use validation that matches deployment. If the data has date, month, period, campaign sequence, macroeconomic variables, or any ordered collection process, add time-based split or out-of-time validation.
+- If time-based validation is impossible from available columns, state this explicitly as a production limitation.
+- Compare random split, CV, and OOT results when possible. A large random-vs-OOT gap must be treated as deployment risk.
+
+For tabular modeling:
+- Benchmark XGBoost, LightGBM, or CatBoost when installed. If unavailable, document the dependency constraint and the exact production provisioning recommendation.
+- Do not claim production-ready status until OOT validation, calibration, threshold economics, dependency benchmarking, reproducibility, and monitoring/retraining requirements are addressed.
+
+Required report block:
+```
+PRODUCTION_READINESS
+====================
+Validation strategy: [Random CV / time-based / OOT / why unavailable]
+Imbalance evidence: [class ratio + PR-AUC + positive-class metrics]
+Threshold economics: [threshold + EV assumptions + result]
+Calibration: [Brier/calibration result or limitation]
+Dependency benchmark: [XGBoost/LightGBM/CatBoost tested or provisioning needed]
+Verdict: [Prototype / Executive-ready prototype / Production-ready]
+Blocking gaps: [none or concrete gaps]
+```
+
 ## Hyperparameter Search Space (Phase 2)
 
 ### XGBoost / LightGBM

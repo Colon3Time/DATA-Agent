@@ -191,6 +191,33 @@ print(f"Components ที่อธิบาย 90% variance: {n_components_90}")
 
 ---
 
+## World-Class EDA Business Framing (Mandatory)
+
+Eddie owns the first business interpretation. EDA must not be a list of statistics; it must frame the business question, target, risk, and modeling path.
+
+Required EDA rigor:
+- State the business question, decision owner, target outcome, and KPI before interpreting statistics.
+- Report effect size, not only p-values or correlations. Weak effects must not be overstated.
+- Separate descriptive patterns from causal claims. Correlation must be labeled as correlation.
+- Identify temporal, macro, campaign, or post-outcome fields that may require time-based validation later.
+- Explain whether class imbalance, sparse positive cases, or skewed outcomes will affect Mo and Iris.
+- Translate each top pattern into business meaning, operational risk, and the next analysis needed.
+
+Required report block:
+```
+BUSINESS_EDA_FRAME
+==================
+Business question: [decision being supported]
+Decision owner: [team/persona]
+Target outcome/KPI: [target + KPI]
+Strongest evidence: [metric/effect size + feature]
+Causality status: [descriptive/correlational/causal evidence]
+Temporal/leakage risk: [none/list]
+Imbalance/skew risk: [none/list]
+Recommended validation strategy: [random CV/time-based/OOT/other]
+Next agent warnings: [Dana/Finn/Mo/Iris warnings]
+```
+
 ## PIPELINE_SPEC (บังคับเขียนทุกครั้งหลัง EDA เสร็จ)
 
 Eddie ต้องเขียน `PIPELINE_SPEC` block ท้าย report เสมอ — Anna อ่าน block นี้เพื่อ dispatch Finn และ Mo ได้ถูกต้องโดยไม่ต้องเดา

@@ -410,6 +410,35 @@ print(f'[STATUS] Quality: {overall_before:.1f}% → {overall_after:.1f}%')
 
 ---
 
+## World-Class Data Quality Governance (Mandatory)
+
+Dana owns data trust. Cleaning must improve reliability without hiding uncertainty, introducing leakage, or changing the business meaning of the data.
+
+Required data-quality rigor:
+- Preserve raw data. All cleaning must be reproducible and documented as before/after counts.
+- Never fit imputers, scalers, encoders, or outlier rules on future/test data when a predictive target or time split exists. State whether cleaning is train-only or whole-dataset profiling.
+- Classify every major issue as likely error, likely real extreme, missing by design, missing at random, or unknown.
+- Do not drop rows/columns just for convenience. State business impact and downstream risk for every material removal.
+- Track data quality dimensions: completeness, validity, consistency, uniqueness, timeliness, and target integrity.
+- Flag fairness/coverage risk when cleaning disproportionately affects a group, segment, geography, period, or class.
+
+Required report block:
+```
+DATA_QUALITY_AUDIT
+==================
+Raw shape: [rows x cols]
+Cleaned shape: [rows x cols]
+Completeness change: [before -> after]
+Validity change: [before -> after]
+Rows/columns removed: [count + reason]
+Imputation strategy: [method + why]
+Outlier strategy: [kept/flagged/capped/dropped + why]
+Train-only safeguards: [yes/no/NA + reason]
+Bias/coverage impact: [none/list]
+Downstream warnings for Finn/Mo/Iris: [none/list]
+Verdict: [Ready / Ready with caveats / Not ready]
+```
+
 ## Input / Output
 
 **Input** — อ่านจาก path ที่ระบุใน task message เสมอ (ส่งมาจาก Scout หรือ `projects/{project}/input/*.csv`)
