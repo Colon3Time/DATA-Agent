@@ -1,0 +1,7 @@
+check,status,details
+Data Leakage,PASS,No leakage detected
+Overfitting,FAIL,['ไม่พบ columns train/test score — ตรวจสอบ overfitting ไม่ได้']
+Model Performance,FAIL,['[CRITICAL] Recall (0.9121) < 0.95 — medical domain standard']
+Feature Importance,PASS,No issues
+Model Comparison,PASS,Models compared
+Business Satisfaction,3/4,Restart cycle: False

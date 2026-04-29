@@ -1,0 +1,4 @@
+insight_type,title,detail,business_impact,action
+feature_importance,Feature Importance Not Available,No feature importance columns found in input data.,Medium — Cannot prioritize marketing factors without feature importance,Request model with feature importance export
+model_performance,Performance Metrics Not Available,Cannot compute accuracy/precision/recall — no true or predicted columns.,Medium — Need metrics to validate business decisions,Request model output with y_true and y_pred columns
+customer_segmentation,Propensity Segmentation Not Available,No probability/score columns found. Using feature columns for basic clustering.,Low — Cannot segment customers for targeted action without scores,Request model output with probability scores

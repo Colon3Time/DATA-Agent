@@ -159,3 +159,7 @@ Medical/Healthcare classification มี cost asymmetry:
 - Recall < 0.95 → CRITICAL — RESTART_CYCLE: YES
 - Recall 0.95–0.97 → WARNING — แนะนำ threshold tuning
 - Recall ≥ 0.97 → PASS
+
+
+## [2026-04-28 23:25] [DISCOVERY]
+สามารถเพิ่ม KS test สำหรับ distribution drift ในอนาคต
