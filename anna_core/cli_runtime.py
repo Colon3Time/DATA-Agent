@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -68,11 +69,13 @@ class CliRenderer:
     def print_header(self) -> None:
         p = self.p
         ds_ok = bool(os.environ.get("DEEPSEEK_API_KEY"))
-        cl_ok = bool(os.environ.get("ANTHROPIC_API_KEY"))
+        appdata = os.environ.get("APPDATA", "")
+        codex_path = Path(appdata) / "npm" / "codex.cmd" if appdata else None
+        codex_ok = shutil.which("codex.cmd") is not None or shutil.which("codex") is not None or bool(codex_path and codex_path.exists())
         lines = [
             "DataScienceOS - Anna (CEO)",
-            f"DeepSeek: {self.deepseek_model} | Claude: {self.claude_model}",
-            f"PATH-BASED pipeline v2 | mode: {self.mode} | Claude limit: {self.claude_limit}",
+            f"DeepSeek: {self.deepseek_model} | Codex CLI: {self.claude_model}",
+            f"PATH-BASED pipeline v2 | mode: {self.mode} | Codex limit: {self.claude_limit}",
             "Type /help for commands",
         ]
         width = max(len(line) for line in lines) + 4
@@ -82,10 +85,10 @@ class CliRenderer:
         print("+" + "-" * width + "+")
         print()
         ds_str = "OK" if ds_ok else "MISSING KEY"
-        cl_str = "OK" if cl_ok else "MISSING KEY"
+        codex_str = "OK" if codex_ok else "MISSING"
         print(
             f"  {p.blue}{p.bold}DeepSeek:{p.reset} {ds_str}    "
-            f"{p.magenta}{p.bold}Claude:{p.reset} {cl_str}  "
+            f"{p.magenta}{p.bold}Codex CLI:{p.reset} {codex_str}  "
             f"{p.dim}(limit: {self.claude_limit} calls/session){p.reset}"
         )
         print()
@@ -97,7 +100,7 @@ class CliRenderer:
             self.state.active_project = self._infer_project_from_pipeline()
         project = self.state.active_project.name if self.state.active_project else "none"
         print(f"| Project : {p.bold}{project}{p.reset}")
-        print(f"| Claude  : {self.state.claude_calls}/{self.claude_limit} calls")
+        print(f"| Codex   : {self.state.claude_calls}/{self.claude_limit} calls")
         if self.state.agent_iter_count:
             iters = ", ".join(f"{a}x{n}" for a, n in self.state.agent_iter_count.items() if n > 1)
             if iters:
@@ -122,7 +125,7 @@ class CliRenderer:
         bar_len = 20
         filled = int(bar_len * used / limit) if limit > 0 else bar_len
         bar = "#" * filled + "." * (bar_len - filled)
-        print(f"\n  {p.magenta}{p.bold}Claude usage:{p.reset}  [{bar}]  {used}/{limit} ({pct}%)")
+        print(f"\n  {p.magenta}{p.bold}Codex usage:{p.reset}  [{bar}]  {used}/{limit} ({pct}%)")
         if used >= limit:
             print("  Limit reached. DeepSeek will be used instead.")
         else:
@@ -139,11 +142,11 @@ class CliRenderer:
             "| /run-all [task]            -> run full agent sequence from Scout to Rex\n"
             "| /status                    -> show pipeline state (aliases: /s, /st)\n"
             "| /kb <agent>                -> show agent knowledge base\n"
-            "| /claude                    -> show Claude usage\n"
+            "| /claude                    -> show Codex usage\n"
             "| /end                       -> reset session\n"
             "| /exit                      -> quit\n"
             "| @agent <task>              -> run one agent with DeepSeek\n"
-            "| @agent! <task>             -> run one agent with Claude discover\n"
+            "| @agent! <task>             -> run one agent with Codex discover\n"
             "| !! <task>                  -> Anna discover mode\n"
             "+------------------------------------------------------------+\n"
         )

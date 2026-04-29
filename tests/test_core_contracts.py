@@ -75,6 +75,14 @@ class AnnaPlanValidationTests(unittest.TestCase):
         self.assertTrue(any("Finn is dispatched before Dana" in issue for issue in issues))
         self.assertTrue(any("Finn is dispatched before Eddie" in issue for issue in issues))
 
+    def test_allows_finn_when_existing_finn_output_already_exists(self):
+        issues = validate_dispatch_plan(
+            [{"agent": "finn", "task": "verify the existing engineered dataset"}],
+            active_project=Path("projects/demo"),
+            read_pipeline=lambda agent: "projects/demo/output/finn/engineered_data.csv" if agent == "finn" else "",
+        )
+        self.assertFalse(issues)
+
     def test_allows_ordered_dana_eddie_finn_mo_plan(self):
         issues = validate_dispatch_plan(
             [

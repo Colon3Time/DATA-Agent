@@ -30,6 +30,7 @@ When the user request requires agent work, Anna MUST follow this contract:
 5. CRISP-DM guardrails:
    - If no dataset exists, dispatch scout first.
    - If dataset exists but no cleaning/EDA exists, prefer dana and/or eddie before modeling.
+   - If valid Finn output already exists, treat Finn as completed and do not force Dana/Eddie reruns before Mo Phase 2.
    - Do not dispatch mo unless Finn runs before Mo in the same plan, or valid Finn output already exists.
    - Do not dispatch quinn/rex final work before Mo has produced model output, unless user explicitly asks for reporting only.
    - If required context is missing, use READ_FILE or ASK_USER before dispatching.
@@ -67,10 +68,10 @@ def validate_dispatch_plan(
 
     existing_dana = bool(read_pipeline("dana"))
     existing_eddie = bool(read_pipeline("eddie"))
+    existing_finn = bool(read_pipeline("finn"))
     has_dana_before = existing_dana
     has_eddie_before = existing_eddie
     has_finn_before_mo = False
-    existing_finn = bool(read_pipeline("finn"))
     for agent in agents:
         if agent == "dana":
             has_dana_before = True
@@ -79,10 +80,11 @@ def validate_dispatch_plan(
                 issues.append("Eddie is dispatched before Dana and no existing Dana output is available.")
             has_eddie_before = True
         if agent == "finn":
-            if not has_dana_before:
-                issues.append("Finn is dispatched before Dana and no existing Dana output is available.")
-            if not has_eddie_before:
-                issues.append("Finn is dispatched before Eddie and no existing Eddie output is available.")
+            if not existing_finn:
+                if not has_dana_before:
+                    issues.append("Finn is dispatched before Dana and no existing Dana output is available.")
+                if not has_eddie_before:
+                    issues.append("Finn is dispatched before Eddie and no existing Eddie output is available.")
             has_finn_before_mo = True
         if agent == "mo" and not (has_finn_before_mo or existing_finn):
             issues.append("Mo is dispatched before Finn and no existing Finn output is available.")

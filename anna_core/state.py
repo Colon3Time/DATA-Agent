@@ -13,7 +13,7 @@ class OrchestratorState:
 
     anna_history: list[dict[str, str]] = field(default_factory=list)
     active_project: Path | None = None
-    claude_calls: int = 0
+    codex_calls: int = 0
     agent_iter_count: dict[str, int] = field(default_factory=dict)
     _active_procs: set[subprocess.Popen[Any]] = field(default_factory=set)
     stop_requested: threading.Event = field(default_factory=threading.Event)
@@ -22,8 +22,16 @@ class OrchestratorState:
     def reset_session(self) -> None:
         self.anna_history.clear()
         self.active_project = None
-        self.claude_calls = 0
+        self.codex_calls = 0
         self.agent_iter_count.clear()
+
+    @property
+    def claude_calls(self) -> int:
+        return self.codex_calls
+
+    @claude_calls.setter
+    def claude_calls(self, value: int) -> None:
+        self.codex_calls = value
 
     def reset_pipeline(self) -> None:
         self.agent_iter_count.clear()

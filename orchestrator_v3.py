@@ -12,7 +12,7 @@ import threading
 import concurrent.futures
 import time
 from pathlib import Path
-from dotenv import load_dotenv
+from anna_core.env import load_app_env
 
 from anna_core.agent_runtime import (
     build_agent_path_message,
@@ -49,7 +49,7 @@ if sys.platform == "win32":
     import msvcrt
 
 BASE_DIR = Path(__file__).parent
-load_dotenv(BASE_DIR / ".env")
+load_app_env(BASE_DIR / ".env")
 CONFIG = load_config(BASE_DIR)
 
 # ── Colors ────────────────────────────────────────────────────────────────────
@@ -1230,6 +1230,9 @@ def parse_dispatches(text: str) -> list[dict]:
 def parse_ask_user(text: str) -> str|None:
     return DISPATCHER.parse_ask_user(text)
 
+def parse_ask_codex(text: str) -> str|None:
+    return DISPATCHER.parse_ask_codex(text)
+
 
 # ── Project Detection ─────────────────────────────────────────────────────────
 
@@ -1241,6 +1244,12 @@ def detect_project(text: str) -> Path|None:
 
 def execute_anna_actions(response: str) -> str:
     return ACTION_EXECUTOR.execute(response)
+
+
+def print_text_box(title: str, body: str, border_color: str = YL) -> None:
+    print(f"\n{border_color}┌─ {title} ─────────────────────────────────────────────┐{RST}")
+    print(f"{border_color}│{RST}  {body}")
+    print(f"{border_color}└────────────────────────────────────────────────────┘{RST}")
 
 
 def response_has_anna_actions(response: str) -> bool:
@@ -1418,13 +1427,15 @@ def run_pipeline(user_input: str):
 
     ask = parse_ask_user(anna_response)
     if ask:
-        print(f"\n{YL}┌─ ANNA ─────────────────────────────────────────────┐{RST}")
-        print(f"{YL}│{RST}  {ask}")
-        print(f"{YL}└────────────────────────────────────────────────────┘{RST}")
+        print_text_box("ANNA", ask, YL)
         ans = input(f"  {BLD}คุณ (y/n):{RST} ").strip().lower()
         if ans != "y":
             print(f"\n{YL}  ANNA:{RST} เข้าใจแล้วค่ะ หยุดการทำงาน")
             return
+
+    codex = parse_ask_codex(anna_response)
+    if codex:
+        print_text_box("CODEX", codex, MG)
 
     dispatches = parse_dispatches(anna_response)
 
@@ -1461,6 +1472,8 @@ def run_pipeline(user_input: str):
     if STATE.active_project is None:
         STATE.active_project = detect_project(anna_response)
     pipeline_clear()   # clear stale paths NOW — before validate reads pipeline
+    if STATE.active_project is not None:
+        PIPELINE.rebuild_from_project(STATE.active_project)
 
     plan_issues = validate_dispatch_plan(
         dispatches,
@@ -1479,6 +1492,8 @@ def run_pipeline(user_input: str):
         if STATE.active_project is None:
             STATE.active_project = detect_project(anna_response)
             pipeline_clear()   # project resolved after repair — clear again if it changed
+        if STATE.active_project is not None:
+            PIPELINE.rebuild_from_project(STATE.active_project)
         dispatches = parse_dispatches(anna_response)
         plan_issues = validate_dispatch_plan(
             dispatches,
@@ -1491,9 +1506,10 @@ def run_pipeline(user_input: str):
                 print(f"{RD}    - {issue}{RST}")
             ask = parse_ask_user(anna_response)
             if ask:
-                print(f"\n{YL}┌─ ANNA ─────────────────────────────────────────────┐{RST}")
-                print(f"{YL}│{RST}  {ask}")
-                print(f"{YL}└────────────────────────────────────────────────────┘{RST}")
+                print_text_box("ANNA", ask, YL)
+            codex = parse_ask_codex(anna_response)
+            if codex:
+                print_text_box("CODEX", codex, MG)
             return
     proj_name = STATE.active_project.name if STATE.active_project else "unknown"
     print(f"\n{CY}  ⟳ Pipeline:{RST} {BLD}{len(dispatches)} agent(s){RST}  {DIM}│ project: {proj_name}{RST}")
@@ -1712,7 +1728,7 @@ def print_help():
         f"  {BLD}/resume [name] [task]{RST} ทำต่อจากโปรเจกต์/active project  (alias: /r)\n"
         f"  {BLD}/status{RST}               ดูสถานะ pipeline  (alias: /s)\n"
         f"  {BLD}/kb <agent>{RST}           ดู knowledge base\n"
-        f"  {BLD}/claude{RST}               ดู Claude usage\n"
+        f"  {BLD}/claude{RST}               ดู Codex usage\n"
         f"  {BLD}/end{RST}                  reset session\n"
         f"  {BLD}/exit{RST}                 ออกจากระบบ\n"
     )
@@ -1928,7 +1944,7 @@ def handle_cli_command(user_input: str) -> str:
         return "exit"
     if lower == "end session":
         STATE.reset_session()
-        print(f"{YL}  ANNA:{RST} เริ่ม session ใหม่แล้วค่ะ  {DIM}(Claude calls reset → 0/{CLAUDE_LIMIT}){RST}")
+        print(f"{YL}  ANNA:{RST} เริ่ม session ใหม่แล้วค่ะ  {DIM}(Codex calls reset → 0/{CLAUDE_LIMIT}){RST}")
         return "handled"
     if lower == "help":
         print_help()
@@ -1969,7 +1985,7 @@ def handle_cli_command(user_input: str) -> str:
         project_name, extra_instruction = _split_resume_args(user_input[7:].strip())
         resume_project(project_name, extra_instruction)
         return "handled"
-    if lower in ("claude", "claude status"):
+    if lower in ("claude", "claude status", "codex", "codex status"):
         CLI.print_claude_usage()
         return "handled"
     if user_input.startswith("!!"):

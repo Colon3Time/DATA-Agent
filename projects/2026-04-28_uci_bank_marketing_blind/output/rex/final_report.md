@@ -37,7 +37,7 @@
 - s Found
 - (s)
 - (s)
-- s: 1 issue(s)
+- s: 0 issue(s)
 - s: 0 issue(s)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -81,8 +81,8 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ## 5. Charts & Visuals
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-![Chart](C:\Users\Amorntep\DATA-Agent\projects\2026-04-28_uci_bank_marketing_blind\output\vera\charts\01_feature_importance.png)
-![Chart](C:\Users\Amorntep\DATA-Agent\projects\2026-04-28_uci_bank_marketing_blind\output\vera\charts\02_roc_curve.png)
-![Chart](C:\Users\Amorntep\DATA-Agent\projects\2026-04-28_uci_bank_marketing_blind\output\vera\charts\03_confusion_matrix.png)
-![Chart](C:\Users\Amorntep\DATA-Agent\projects\2026-04-28_uci_bank_marketing_blind\output\vera\charts\04_tsne_clusters.png)
-![Chart](C:\Users\Amorntep\DATA-Agent\projects\2026-04-28_uci_bank_marketing_blind\output\vera\charts\05_feature_distributions.png)
+![Chart](D:\DATA-Agent-refactor-v2\projects\2026-04-28_uci_bank_marketing_blind\output\vera\charts\01_feature_importance.png)
+![Chart](D:\DATA-Agent-refactor-v2\projects\2026-04-28_uci_bank_marketing_blind\output\vera\charts\02_roc_curve.png)
+![Chart](D:\DATA-Agent-refactor-v2\projects\2026-04-28_uci_bank_marketing_blind\output\vera\charts\03_confusion_matrix.png)
+![Chart](D:\DATA-Agent-refactor-v2\projects\2026-04-28_uci_bank_marketing_blind\output\vera\charts\04_tsne_clusters.png)
+![Chart](D:\DATA-Agent-refactor-v2\projects\2026-04-28_uci_bank_marketing_blind\output\vera\charts\05_feature_distributions.png)

@@ -1,20 +1,36 @@
-# Anna Research Report — UCI Bank Marketing Dataset
 
-## Dataset Info
-- **Name:** UCI Bank Marketing Dataset (Bank Marketing Data Set)
-- **Source:** https://archive.ics.uci.edu/ml/datasets/Bank+Marketing
-- **Paper:** Moro et al. (2014) — A Data-Driven Approach to Predict the Success of Bank Telemarketing
-- **Business Context:** การตลาดทางโทรศัพท์ของธนาคารโปรตุเกส (Portuguese bank) — โทรเสนอสินเชื่อระยะยาว (term deposit) ให้ลูกค้า
-- **Goal:** ทำนายว่าลูกค้าจะสมัคร term deposit (yes/no) เพื่อ optimize การโทร ลด cost และเพิ่ม conversion rate
-- **Problem Type:** Binary Classification
-- **Imbalance:** ข้อมูล imbalance! ส่วนใหญ่เป็น 'no' (~88%) และ 'yes' (~12%) — ต้องจัดการ imbalance
+# Anna Output Report — UCI Bank Marketing Campaign Prediction
 
-## Loaded Data Info
-- Rows: 41188
-- Columns: 21
-- Target distribution (y): {'no': 0.8873458288821987, 'yes': 0.11265417111780131}
+## 📋 ข้อมูลทั่วไป
+| รายการ | รายละเอียด |
+|--------|-----------|
+| **Project** | 2026-04-28_uci_bank_marketing_blind |
+| **วันที่ทำงาน** | 2026-04-28 |
+| **ตำแหน่ง** | CEO & Orchestrator |
 
-## Column Descriptions
-| Column | Description | Type | Sample Values |
-|--------|-------------|------|---------------|
-| age | อายุของลูกค้า (numeric) | int64 | [np.int64(56), np.int64(57), np.int64(37)] |
+## 🔄 Pipeline ที่ Dispatch
+```
+Scout → Dana → Eddie → Finn → Mo (Phase 1) → Quinn → Iris → Vera → Rex
+```
+
+### สถานะทีมงาน
+| Agent | ทำงาน | หมายเหตุ |
+|-------|-------|----------|
+| Scout | ✅ | dataset_profile.md พร้อม |
+| Dana | ✅ | dana_report.md + dana_output.csv พร้อม |
+| Eddie | ✅ | eddie_report.md + PIPELINE_SPEC พร้อม |
+| Finn | ✅ | finn_report.md + finn_output.csv พร้อม |
+| Mo | ⚠️ | report แค่ Phase 1 เท่านั้น (LightGBM F1=0.918, AUC=0.9542) |
+| Quinn | ✅ | quinn_qc_report.md พร้อม — พบ Issues |
+| Iris | ✅ | insights.md + recommendations.md พร้อม |
+| Vera | ✅ | charts/ พร้อม |
+| Rex | ❌ | executive_summary metrics เป็น N/A |
+
+## ⚠️ ปัญหาที่พบใน Pipeline
+1. Mo เสร็จแค่ Phase 1 — ยังไม่ได้ Phase 2 Tune และ Phase 3 Validate
+2. Rex report metrics เป็น N/A — ขาดข้อมูลจาก Pipeline
+3. Quinn พบ Issues ที่ยังไม่ได้แก้ไข
+
+## 📌 บทเรียน
+- Anna ต้องสร้าง output/anna/ folder ก่อนเขียน report เสมอ
+- ห้ามอ้างไฟล์ที่ไม่มีอยู่จริง — ต้องตรวจสอบด้วย RUN_SHELL ก่อนทุกครั้ง

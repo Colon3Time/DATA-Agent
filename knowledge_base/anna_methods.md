@@ -137,3 +137,7 @@ CRITICAL LESSON: หลังจาก CREATE_DIR ต้อง RUN_SHELL dir เ
 Anna ไม่ต้องสั่งละเอียด — แค่ส่ง task + context แล้วให้ agent ทำงานอัตโนมัติ
 Anna ยังคงต้องตรวจสอบ **output validation gate** ก่อน handoff ทุกครั้ง
 และต้อง validate คุณภาพ (rows, target_column, problem_type) ก่อน dispatch ต่อ
+
+
+## [2026-04-29 15:24] [FEEDBACK]
+Mo Phase 2 Tune — ถ้า Loop Back To Finn = NO และ DL_ESCALATE = NO แสดงว่า preprocessing ไม่เปลี่ยน Mo ใช้ data ชุดเดิมจาก output/finn/ ได้เลย ไม่ต้อง dispatch Finn ซ้ำอีก

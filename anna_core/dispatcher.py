@@ -16,6 +16,7 @@ class DispatchParser:
         self.on_reject = on_reject
         self.dispatch_re = re.compile(r"<DISPATCH>(.*?)</DISPATCH>", re.DOTALL)
         self.ask_user_re = re.compile(r"<ASK_USER>(.*?)</ASK_USER>", re.DOTALL)
+        self.ask_codex_re = re.compile(r"<ASK_CODEX>(.*?)</ASK_CODEX>", re.DOTALL)
 
     def parse_dispatches(self, text: str) -> list[dict]:
         results: list[dict] = []
@@ -35,6 +36,10 @@ class DispatchParser:
 
     def parse_ask_user(self, text: str) -> str | None:
         match = self.ask_user_re.search(text)
+        return match.group(1).strip() if match else None
+
+    def parse_ask_codex(self, text: str) -> str | None:
+        match = self.ask_codex_re.search(text)
         return match.group(1).strip() if match else None
 
     @staticmethod

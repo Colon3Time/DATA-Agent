@@ -8,7 +8,7 @@ import json
 import requests
 from pathlib import Path
 from datetime import datetime
-from dotenv import load_dotenv
+from anna_core.env import load_app_env
 
 # UI Libraries
 from prompt_toolkit import prompt
@@ -33,7 +33,7 @@ custom_theme = Theme({
 })
 console = Console(theme=custom_theme)
 
-load_dotenv(Path(__file__).parent / ".env")
+load_app_env(r"D:\DATA-ScinceOS\.env")
 
 DEEPSEEK_URL   = "https://api.deepseek.com/chat/completions"
 DEEPSEEK_MODEL = "deepseek-chat"

@@ -15,7 +15,11 @@
 | **Claude (discover)** | agent ติดปัญหา / domain ใหม่ที่ KB ยังไม่มี | `!! ช่วยหาวิธีแก้ปัญหาที่ Mo ติดอยู่` |
 | **DeepSeek (execute)** | ทุกอย่างในการทำงานปกติ | `<ข้อความปกติ>` |
 
+| **Codex (local coding helper)** | user พูดถึง `Codex`, `CODEX CLI`, หรือสั่งให้ "ให้ codex แก้" | `ให้ codex แก้ plan validation`, `ถาม Codex ได้เลย` |
+
 > กฎ: DeepSeek ทำงานทั้งหมดก่อน — ถ้าติดปัญหาค่อย escalate ให้ Claude ผ่าน Anna เท่านั้น
+> ถ้า user อ้างถึง Codex ให้ Anna ตีความว่าเป็นผู้ช่วยโค้ด local ที่ใช้แก้ไฟล์, prompt, validation, หรือ pipeline logic ใน workspace นี้ทันที
+> ถ้า Anna ต้องการแสดงข้อความ/คำแนะนำที่มาจาก Codex ให้ห่อด้วย `<ASK_CODEX>...</ASK_CODEX>` เพื่อให้ CLI แสดงเป็น text box แยกจากข้อความปกติ
 
 ---
 

@@ -2,7 +2,7 @@ Quinn Quality Check Report
 ===========================
 Project: UCI Bank Marketing (classification, imbalance 7.88:1)
 Date: 2026-04-28
-Status: ไม่ผ่าน
+Status: ผ่านแบบมีเงื่อนไข
 CRISP-DM Cycle: 1
 
 ───────────────────────────────────────
@@ -19,14 +19,14 @@ Overfitting Check:
 Details: ['ไม่พบ columns train/test score — ตรวจสอบ overfitting ไม่ได้']
 
 Model Performance:
-❌ F1 Score: 0.9016 (threshold: 0.7)
-✅ AUC: 0.9351 (threshold: 0.80)
-❌ Recall: 0.9121 (threshold: 0.95 — medical domain)
-Details: ['[CRITICAL] Recall (0.9121) < 0.95 — medical domain standard']
+✅ F1 Score: N/A (threshold: 0.7)
+✅ AUC: N/A (threshold: 0.80)
+✅ Recall: N/A (threshold: 0.95 — medical domain)
+Details: Performance metrics adequate
 
 Model Comparison:
-✅ Models compared: Multiple models found
-Details: Model comparison table present
+❌ Models compared: Found only 0 model(s) — ควรมี ≥ 2 models สำหรับ comparison
+Details: ['Found only 0 model(s) — ควรมี ≥ 2 models สำหรับ comparison']
 
 Feature Importance:
 ✅ Feature analysis: No issues
@@ -35,35 +35,41 @@ Details: Feature importance looks reasonable
 ───────────────────────────────────────
 Issues Found
 ───────────────────────────────────────
+- Model performance below threshold
 - ไม่พบ columns train/test score — ตรวจสอบ overfitting ไม่ได้
-- [CRITICAL] Recall (0.9121) < 0.95 — medical domain standard
+- Found only 0 model(s) — ควรมี ≥ 2 models สำหรับ comparison
 
 - ไม่พบ columns train/test score — ตรวจสอบ overfitting ไม่ได้ → ส่งกลับ Mo เพราะ model overfitting
-- [CRITICAL] Recall (0.9121) < 0.95 — medical domain standard → ส่งกลับ Mo เพราะ model performance ต่ำกว่าเกณฑ์
+
 
 ───────────────────────────────────────
 BUSINESS_SATISFACTION
 ───────────────────────────────────────
-Criteria Passed: 3/4
+Criteria Passed: 1/4
 
-1. Model performance ≥ threshold: PASS
-   - F1: 0.9016 (threshold: 0.7)
-   - AUC: 0.9351 (threshold: 0.80)
+1. Model performance ≥ threshold: FAIL
+   - F1: N/A (threshold: 0.7)
+   - AUC: N/A (threshold: 0.80)
 
 2. Technical soundness (no leakage, no overfitting): FAIL
    - Leakage: 0 issue(s)
    - Overfitting: 1 issue(s)
 
-3. Model comparison / Fairness: PASS
-   - Issues: 0 issue(s)
+3. Model comparison / Fairness: FAIL
+   - Issues: 1 issue(s)
 
 4. Feature importance validation: PASS
    - Issues: 0 issue(s)
 
 
+RESTART_CYCLE: YES
+Restart From: Mo (model tuning)
+New Strategy: เพิ่ม regularization / ลด model complexity / เพิ่ม cross-validation folds
+Reason: Model performance below threshold, ไม่พบ columns train/test score — ตรวจสอบ overfitting ไม่ได้, Found only 0 model(s) — ควรมี ≥ 2 models สำหรับ comparison
 
-Verdict: SATISFIED
-RESTART_CYCLE: NO
+
+Verdict: UNSATISFIED
+RESTART_CYCLE: YES
 
 ───────────────────────────────────────
 Self-Improvement Report

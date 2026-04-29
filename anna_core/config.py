@@ -15,12 +15,20 @@ class AppConfig:
     projects_dir: Path
     deepseek_url: str
     deepseek_model: str
-    claude_model: str
+    codex_model: str
     mode: str
-    claude_limit: int
+    codex_limit: int
     step_mode: bool
     no_color: bool
     terminal_title: bool
+
+    @property
+    def claude_model(self) -> str:
+        return self.codex_model
+
+    @property
+    def claude_limit(self) -> int:
+        return self.codex_limit
 
 
 def load_config(base_dir: Path, argv: list[str] | None = None) -> AppConfig:
@@ -31,12 +39,19 @@ def load_config(base_dir: Path, argv: list[str] | None = None) -> AppConfig:
         if idx + 1 < len(args):
             mode = args[idx + 1]
 
-    claude_limit = 10
-    if "--claude-limit" in args:
+    codex_limit = 10
+    if "--codex-limit" in args:
+        idx = args.index("--codex-limit")
+        if idx + 1 < len(args):
+            try:
+                codex_limit = int(args[idx + 1])
+            except ValueError:
+                pass
+    elif "--claude-limit" in args:
         idx = args.index("--claude-limit")
         if idx + 1 < len(args):
             try:
-                claude_limit = int(args[idx + 1])
+                codex_limit = int(args[idx + 1])
             except ValueError:
                 pass
 
@@ -49,9 +64,9 @@ def load_config(base_dir: Path, argv: list[str] | None = None) -> AppConfig:
         projects_dir=base_dir / "projects",
         deepseek_url="https://api.deepseek.com/chat/completions",
         deepseek_model="deepseek-chat",
-        claude_model="claude-sonnet-4-6",
+        codex_model="gpt-5.5",
         mode=mode,
-        claude_limit=claude_limit,
+        codex_limit=codex_limit,
         step_mode="--auto" not in args,
         no_color="--no-color" in args,
         terminal_title="--no-title" not in args,
