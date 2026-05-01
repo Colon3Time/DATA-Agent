@@ -1,2 +1,0 @@
-n_rows,n_features,target_column,problem_type,top_features,leakage_columns
-1021426,11,is_outlier,classification,"[""Quantity"", ""Customer_ID"", ""is_return"", ""Price"", ""is_cancellation""]","[""InvoiceDate"", ""Customer_ID""]"

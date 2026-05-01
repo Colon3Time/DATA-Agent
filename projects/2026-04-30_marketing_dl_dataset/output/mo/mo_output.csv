@@ -1,2 +1,0 @@
-input_rows,input_columns,top_columns,contains_target_hint,contains_numeric
-1,9,"[""n_rows"", ""n_features"", ""problem_type"", ""top_features"", ""n_rows_sq"", ""n_rows_log1p"", ""n_features_sq"", ""n_features_log1p"", ""row_count""]",0,1

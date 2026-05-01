@@ -1,2 +1,0 @@
-n_rows,n_features,problem_type,top_features,n_rows_sq,n_rows_log1p,n_features_sq,n_features_log1p,row_count
-1021426,11,classification,"[""Quantity"", ""Customer_ID"", ""is_return"", ""Price"", ""is_cancellation""]",1043311073476,13.836711227152156,121,2.4849066497880004,1
