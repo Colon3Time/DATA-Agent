@@ -43,6 +43,53 @@ def latest_output_csv(project_dir: Path | None) -> str:
     return str(csvs[0]) if csvs else ""
 
 
+def latest_rex_meeting_report(project_dir: Path | None) -> str:
+    """Return the newest Rex executive/meeting report, if one exists."""
+    if not project_dir:
+        return ""
+    rex_dir = project_dir / "output" / "rex"
+    if not rex_dir.exists():
+        return ""
+    candidates: list[Path] = []
+    for name in ("meeting_presentation.md", "executive_summary.md", "final_report.md"):
+        p = rex_dir / name
+        if p.exists():
+            candidates.append(p)
+    candidates.extend(rex_dir.glob("meeting_presentation*.md"))
+    unique = list(dict.fromkeys(candidates))
+    if not unique:
+        return ""
+    return str(sorted(unique, key=lambda x: x.stat().st_mtime, reverse=True)[0])
+
+
+def should_regenerate_vera_script_for_meeting_report(
+    script_path: Path | None,
+    task: str,
+    project_dir: Path | None,
+) -> bool:
+    """Vera visuals must be regenerated when a newer meeting report is available."""
+    if not script_path or not project_dir:
+        return False
+    meeting_report = latest_rex_meeting_report(project_dir)
+    if not meeting_report:
+        return False
+    task_lc = task.lower()
+    explicit_alignment = any(
+        key in task_lc
+        for key in (
+            "meeting",
+            "presentation",
+            "executive",
+            "slide",
+            "กราฟ",
+            "ประชุม",
+            "นำเสนอ",
+        )
+    )
+    report_is_newer = Path(meeting_report).stat().st_mtime >= script_path.stat().st_mtime
+    return explicit_alignment or report_is_newer
+
+
 def scout_input_csv(project_dir: Path | None) -> str:
     if not project_dir:
         return ""
@@ -85,6 +132,15 @@ def build_agent_path_message(
             path_lines.append(f"Phase 2 report  : {project_dir / 'output' / 'mo' / 'model_results.md'}")
             path_lines.append(f"Phase 2 CSV     : {project_dir / 'output' / 'mo' / 'model_comparison.csv'}")
             path_lines.append("Required phase  : Phase 3 Validate; compare tuned model against default")
+    if agent_name == "vera" and project_dir:
+        meeting_report = latest_rex_meeting_report(project_dir)
+        if meeting_report:
+            path_lines.append(f"Meeting report  : {meeting_report}")
+            path_lines.append(
+                "Visual brief    : Build the chart plan from the meeting/executive report storyline first. "
+                "Every important chart must map to a meeting section, claim, KPI, or recommendation; "
+                "do not create decorative or column-driven charts that do not support the meeting report."
+            )
     if agent_name == "scout" and project_dir:
         path_lines.append(f"Save dataset to : {project_dir / 'input'}/ ← ไฟล์ข้อมูลจริงต้องอยู่ที่นี่เท่านั้น")
     return "\n".join(path_lines) + f"\n\nTask: {task}" if path_lines else task

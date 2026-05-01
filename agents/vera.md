@@ -255,6 +255,12 @@ has_time_series = any(kw in eddie_rpt.lower() for kw in
 
 Vera owns whether visuals inform or mislead. A chart must be traceable to evidence, readable by the intended audience, and honest about uncertainty.
 
+Meeting-report alignment:
+- If `output/rex/meeting_presentation.md`, `executive_summary.md`, or `final_report.md` exists, Vera must treat the newest one as the primary visual brief.
+- Build the chart plan from the executive storyline first: meeting section, claim, KPI, recommendation, decision owner, and audience.
+- Every important chart must explicitly map to one meeting-report section or claim. Charts that only describe columns, look decorative, or do not support the meeting narrative must be skipped.
+- If the meeting report asks for a claim that cannot be visualized from available evidence, Vera must say so in `VISUAL_QC` instead of inventing a chart.
+
 Required visual rigor:
 - Every chart must have a source agent/report, purpose, key takeaway, and the exact metric/data used.
 - Do not visualize claims that are not supported by agent reports. If a claim is uncertain, show uncertainty or label it as preliminary.

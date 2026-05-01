@@ -4,6 +4,8 @@ import os
 import subprocess
 import sys
 import re
+import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -84,6 +86,14 @@ def run_inline_python(code: str, cwd: Path, timeout_seconds: int = 30) -> Comman
     )
 
 
+def _format_duration(seconds: int) -> str:
+    minutes, secs = divmod(max(0, seconds), 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours:
+        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+    return f"{minutes:02d}:{secs:02d}"
+
+
 def run_python_script(
     script_path: Path,
     input_path: str,
@@ -121,20 +131,63 @@ def run_python_script(
     )
     with state._proc_lock:
         state._active_procs.add(proc)
+    result: dict[str, str] = {"stdout": "", "stderr": ""}
+
+    def _communicate() -> None:
+        stdout, stderr = proc.communicate()
+        result["stdout"] = stdout or ""
+        result["stderr"] = stderr or ""
+
+    worker = threading.Thread(target=_communicate, daemon=True)
+    worker.start()
     try:
-        stdout, stderr = proc.communicate(timeout=timeout_seconds)
-    except (KeyboardInterrupt, subprocess.TimeoutExpired):
+        started = time.monotonic()
+        last_printed = -1
+        agent_label = output_dir.name.upper()
+        while worker.is_alive():
+            worker.join(timeout=1)
+            elapsed = int(time.monotonic() - started)
+            remaining = timeout_seconds - elapsed
+            if elapsed >= timeout_seconds:
+                raise subprocess.TimeoutExpired(cmd, timeout_seconds)
+            if elapsed == 0 or elapsed - last_printed >= 5:
+                last_printed = elapsed
+                print(
+                    f"\r  {agent_label} running... "
+                    f"elapsed {_format_duration(elapsed)} | "
+                    f"left {_format_duration(remaining)}",
+                    end="",
+                    flush=True,
+                )
+        print(
+            f"\r  {agent_label} finished in {_format_duration(int(time.monotonic() - started))}"
+            + " " * 30
+        )
+    except KeyboardInterrupt:
         proc.kill()
-        proc.communicate()
+        worker.join(timeout=5)
         with state._proc_lock:
             state._active_procs.discard(proc)
         raise KeyboardInterrupt
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        worker.join(timeout=5)
+        with state._proc_lock:
+            state._active_procs.discard(proc)
+        timeout_msg = f"Script timed out after {timeout_seconds} seconds"
+        stderr = ((result["stderr"] or "") + ("\n" if result["stderr"] else "") + timeout_msg)
+        print(f"\r  {output_dir.name.upper()} timed out after {_format_duration(timeout_seconds)}" + " " * 20)
+        return ScriptRunResult(
+            stdout=result["stdout"] or "",
+            stderr=stderr,
+            returncode=124,
+        )
     finally:
         with state._proc_lock:
             state._active_procs.discard(proc)
 
     return ScriptRunResult(
-        stdout=stdout or "",
-        stderr=stderr or "",
+        stdout=result["stdout"] or "",
+        stderr=result["stderr"] or "",
         returncode=proc.returncode,
     )

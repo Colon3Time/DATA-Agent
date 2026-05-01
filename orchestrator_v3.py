@@ -22,6 +22,7 @@ from anna_core.agent_runtime import (
     latest_output_csv,
     output_dir_for,
     scout_input_csv,
+    should_regenerate_vera_script_for_meeting_report,
 )
 from anna_core.actions import WorkspacePaths
 from anna_core.action_executor import ActionExecutor, ActionPalette
@@ -376,7 +377,7 @@ def run_script(script_path: Path, input_path: str, output_dir: Path) -> tuple[st
     print(f"\n{CY}  ▶ SCRIPT{RST}  {BLD}{script_path.name}{RST}  {DIM}← {input_path or 'no input'}{RST}")
     print(f"{DIM}  กด ESC เพื่อหยุด script นี้{RST}")
 
-    result = run_python_script(script_path, input_path, output_dir, STATE, timeout_seconds=300)
+    result = run_python_script(script_path, input_path, output_dir, STATE, timeout_seconds=1800)
 
     if STATE.stop_requested.is_set():
         return str(output_dir), -999, "หยุดโดยผู้ใช้ (ESC)"
@@ -636,6 +637,34 @@ def _read_project_target(project_dir: Path | None) -> str:
     return "" if target.lower() == "unknown" else target
 
 
+def _read_profile_field(profile_text: str, field_name: str) -> str:
+    m = re.search(rf"^{re.escape(field_name)}\s*:\s*(.+?)\s*$",
+                  profile_text, re.IGNORECASE | re.MULTILINE)
+    return m.group(1).strip() if m else ""
+
+
+def _problem_type_allows_missing_target(problem_type: str) -> bool:
+    return problem_type.strip().lower() in {
+        "clustering",
+        "unsupervised",
+        "segmentation",
+        "association_rules",
+        "anomaly_detection",
+    }
+
+
+def _project_profile_field(project_dir: Path | None, field_name: str) -> str:
+    if not project_dir:
+        return ""
+    profile_path = project_dir / "output" / "scout" / "dataset_profile.md"
+    if not profile_path.exists():
+        return ""
+    return _read_profile_field(
+        profile_path.read_text(encoding="utf-8", errors="ignore"),
+        field_name,
+    )
+
+
 def _forbidden_model_column(col: str, target: str = "") -> bool:
     """Columns that must not appear as model features in a predictive handoff."""
     lc = col.strip().lower()
@@ -664,7 +693,8 @@ def _read_csv_shape(path: Path) -> tuple[int, int]:
     import pandas as _pd
 
     df_head = _pd.read_csv(str(path), nrows=1)
-    rows = sum(1 for _ in open(str(path), encoding="utf-8")) - 1
+    with open(str(path), encoding="utf-8") as fh:
+        rows = sum(1 for _ in fh) - 1
     return rows, df_head.shape[1]
 
 
@@ -708,7 +738,8 @@ def validate_agent_output(agent_name: str, output_path: str,
             df = _pd.read_csv(str(p), nrows=5)
             if df.shape[1] == 0:
                 return False, "CSV ว่าง (0 columns)"
-            full_rows = sum(1 for _ in open(str(p), encoding="utf-8")) - 1
+            with open(str(p), encoding="utf-8") as fh:
+                full_rows = sum(1 for _ in fh) - 1
             if agent_name in ("scout", "dana", "eddie", "finn", "max") and full_rows < 20:
                 return False, (f"{p.name} มีแค่ {full_rows} rows — "
                                f"อาจโหลดไฟล์ผิด (outlier_flags? ควรเป็น *_output.csv)")
@@ -736,8 +767,14 @@ def validate_agent_output(agent_name: str, output_path: str,
         if profile_path.exists():
             import re as _re
             profile_text = profile_path.read_text(encoding="utf-8", errors="ignore")
-            # target_column ห้ามเป็น unknown
-            if "target_column: unknown" in profile_text:
+            problem_type = _read_profile_field(profile_text, "problem_type")
+            target_column = _read_profile_field(profile_text, "target_column")
+            # Supervised workflows need a target. Clustering/unsupervised profiles
+            # legitimately have no target column.
+            if (
+                target_column.lower() == "unknown"
+                and not _problem_type_allows_missing_target(problem_type)
+            ):
                 return False, "Scout gate FAIL: target_column=unknown — Scout ต้อง dispatch ใหม่"
             # rows < 1,000 gate ใช้เฉพาะ multi-table/join datasets
             # single-table datasets เช่น breast cancer (569 rows) ไม่ควรถูก block
@@ -766,8 +803,10 @@ def validate_agent_output(agent_name: str, output_path: str,
         if scout_csv.exists() and p.suffix == ".csv":
             try:
                 import pandas as _pd
-                scout_rows = sum(1 for _ in open(str(scout_csv), encoding="utf-8")) - 1
-                dana_rows  = sum(1 for _ in open(str(p), encoding="utf-8")) - 1
+                with open(str(scout_csv), encoding="utf-8") as fh:
+                    scout_rows = sum(1 for _ in fh) - 1
+                with open(str(p), encoding="utf-8") as fh:
+                    dana_rows = sum(1 for _ in fh) - 1
                 if scout_rows > 0:
                     loss_pct = (scout_rows - dana_rows) / scout_rows
                     if loss_pct > 0.20:
@@ -886,27 +925,41 @@ def validate_agent_output(agent_name: str, output_path: str,
             proj / "output" / "max" / "patterns_found.md",
         ]
         existing = [r for r in report_candidates if r.exists()]
+        if not existing:
+            return False, "Max gate FAIL: missing pattern report"
         if existing:
             txt = "\n".join(r.read_text(encoding="utf-8", errors="ignore").lower() for r in existing)
             if "pattern_validity" not in txt:
                 return False, "Max gate FAIL: missing PATTERN_VALIDITY"
 
     elif agent_name == "mo" and proj:
-        report = proj / "output" / "mo" / "model_results.md"
+        mo_dir = proj / "output" / "mo"
+        report_candidates = [
+            mo_dir / "model_results.md",
+            mo_dir / "mo_report.md",
+            mo_dir / "agent_report.md",
+        ]
+        existing_reports = [r for r in report_candidates if r.exists()]
+        report = existing_reports[0] if existing_reports else report_candidates[0]
         comparison = proj / "output" / "mo" / "model_comparison.csv"
         suspect_msgs: list[str] = []
         try:
+            if not existing_reports:
+                suspect_msgs.append("missing Mo model report")
             mo_csvs = [comparison] if comparison.exists() else []
-            for extra_csv in (proj / "output" / "mo").glob("*.csv"):
+            for extra_csv in mo_dir.glob("*.csv"):
                 if extra_csv not in mo_csvs:
                     mo_csvs.append(extra_csv)
+            score_evidence_found = False
             for csv_path in mo_csvs:
                 import pandas as _pd
                 cmp_df = _pd.read_csv(str(csv_path))
                 score_cols = _score_like_columns(cmp_df)
-                if score_cols and (cmp_df[score_cols] >= 0.999).any().any():
-                    suspect_msgs.append(f"perfect/near-perfect metric detected in {csv_path.name}")
-            if report.exists():
+                if score_cols:
+                    score_evidence_found = True
+                    if (cmp_df[score_cols] >= 0.999).any().any():
+                        suspect_msgs.append(f"perfect/near-perfect metric detected in {csv_path.name}")
+            if existing_reports:
                 txt = report.read_text(encoding="utf-8", errors="ignore").lower()
                 if re.search(r"\b(winner|best model|algorithm selected)\s*:\s*none\b", txt):
                     suspect_msgs.append("model report selected None")
@@ -934,6 +987,11 @@ def validate_agent_output(agent_name: str, output_path: str,
                         term in txt for term in ("time-based", "out-of-time", "oot", "temporal split")
                     ):
                         suspect_msgs.append("temporal/macro risk mentioned without time-based or OOT validation")
+                metric_terms = ("f1", "auc", "accuracy", "precision", "recall", "rmse", "mae", "r2", "pr-auc")
+                if any(term in txt for term in metric_terms):
+                    score_evidence_found = True
+            if not score_evidence_found:
+                suspect_msgs.append("missing readable model metrics")
             if suspect_msgs:
                 return False, "Mo gate FAIL: likely leakage — " + "; ".join(suspect_msgs)
         except Exception as e:
@@ -941,43 +999,46 @@ def validate_agent_output(agent_name: str, output_path: str,
 
     elif agent_name == "iris" and proj:
         report = proj / "output" / "iris" / "iris_report.md"
-        if report.exists():
-            txt = report.read_text(encoding="utf-8", errors="ignore").lower()
-            required_groups = {
-                "business decision brief": ("business_decision_brief", "business decision brief"),
-                "business lever/KPI": ("business lever", "revenue", "cost", "risk", "retention", "conversion", "kpi"),
-                "owner/action": ("owner", "team", "action"),
-                "assumptions/risks": ("assumption", "assumptions", "risk", "risks"),
-                "validation plan": ("validation plan", "a/b test", "pilot", "cohort", "causal"),
-                "confidence": ("confidence", "low", "medium", "high"),
-            }
-            missing = [
-                name for name, terms in required_groups.items()
-                if not any(term in txt for term in terms)
-            ]
-            if missing:
-                return False, "Iris gate FAIL: missing business rigor — " + ", ".join(missing)
+        if not report.exists():
+            return False, "Iris gate FAIL: missing iris_report.md"
+        txt = report.read_text(encoding="utf-8", errors="ignore").lower()
+        required_groups = {
+            "business decision brief": ("business_decision_brief", "business decision brief"),
+            "business lever/KPI": ("business lever", "revenue", "cost", "risk", "retention", "conversion", "kpi"),
+            "owner/action": ("owner", "team", "action"),
+            "assumptions/risks": ("assumption", "assumptions", "risk", "risks"),
+            "validation plan": ("validation plan", "a/b test", "pilot", "cohort", "causal"),
+            "confidence": ("confidence", "low", "medium", "high"),
+        }
+        missing = [
+            name for name, terms in required_groups.items()
+            if not any(term in txt for term in terms)
+        ]
+        if missing:
+            return False, "Iris gate FAIL: missing business rigor — " + ", ".join(missing)
 
     elif agent_name == "quinn" and proj:
         report = proj / "output" / "quinn" / "quinn_report.md"
-        if report.exists():
-            txt = report.read_text(encoding="utf-8", errors="ignore").lower()
-            if "restart_cycle: yes" in txt or "verdict: unsatisfied" in txt or "status: fail" in txt:
-                return False, "Quinn gate FAIL: QC verdict requires restart"
-            required = ("leakage", "overfitting", "drift", "calibration", "business_satisfaction")
-            missing = [term for term in required if term not in txt]
-            if missing:
-                return False, "Quinn gate FAIL: missing QC evidence — " + ", ".join(missing)
+        if not report.exists():
+            return False, "Quinn gate FAIL: missing quinn_report.md"
+        txt = report.read_text(encoding="utf-8", errors="ignore").lower()
+        if "restart_cycle: yes" in txt or "verdict: unsatisfied" in txt or "status: fail" in txt:
+            return False, "Quinn gate FAIL: QC verdict requires restart"
+        required = ("leakage", "overfitting", "drift", "calibration", "business_satisfaction")
+        missing = [term for term in required if term not in txt]
+        if missing:
+            return False, "Quinn gate FAIL: missing QC evidence — " + ", ".join(missing)
 
     elif agent_name == "vera" and proj:
         report = proj / "output" / "vera" / "vera_report.md"
-        if report.exists():
-            txt = report.read_text(encoding="utf-8", errors="ignore").lower()
-            if "visual_qc" not in txt:
-                return False, "Vera gate FAIL: missing VISUAL_QC"
-            charts_dir = proj / "output" / "vera" / "charts"
-            if charts_dir.exists() and not list(charts_dir.glob("*.png")):
-                return False, "Vera gate FAIL: charts/ exists but no PNG charts were produced"
+        if not report.exists():
+            return False, "Vera gate FAIL: missing vera_report.md"
+        txt = report.read_text(encoding="utf-8", errors="ignore").lower()
+        if "visual_qc" not in txt:
+            return False, "Vera gate FAIL: missing VISUAL_QC"
+        charts_dir = proj / "output" / "vera" / "charts"
+        if charts_dir.exists() and not list(charts_dir.glob("*.png")):
+            return False, "Vera gate FAIL: charts/ exists but no PNG charts were produced"
 
     elif agent_name == "rex" and proj:
         quinn_report = proj / "output" / "quinn" / "quinn_report.md"
@@ -995,6 +1056,8 @@ def validate_agent_output(agent_name: str, output_path: str,
         if rex_dir.exists():
             existing_reports.extend(sorted(rex_dir.glob("meeting_presentation*.md")))
         existing_reports = list(dict.fromkeys(existing_reports))
+        if not existing_reports:
+            return False, "Rex gate FAIL: missing final executive report"
         if existing_reports:
             txt = "\n".join(p.read_text(encoding="utf-8", errors="ignore").lower() for p in existing_reports)
             required_groups = {
@@ -1022,27 +1085,170 @@ _GATE_RERUN_FROM: dict[str, tuple[str, str]] = {
 }
 
 
-def _print_gate_fail_recovery(agent: str, msg: str, project_dir: Path | None) -> None:
-    """Print a clear, actionable recovery message when a pipeline gate fails."""
+def _gate_recovery_hint(agent: str, msg: str, project_dir: Path | None) -> str:
     prev, csv_name = _GATE_RERUN_FROM.get(agent, ("", ""))
     if prev and csv_name and project_dir:
         src = project_dir / "output" / prev / csv_name
         if src.exists():
-            rerun_hint = f"rerun {agent.upper()} จาก {src.name} ({src.parent.name}/)"
-        else:
-            rerun_hint = f"rerun {prev.upper()} ก่อน แล้วค่อย rerun {agent.upper()}"
-    elif agent == "scout":
-        rerun_hint = "dispatch scout ใหม่ — ระบุ target_column ให้ชัดเจน"
-    else:
-        rerun_hint = f"ตรวจสอบ output ของ {agent} แล้ว dispatch ใหม่"
+            return f"rerun {agent.upper()} จาก {src.name} ({src.parent.name}/)"
+        return f"rerun {prev.upper()} ก่อน แล้วค่อย rerun {agent.upper()}"
 
-    bar = "═" * 53
-    print(f"\n{RD}╔{bar}╗{RST}")
-    print(f"{RD}║{RST}  {BLD}GATE FAIL — {agent.upper()}{RST}")
-    print(f"{RD}╠{bar}╣{RST}")
-    print(f"{RD}║{RST}  ปัญหา : {msg}")
-    print(f"{RD}║{RST}  แผน   : {rerun_hint}")
-    print(f"{RD}╚{bar}╝{RST}")
+    if agent == "scout":
+        if "DATASET_RISK_REGISTER" in msg:
+            return "แก้ scout_report.md ให้มี DATASET_RISK_REGISTER แล้ว rerun Scout หรือ /resume project"
+        problem_type = _project_profile_field(project_dir, "problem_type")
+        if _problem_type_allows_missing_target(problem_type):
+            return (
+                "Scout เป็นงาน unsupervised/clustering — ไม่ต้องระบุ target_column. "
+                "ถ้ายังเห็น gate fail นี้ ให้ restart orchestrator แล้ว /resume project"
+            )
+        if "target_column=unknown" in msg:
+            return (
+                "dispatch Scout ใหม่พร้อมกำหนดโจทย์ supervised ให้ชัด "
+                "หรือเปลี่ยน problem_type เป็น clustering ถ้าเป็น RFM/segmentation"
+            )
+        return "ตรวจ scout_report.md และ dataset_profile.md แล้ว rerun Scout"
+
+    return f"ตรวจสอบ output ของ {agent} แล้ว dispatch ใหม่"
+
+
+def _safe_rel(path: Path, base: Path | None) -> str:
+    try:
+        return str(path.relative_to(base)) if base else str(path)
+    except ValueError:
+        return str(path)
+
+
+def _expected_handoff_candidates(agent_name: str, project_dir: Path | None) -> list[Path]:
+    if not project_dir:
+        return []
+    candidates: dict[str, list[Path]] = {
+        "dana": [project_dir / "output" / "scout" / "scout_output.csv"],
+        "eddie": [project_dir / "output" / "dana" / "dana_output.csv"],
+        "finn": [project_dir / "output" / "eddie" / "eddie_output.csv"],
+        "mo": [
+            project_dir / "output" / "finn" / "engineered_data.csv",
+            project_dir / "output" / "finn" / "finn_output.csv",
+        ],
+    }
+    return candidates.get(agent_name, [])
+
+
+def _missing_handoff_message(agent_name: str, project_dir: Path | None) -> str:
+    expected = _expected_handoff_candidates(agent_name, project_dir)
+    expected_text = ", ".join(str(p) for p in expected) if expected else "(none)"
+    prev, _csv = _GATE_RERUN_FROM.get(agent_name, ("", ""))
+    rerun = f"rerun {prev.upper()} ก่อน แล้วค่อย rerun {agent_name.upper()}" if prev else f"rerun {agent_name.upper()}"
+    return f"{agent_name.upper()} input missing: expected upstream output {expected_text}. Plan: {rerun}"
+
+
+def _agent_report_candidates(agent: str, agent_dir: Path) -> list[Path]:
+    names_by_agent = {
+        "mo": ["model_results.md", "mo_report.md", "agent_report.md"],
+        "max": ["max_report.md", "mining_results.md", "patterns_found.md"],
+        "rex": ["meeting_presentation.md", "executive_summary.md", "final_report.md", "rex_report.md"],
+    }
+    names = names_by_agent.get(agent, [f"{agent}_report.md", "agent_report.md"])
+    candidates = [agent_dir / name for name in names]
+    candidates.extend(sorted(agent_dir.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True))
+    return list(dict.fromkeys(candidates))
+
+
+def _write_repair_note(
+    agent: str,
+    kind: str,
+    problem: str,
+    project_dir: Path | None,
+    rerun_hint: str,
+    output_path: str = "",
+    stderr: str = "",
+) -> Path | None:
+    if not project_dir:
+        return None
+    try:
+        agent_dir = project_dir / "output" / agent
+        logs_dir = project_dir / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        agent_dir.mkdir(parents=True, exist_ok=True)
+
+        script = find_agent_script(agent, project_dir)
+        profile = project_dir / "output" / "scout" / "dataset_profile.md"
+        report_candidates = _agent_report_candidates(agent, agent_dir)
+        report = next((p for p in report_candidates if p.exists()), report_candidates[0])
+        upstream_agent, upstream_csv = _GATE_RERUN_FROM.get(agent, ("", ""))
+        upstream_path = project_dir / "output" / upstream_agent / upstream_csv if upstream_agent else Path()
+        try:
+            input_path = resolve_agent_input(agent, upstream_agent, project_dir, write_repair=False) if agent != "scout" else (scout_input_csv(project_dir) or "")
+        except Exception:
+            input_path = ""
+
+        lines = [
+            "# Latest Pipeline Repair",
+            "",
+            f"- kind: {kind}",
+            f"- agent: {agent}",
+            f"- project: {project_dir}",
+            f"- problem: {problem}",
+            f"- plan: {rerun_hint}",
+            f"- output: {output_path or '(none)'}",
+            f"- input: {input_path or '(none)'}",
+            f"- script: {script if script else '(none yet)'}",
+            f"- report: {report}",
+            f"- report_exists: {report.exists()}",
+            f"- report_candidates: {', '.join(str(p) for p in report_candidates[:5])}",
+            f"- profile: {profile if profile.exists() else '(none)'}",
+        ]
+        if upstream_agent:
+            lines.append(f"- upstream_expected: {_safe_rel(upstream_path, project_dir)}")
+            lines.append(f"- upstream_exists: {upstream_path.exists()}")
+        if stderr:
+            lines += ["", "## Error", "```text", stderr.strip()[:3000], "```"]
+        lines += [
+            "",
+            "## Manual Recovery",
+            f"1. Open/edit the script above or the profile/report listed above.",
+            f"2. Re-run this agent with: @{agent} {rerun_hint}",
+            "3. Or continue the project with: /resume " + project_dir.name,
+            "4. If Codex changed orchestrator/source files while the app was open, restart orchestrator first.",
+        ]
+        text = "\n".join(lines) + "\n"
+        note = logs_dir / "latest_repair.md"
+        note.write_text(text, encoding="utf-8")
+        (agent_dir / "REPAIR.md").write_text(text, encoding="utf-8")
+        try:
+            log_raw("system", f"repair note written: {note}", task="repair")
+        except Exception:
+            pass
+        return note
+    except Exception as e:
+        try:
+            log_raw("system", f"repair note write failed: {e}", task="repair")
+        except Exception:
+            pass
+        return None
+
+
+def _print_gate_fail_recovery(agent: str, msg: str, project_dir: Path | None) -> None:
+    """Print a clear, actionable recovery message when a pipeline gate fails."""
+    rerun_hint = _gate_recovery_hint(agent, msg, project_dir)
+    repair_note = _write_repair_note(agent, "gate", msg, project_dir, rerun_hint)
+
+    try:
+        bar = "═" * 53
+        print(f"\n{RD}╔{bar}╗{RST}")
+        print(f"{RD}║{RST}  {BLD}GATE FAIL — {agent.upper()}{RST}")
+        print(f"{RD}╠{bar}╣{RST}")
+        print(f"{RD}║{RST}  ปัญหา : {msg}")
+        print(f"{RD}║{RST}  แผน   : {rerun_hint}")
+        if repair_note:
+            print(f"{RD}║{RST}  คู่มือ : {repair_note}")
+        print(f"{RD}╚{bar}╝{RST}")
+    except UnicodeEncodeError:
+        print(f"\n*** GATE FAIL - {agent.upper()} ***")
+        print(f"Problem: {msg}")
+        print(f"Plan   : {rerun_hint}")
+        if repair_note:
+            print(f"Repair : {repair_note}")
     log_raw("system", f"gate FAIL recovery hint: {agent} — {msg} → {rerun_hint}", task="gate")
 
 
@@ -1115,7 +1321,36 @@ def anna_autofix_script(agent_name: str, task: str, script: Path,
     return str(output_dir), False
 
 
-def resolve_agent_input(agent_name: str, prev_agent: str, project_dir: Path | None) -> str:
+def resolve_agent_input(
+    agent_name: str,
+    prev_agent: str,
+    project_dir: Path | None,
+    write_repair: bool = True,
+) -> str:
+    expected_candidates = _expected_handoff_candidates(agent_name, project_dir)
+    if expected_candidates:
+        for candidate in expected_candidates:
+            if candidate.exists():
+                if agent_name == "dana":
+                    print(f"{CY}  ⟳ Dana input → scout_output.csv (forced){RST}")
+                    log_raw("system", "Dana input forced to scout_output.csv", task="dana")
+                elif agent_name == "mo" and candidate.name == "engineered_data.csv":
+                    print(f"{CY}  ⟳ Mo input → finn/engineered_data.csv (forced){RST}")
+                    log_raw("system", "Mo input forced to finn/engineered_data.csv", task="mo")
+                return str(candidate)
+
+        msg = _missing_handoff_message(agent_name, project_dir)
+        if not write_repair:
+            return ""
+        if write_repair:
+            prev, _csv = _GATE_RERUN_FROM.get(agent_name, ("", ""))
+            hint = f"rerun {prev.upper()} ก่อน แล้วค่อย rerun {agent_name.upper()}" if prev else f"rerun {agent_name.upper()}"
+            note = _write_repair_note(agent_name, "missing-output", msg, project_dir, hint)
+            if note:
+                print(f"{RD}  ✗ {msg}{RST}")
+                print(f"{YL}  Repair note: {note}{RST}")
+        raise RuntimeError(msg)
+
     # Dana ต้องใช้ scout_output.csv เสมอ — ห้าม fallback ไป input/ หรือ CSV อื่น
     if agent_name == "dana" and prev_agent == "scout" and project_dir:
         scout_csv = project_dir / "output" / "scout" / "scout_output.csv"
@@ -1231,11 +1466,25 @@ def handle_failed_script(
     if success:
         return output_path, True
 
+    project_dir = output_dir.parent.parent if output_dir else None
+    rerun_hint = f"แก้ {script.name} แล้ว rerun @{agent_name} ด้วย input เดิม"
+    repair_note = _write_repair_note(
+        agent_name,
+        "script",
+        f"script failed after auto-fix: {script.name}",
+        project_dir,
+        rerun_hint,
+        output_path=output_path,
+        stderr=stderr,
+    )
+
     print(f"\n{RD}{'─'*55}{RST}")
     print(f"{RD}  ✗ Auto-fix ทั้งหมด + Anna ล้มเหลว{RST}")
     print(f"{YL}  Anna ต้องการความช่วยเหลือจากคุณ{RST}")
     print(f"{YL}  Agent: {BLD}{agent_name.upper()}{RST}  |  Script: {script.name}{RST}")
     print(f"{YL}  Error: {DIM}{stderr[:200]}{RST}")
+    if repair_note:
+        print(f"{YL}  Repair note: {repair_note}{RST}")
     try:
         choice = input(
             f"  {BLD}ข้าม agent นี้ต่อ (skip) หรือหยุด pipeline (stop)? [skip/stop]:{RST} "
@@ -1397,14 +1646,20 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
     # ── Priority 1: script จริง (+ auto-fix via DeepSeek ถ้า error) ──────────
     script = find_agent_script(agent_name, project_dir)
     if script and output_dir and not discover:
-        mo_phase = detect_mo_phase(task) if agent_name == "mo" else None
-        if agent_name != "mo" or mo_script_matches_phase(script, mo_phase):
+        if agent_name == "vera" and should_regenerate_vera_script_for_meeting_report(script, task, project_dir):
+            print(f"{YL}  ⟳ Vera meeting report alignment requested/newer — regenerating script{RST}")
+            log_raw("system", f"Vera script skipped for meeting report alignment: {script}", task="vera-meeting-guard")
+            script = None
+        if not script:
+            pass
+        elif agent_name != "mo" or mo_script_matches_phase(script, detect_mo_phase(task)):
             return run_existing_script_agent(agent_name, task, script, input_path, output_dir)
-        print(
-            f"{YL}  ⟳ Mo Phase {mo_phase} requested but {script.name} is for another phase — regenerating script{RST}"
-        )
-        log_raw("system", f"Mo phase guard skipped stale script: {script}", task="mo-phase-guard")
-
+        else:
+            mo_phase = detect_mo_phase(task)
+            print(
+                f"{YL}  ⟳ Mo Phase {mo_phase} requested but {script.name} is for another phase — regenerating script{RST}"
+            )
+            log_raw("system", f"Mo phase guard skipped stale script: {script}", task="mo-phase-guard")
     # ── ลบ script เก่าเฉพาะตอนจะสร้างใหม่ (Priority 1 ไม่ผ่าน) ──────────────
     delete_old_scripts(output_dir)
 
@@ -1940,6 +2195,7 @@ def print_help():
         f"\n{CY}Slash commands:{RST}\n"
         f"  {BLD}/project <name>{RST}       เลือกโปรเจกต์  (alias: /p, /proj)\n"
         f"  {BLD}/resume [name] [task]{RST} ทำต่อจากโปรเจกต์/active project  (alias: /r)\n"
+        f"  {BLD}/repair{RST}               เปิดดู note ล่าสุดสำหรับแก้ gate/script fail\n"
         f"  {BLD}/status{RST}               ดูสถานะ pipeline  (alias: /s)\n"
         f"  {BLD}/kb <agent>{RST}           ดู knowledge base\n"
         f"  {BLD}/claude{RST}               ดู Codex usage\n"
@@ -1947,6 +2203,20 @@ def print_help():
         f"  {BLD}/exit{RST}                 ออกจากระบบ\n"
     )
     CLI.print_help()
+
+
+def print_latest_repair_note() -> None:
+    project = STATE.active_project
+    if not project:
+        print(f"{RD}  ยังไม่ได้เลือก project{RST}")
+        print("  ใช้: /project <name>")
+        return
+    note = project / "logs" / "latest_repair.md"
+    if not note.exists():
+        print(f"{YL}  ยังไม่มี repair note สำหรับ {project.name}{RST}")
+        return
+    print(f"\n{CY}Repair note:{RST} {note}")
+    print(note.read_text(encoding="utf-8", errors="ignore")[-4000:])
 
 
 def anna_discover(user_input: str):
@@ -2038,17 +2308,33 @@ def run_all_pipeline_command(extra_instruction: str = "") -> None:
         print("  ใช้: /project <name>")
         return
     input_dir = project / "input"
-    if not input_dir.exists() or not any(input_dir.glob("*")):
-        print(f"{RD}  Project นี้ไม่มี input data: {input_dir}{RST}")
-        return
+    has_input_data = input_dir.exists() and any(input_dir.glob("*"))
+    resume_from_scout = False
+    if not has_input_data:
+        scout_csv = project / "output" / "scout" / "scout_output.csv"
+        if scout_csv.exists():
+            ok, msg = validate_agent_output("scout", str(scout_csv), project)
+            if not ok:
+                _print_gate_fail_recovery("scout", msg, project)
+                print(f"{RD}  RUN-ALL stopped at SCOUT{RST}")
+                return
+            resume_from_scout = True
+            print(f"{YL}  input/ ว่าง แต่ Scout output ผ่าน gate แล้ว — เริ่มต่อจาก DANA{RST}")
+        else:
+            print(f"{RD}  Project นี้ไม่มี input data: {input_dir}{RST}")
+            return
 
-    PIPELINE.clear()
     global _last_pipeline_project
     _last_pipeline_project = project
     STATE.reset_pipeline()
+    if resume_from_scout:
+        PIPELINE.rebuild_from_project(project)
+    else:
+        PIPELINE.clear()
 
     print(f"\n{CY}  RUN-ALL:{RST} {BLD}{project.name}{RST}")
-    print(f"{DIM}  mode: deterministic sequence, no Anna planning prompt{RST}")
+    mode = "resume from valid Scout output" if resume_from_scout else "deterministic sequence, no Anna planning prompt"
+    print(f"{DIM}  mode: {mode}{RST}")
 
     blind_rule = (
         "ห้ามอ่าน answer_key ระหว่างทำงาน. "
@@ -2071,8 +2357,13 @@ def run_all_pipeline_command(extra_instruction: str = "") -> None:
         ("rex", "รวม final executive report จากทุก agent สร้าง rex_output.csv และ final report. ห้ามสรุปว่า success ถ้า Quinn fail หรือ Mo metrics/report ขัดกัน. " + blind_rule),
     ]
 
-    prev_agent = ""
-    completed: list[str] = []
+    if resume_from_scout:
+        sequence = sequence[1:]
+        prev_agent = "scout"
+        completed: list[str] = ["scout"]
+    else:
+        prev_agent = ""
+        completed = []
     for agent, task in sequence:
         try:
             # RUN-ALL is a fresh pipeline run. Do not reuse stale generated scripts
@@ -2134,6 +2425,8 @@ def handle_cli_command(user_input: str) -> str:
             "run": "run-all",
             "run-all": "run-all",
             "all": "run-all",
+            "repair": "repair",
+            "fix": "repair",
             "s": "status",
             "st": "status",
             "status": "status",
@@ -2166,6 +2459,9 @@ def handle_cli_command(user_input: str) -> str:
     if lower == "run-all" or lower.startswith("run-all "):
         extra = user_input[7:].strip() if lower.startswith("run-all ") else ""
         run_all_pipeline_command(extra)
+        return "handled"
+    if lower == "repair":
+        print_latest_repair_note()
         return "handled"
     if lower == "project":
         CLI.print_status()
