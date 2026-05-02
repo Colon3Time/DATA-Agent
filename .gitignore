@@ -1,6 +1,8 @@
 .env
 __pycache__/
 *.pyc
+.pytest_cache/
+tmp/
 pipeline/
 .claude/settings.local.json
 11111111.txt
@@ -11,3 +13,5 @@ pipeline/
 projects/*/output/rex/all_agent_context.txt
 projects/*/input/*.sqlite
 projects/*/output/scout/*.sqlite
+projects/2026-05-01_uci_online_retail/output/dana/dana_output.csv
+projects/2026-05-01_uci_online_retail/output/eddie/eddie_output.csv
