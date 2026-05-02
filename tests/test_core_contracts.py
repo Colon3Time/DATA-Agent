@@ -156,6 +156,33 @@ class ScoutGateTests(unittest.TestCase):
             self.assertFalse(ok)
             self.assertIn("target_column=unknown", reason)
 
+    def test_missing_scout_profile_is_generated_from_shortlist(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            scout_dir = project / "output" / "scout"
+            scout_dir.mkdir(parents=True)
+            csv_path = scout_dir / "scout_sme_datasets.csv"
+            csv_path.write_text(
+                "name,source,url,license,combined_score\n"
+                "World Bank Enterprise Surveys,World Bank,https://www.enterprisesurveys.org/en/data,CC BY,0.932\n"
+                "SME Loan Default,Kaggle,https://www.kaggle.com/datasets?search=sme+loan,Kaggle Community,0.81\n",
+                encoding="utf-8",
+            )
+            (scout_dir / "scout_report.md").write_text(
+                "DATASET_RISK_REGISTER\nrisk: reviewed\n",
+                encoding="utf-8",
+            )
+
+            ok, reason = validate_agent_output("scout", str(csv_path), project)
+
+            self.assertFalse(ok)
+            self.assertIn("มีแค่", reason)
+            profile = scout_dir / "dataset_profile.md"
+            self.assertTrue(profile.exists())
+            text = profile.read_text(encoding="utf-8")
+            self.assertIn("problem_type : dataset_discovery", text)
+            self.assertIn("selected_candidate: World Bank Enterprise Surveys", text)
+
     def test_gate_fail_writes_repair_note_for_manual_fix(self):
         with tempfile.TemporaryDirectory() as tmp:
             project, csv_path = self._write_scout_project(

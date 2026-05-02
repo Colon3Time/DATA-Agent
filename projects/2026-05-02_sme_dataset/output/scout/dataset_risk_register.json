@@ -1,0 +1,28 @@
+{
+  "source_credibility": {
+    "World Bank Enterprise Surveys": "High — องค์กรระหว่างประเทศ ข้อมูลผ่านการตรวจสอบ",
+    "Kaggle": "Medium — ขึ้นกับผู้เผยแพร่ ต้องตรวจสอบ provenance",
+    "data.go.th": "Medium-High — หน่วยงานรัฐไทย แต่ documentation อาจไม่สมบูรณ์",
+    "Google Dataset Search": "Low-Medium — หลากหลายแหล่ง ต้องตรวจสอบทีละตัว"
+  },
+  "license_usage": {
+    "World Bank": "Open Data — CC BY ใช้ได้ทั้งงานวิจัยและเชิงพาณิชย์",
+    "Kaggle": "ส่วนใหญ่ Open แต่ต้องตรวจสอบแต่ละ dataset",
+    "data.go.th": "Open Government License — ใช้ได้ทั้งวิจัยและพาณิชย์",
+    "Google Dataset Search": "ต้องตรวจสอบทีละ dataset"
+  },
+  "target_suitability": {
+    "SME Loan Default": "clear — มี target column default/approved",
+    "World Bank Enterprise": "proxy — success/productivity เป็น proxy ไม่ใช่ default โดยตรง",
+    "SME Provincial Thailand": "proxy — ข้อมูลรวมระดับจังหวัด ไม่ใช่ระดับบริษัท",
+    "OSM Performance": "ขึ้นกับ dataset ที่เลือก"
+  },
+  "leakage_risks": "World Bank Enterprise Surveys มีความเสี่ยงต่ำที่สุด — ข้อมูลเป็น survey ก่อนอนาคต Kaggle SME Loan ต้องตรวจสอบว่าไม่มี target-derived fields",
+  "bias_risks": "World Bank Enterprise Surveys มี bias เรื่องขนาดบริษัท (มัก focus SMEs ขนาดใหญ่กว่า) data.go.th ครอบคลุมเฉพาะไทย",
+  "data_dictionary": {
+    "World Bank": "available — มี documentation ครบถ้วน",
+    "Kaggle": "ขึ้นกับ dataset",
+    "data.go.th": "partial — มีบางส่วน",
+    "Google Dataset Search": "ขึ้นกับ dataset"
+  }
+}

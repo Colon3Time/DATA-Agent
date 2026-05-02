@@ -22,7 +22,19 @@
       "Bash(dir C:\\\\Users\\\\Amorntep\\\\DATA-Agent\\\\projects\\\\Olist\\\\output *)",
       "Bash(python3 -c \"import sqlite3; conn=sqlite3.connect\\('C:/Users/Amorntep/DATA-Agent/projects/Olist/input/olist.sqlite'\\); tables=conn.execute\\(\\\\\"SELECT name FROM sqlite_master WHERE type='table'\\\\\"\\).fetchall\\(\\); print\\([t[0] for t in tables]\\)\")",
       "Bash(python3 *)",
-      "Bash(dir \"C:\\\\Users\\\\Amorntep\\\\DATA-Agent\\\\projects\\\\Olist\\\\output\" /s /bCtrl + Shift + ,)"
+      "Bash(dir \"C:\\\\Users\\\\Amorntep\\\\DATA-Agent\\\\projects\\\\Olist\\\\output\" /s /bCtrl + Shift + ,)",
+      "PowerShell($fonts = \\(New-Object System.Drawing.Text.InstalledFontCollection\\).Families | Select-Object -ExpandProperty Name; $check = @\\('Cascadia Code', 'Cascadia Mono', 'JetBrains Mono', 'JetBrainsMono Nerd Font', 'CaskaydiaCove Nerd Font', 'Fira Code', 'IBM Plex Sans Thai', 'IBM Plex Sans Thai Looped', 'Sarabun', 'Noto Sans Thai', 'Tahoma', 'Leelawadee', 'Leelawadee UI'\\); foreach \\($f in $check\\) { if \\($fonts -contains $f\\) { \"OK   - $f\" } else { \"MISS - $f\" } })",
+      "PowerShell(Add-Type -AssemblyName System.Drawing; $fonts = \\(New-Object System.Drawing.Text.InstalledFontCollection\\).Families | Select-Object -ExpandProperty Name; $check = @\\('Cascadia Code', 'Cascadia Mono', 'JetBrains Mono', 'JetBrainsMono Nerd Font', 'CaskaydiaCove Nerd Font', 'Fira Code', 'IBM Plex Sans Thai', 'IBM Plex Sans Thai Looped', 'Sarabun', 'Noto Sans Thai', 'Tahoma', 'Leelawadee UI'\\); foreach \\($f in $check\\) { if \\($fonts -contains $f\\) { \"OK   - $f\" } else { \"MISS - $f\" } })",
+      "Bash(winget search *)",
+      "PowerShell(Get-Item *)",
+      "PowerShell(Join-Path *)",
+      "PowerShell(Add-Type -AssemblyName System.Drawing; Start-Sleep -Milliseconds 500; $fonts = \\(New-Object System.Drawing.Text.InstalledFontCollection\\).Families | Select-Object -ExpandProperty Name; $check = @\\('JetBrainsMono Nerd Font', 'JetBrainsMono NF', 'JetBrainsMonoNL Nerd Font', 'Sarabun', 'Cascadia Code', 'Leelawadee UI'\\); foreach \\($f in $check\\) { if \\($fonts -contains $f\\) { \"OK   - $f\" } else { \"MISS - $f\" } }; Write-Output \"---\"; Write-Output \"Fonts containing 'JetBrains':\"; $fonts | Where-Object { $_ -match \"JetBrains|Sarabun\" } | Sort-Object | ForEach-Object { \"  $_\" })",
+      "Bash(dir C:\\\\Users\\\\Amorntep\\\\DATA-Agent\\\\projects\\\\2026-05-01_uci_online_retail *)",
+      "Bash(dir C:\\\\Users\\\\Amorntep\\\\DATA-Agent\\\\projects\\\\2026-05-01_uci_online_retail\\\\output *)",
+      "Bash(dir C:\\\\Users\\\\Amorntep\\\\DATA-Agent\\\\projects\\\\2026-05-01_uci_online_retail\\\\output\\\\rex *)",
+      "Bash(dir C:\\\\Users\\\\Amorntep\\\\DATA-Agent\\\\projects\\\\2026-05-01_uci_online_retail\\\\input *)",
+      "Bash(dir \"C:\\\\Users\\\\Amorntep\\\\DATA-Agent\\\\projects\\\\2026-05-01_uci_online_retail\\\\input\" /B)",
+      "Bash(dir \"C:\\\\Users\\\\Amorntep\\\\DATA-Agent\\\\projects\\\\2026-05-01_uci_online_retail\\\\output\\\\vera\\\\charts\" /B)"
     ]
   }
 }

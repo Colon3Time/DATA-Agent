@@ -1,0 +1,82 @@
+method = optimize
+  optimize
+    algorithm = newton
+      newton
+    jacobian = false (Default)
+    iter = 10000
+    save_iterations = false (Default)
+id = 1 (Default)
+data
+  file = C:\Users\Amorntep\DATA-Agent\projects\2026-05-01_uci_online_retail\output\max\_tmp\zia9o69v.json
+init = C:\Users\Amorntep\DATA-Agent\projects\2026-05-01_uci_online_retail\output\max\_tmp\wt1z4aor.json
+random
+  seed = 62273
+output
+  file = C:\Users\Amorntep\DATA-Agent\projects\2026-05-01_uci_online_retail\output\max\prophet_runs\prophet_model-20260502222747.csv
+  diagnostic_file =  (Default)
+  refresh = 100 (Default)
+  sig_figs = 8 (Default)
+  profile_file = profile.csv (Default)
+  save_cmdstan_config = false (Default)
+num_threads = 1 (Default)
+
+
+Initial log joint probability = -51.6154
+Iteration  1. Log joint probability =    14.6348. Improved by 66.2502.
+Iteration  2. Log joint probability =    36.1024. Improved by 21.4675.
+Iteration  3. Log joint probability =     52.243. Improved by 16.1406.
+Iteration  4. Log joint probability =    59.1535. Improved by 6.91054.
+Iteration  5. Log joint probability =    59.4648. Improved by 0.311315.
+Iteration  6. Log joint probability =    59.4687. Improved by 0.003863.
+Iteration  7. Log joint probability =    59.5122. Improved by 0.0435097.
+Iteration  8. Log joint probability =    59.5245. Improved by 0.0122409.
+Iteration  9. Log joint probability =    59.5304. Improved by 0.00593719.
+Iteration 10. Log joint probability =    59.5369. Improved by 0.00649274.
+Iteration 11. Log joint probability =    59.5411. Improved by 0.00416545.
+Iteration 12. Log joint probability =    59.5415. Improved by 0.000462331.
+Iteration 13. Log joint probability =    59.5432. Improved by 0.00170763.
+Iteration 14. Log joint probability =    59.5464. Improved by 0.00317284.
+Iteration 15. Log joint probability =    59.5502. Improved by 0.00378523.
+Iteration 16. Log joint probability =     59.552. Improved by 0.00176887.
+Iteration 17. Log joint probability =    59.5522. Improved by 0.000282273.
+Iteration 18. Log joint probability =     59.553. Improved by 0.000729998.
+Iteration 19. Log joint probability =     59.554. Improved by 0.00106717.
+Iteration 20. Log joint probability =    59.5545. Improved by 0.000457876.
+Iteration 21. Log joint probability =    59.5546. Improved by 0.000124316.
+Iteration 22. Log joint probability =    59.5547. Improved by 9.07431e-05.
+Iteration 23. Log joint probability =     59.555. Improved by 0.00026215.
+Iteration 24. Log joint probability =     59.555. Improved by 5.09369e-05.
+Iteration 25. Log joint probability =    59.5551. Improved by 3.3722e-05.
+Iteration 26. Log joint probability =    59.5551. Improved by 9.67067e-05.
+Iteration 27. Log joint probability =    59.5552. Improved by 5.78206e-05.
+Iteration 28. Log joint probability =    59.5553. Improved by 0.0001129.
+Iteration 29. Log joint probability =    59.5553. Improved by 1.7246e-05.
+Iteration 30. Log joint probability =    59.5554. Improved by 4.78718e-05.
+Iteration 31. Log joint probability =    59.5554. Improved by 2.96666e-05.
+Iteration 32. Log joint probability =    59.5554. Improved by 1.11159e-05.
+Iteration 33. Log joint probability =    59.5554. Improved by 2.7803e-06.
+Iteration 34. Log joint probability =    59.5554. Improved by 5.20477e-06.
+Iteration 35. Log joint probability =    59.5554. Improved by 1.98704e-06.
+Iteration 36. Log joint probability =    59.5554. Improved by 2.19753e-06.
+Iteration 37. Log joint probability =    59.5554. Improved by 9.51698e-06.
+Iteration 38. Log joint probability =    59.5555. Improved by 4.937e-06.
+Iteration 39. Log joint probability =    59.5555. Improved by 2.20143e-06.
+Iteration 40. Log joint probability =    59.5555. Improved by 7.88233e-07.
+Iteration 41. Log joint probability =    59.5555. Improved by 5.75169e-07.
+Iteration 42. Log joint probability =    59.5555. Improved by 3.09318e-06.
+Iteration 43. Log joint probability =    59.5555. Improved by 3.54395e-06.
+Iteration 44. Log joint probability =    59.5555. Improved by 1.23131e-06.
+Iteration 45. Log joint probability =    59.5555. Improved by 1.78504e-06.
+Iteration 46. Log joint probability =    59.5555. Improved by 9.32628e-07.
+Iteration 47. Log joint probability =    59.5555. Improved by 3.88327e-07.
+Iteration 48. Log joint probability =    59.5555. Improved by 1.08251e-06.
+Iteration 49. Log joint probability =    59.5555. Improved by 1.4338e-07.
+Iteration 50. Log joint probability =    59.5555. Improved by 8.7637e-08.
+Iteration 51. Log joint probability =    59.5555. Improved by 1.85704e-07.
+Iteration 52. Log joint probability =    59.5555. Improved by 2.51116e-07.
+Iteration 53. Log joint probability =    59.5555. Improved by 9.69028e-08.
+Iteration 54. Log joint probability =    59.5555. Improved by 9.33533e-08.
+Iteration 55. Log joint probability =    59.5555. Improved by 7.15512e-08.
+Iteration 56. Log joint probability =    59.5555. Improved by 5.58998e-08.
+Iteration 57. Log joint probability =    59.5555. Improved by 1.40406e-08.
+Iteration 58. Log joint probability =    59.5555. Improved by 8.53953e-09.

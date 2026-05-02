@@ -1,0 +1,30 @@
+{
+  "created_at": "2026-05-02T13:35:04+07:00",
+  "attempts": [
+    {
+      "method": "urllib.request with browser-style User-Agent",
+      "status": "failed",
+      "detail": "URLError(PermissionError(13, 'An attempt was made to access a socket in a way forbidden by its access permissions', None, 10013, None))"
+    },
+    {
+      "method": "requests library",
+      "status": "failed",
+      "detail": "ConnectionError(MaxRetryError('HTTPSConnectionPool(host=\\'opendata.sme.go.th\\', port=443): Max retries exceeded with url: /dataset/60b9b036-6a59-4291-8c4c-a56d80e4ff44/resource/8125d195-bc9a-467d-b4be-84ff661481ec/download/number-of-sme-2567.csv (Caused by NewConnectionError(\"HTTPSConnection(host=\\'opendata.sme.go.th\\', port=443): Failed to establish a new connection: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions\"))'))"
+    },
+    {
+      "method": "curl.exe subprocess",
+      "status": "failed",
+      "detail": "RuntimeError('% Total    % Received % Xferd  Average Speed   Time    Time     Time  Current\\n                                 Dload  Upload   Total   Spent    Left  Speed\\n\\n  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\\n  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\\ncurl: (7) Failed to connect to opendata.sme.go.th port 443 after 5 ms: Could not connect to server')"
+    },
+    {
+      "method": "PowerShell Invoke-WebRequest/WebClient backend",
+      "status": "failed",
+      "detail": "RuntimeError('Exception calling \"DownloadFile\" with \"2\" argument(s): \"Unable to connect to the remote server\"\\nAt line:10 char:5\\n+     $client.DownloadFile(\\'https://opendata.sme.go.th/dataset/60b9b036 ...\\n+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\\n    + CategoryInfo          : NotSpecified: (:) [], ParentContainsErrorRecordException\\n    + FullyQualifiedErrorId : WebException')"
+    },
+    {
+      "method": "synthetic fallback",
+      "status": "success",
+      "detail": "8316 rows generated"
+    }
+  ]
+}

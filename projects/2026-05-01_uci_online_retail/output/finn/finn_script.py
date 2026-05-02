@@ -1,5 +1,5 @@
 import argparse
-import os
+import json
 import time
 from pathlib import Path
 
@@ -8,6 +8,8 @@ import pandas as pd
 
 
 START = time.perf_counter()
+TARGET_COLS = ["monetary", "is_churned_180d", "is_high_value", "clv_proxy"]
+LEAKY_FROM_MONETARY = ["clv_proxy", "avg_order_value", "is_high_value"]
 
 
 def status(msg):
@@ -21,6 +23,33 @@ def find_col(df, candidates):
         if key in lookup:
             return lookup[key]
     return None
+
+
+def build_customer_table(work, invoice_col, stock_col, qty_col, date_col, price_col, customer_col, snapshot, churn_days):
+    known = work[work[customer_col].ne("UNKNOWN_CUSTOMER") & work[date_col].notna()].copy()
+    customer = (
+        known.groupby(customer_col)
+        .agg(
+            recency_days=(date_col, lambda s: int((snapshot - s.max()).days)),
+            frequency=(invoice_col, "nunique"),
+            monetary=("revenue", "sum"),
+            total_quantity=(qty_col, "sum"),
+            avg_unit_price=(price_col, "mean"),
+            first_purchase=(date_col, "min"),
+            last_purchase=(date_col, "max"),
+            distinct_products=(stock_col, "nunique"),
+            return_rows=("is_return", "sum"),
+        )
+        .reset_index()
+    )
+    customer["tenure_days"] = (customer["last_purchase"] - customer["first_purchase"]).dt.days.clip(lower=0)
+    customer["avg_order_value"] = customer["monetary"] / customer["frequency"].replace(0, np.nan)
+    customer["purchase_freq_per_30d"] = customer["frequency"] / (customer["tenure_days"] / 30 + 1)
+    customer["clv_proxy"] = customer["monetary"]
+    customer["is_high_value"] = (customer["monetary"] >= customer["monetary"].quantile(0.80)).astype("int8")
+    customer[f"is_churned_{churn_days}d"] = (customer["recency_days"] > churn_days).astype("int8")
+    customer["grain"] = "customer"
+    return customer.replace([np.inf, -np.inf], np.nan).fillna(0)
 
 
 parser = argparse.ArgumentParser()
@@ -71,39 +100,27 @@ if "is_valid_sale" not in df.columns:
     df["is_valid_sale"] = ((df[qty_col] > 0) & (df[price_col] > 0)).astype("int8")
 
 valid = df[df["is_valid_sale"].eq(1) & df[date_col].notna()].copy()
-known = valid[df.loc[valid.index, customer_col].ne("UNKNOWN_CUSTOMER")].copy()
-status(f"Valid sales={len(valid):,}; known-customer sales={len(known):,}")
+status(f"Valid sales={len(valid):,}")
 
-snapshot = known[date_col].max() + pd.Timedelta(days=1)
-customer = (
-    known.groupby(customer_col)
-    .agg(
-        recency_days=(date_col, lambda s: int((snapshot - s.max()).days)),
-        frequency=(invoice_col, "nunique"),
-        monetary=("revenue", "sum"),
-        total_quantity=(qty_col, "sum"),
-        avg_unit_price=(price_col, "mean"),
-        first_purchase=(date_col, "min"),
-        last_purchase=(date_col, "max"),
-        distinct_products=(stock_col, "nunique"),
-        return_rows=("is_return", "sum"),
-    )
-    .reset_index()
-)
-customer["tenure_days"] = (customer["last_purchase"] - customer["first_purchase"]).dt.days.clip(lower=0)
-customer["avg_order_value"] = customer["monetary"] / customer["frequency"].replace(0, np.nan)
-customer["purchase_freq_per_30d"] = customer["frequency"] / (customer["tenure_days"] / 30 + 1)
-customer["clv_proxy"] = customer["monetary"]
-customer["is_high_value"] = (customer["monetary"] >= customer["monetary"].quantile(0.80)).astype("int8")
-customer["is_churned_180d"] = (customer["recency_days"] > 180).astype("int8")
-customer["grain"] = "customer"
-customer = customer.replace([np.inf, -np.inf], np.nan).fillna(0)
+snapshot = valid[date_col].max() + pd.Timedelta(days=1)
+customer = build_customer_table(valid, invoice_col, stock_col, qty_col, date_col, price_col, customer_col, snapshot, 180)
 
 engineered_path = output_dir / "engineered_data.csv"
 finn_output_path = output_dir / "finn_output.csv"
 customer.to_csv(engineered_path, index=False)
 customer.to_csv(finn_output_path, index=False)
 status(f"Saved customer-level engineered data: {len(customer):,} rows")
+
+cutoff = pd.Timestamp("2011-09-30")
+label_end = cutoff + pd.Timedelta(days=90)
+pre_cutoff = valid[valid[date_col] <= cutoff].copy()
+post_window = valid[(valid[date_col] > cutoff) & (valid[date_col] <= label_end)].copy()
+oot = build_customer_table(pre_cutoff, invoice_col, stock_col, qty_col, date_col, price_col, customer_col, cutoff + pd.Timedelta(days=1), 90)
+active_after = set(post_window[customer_col].dropna().astype(str))
+oot["is_churned_90d"] = (~oot[customer_col].astype(str).isin(active_after)).astype("int8")
+oot["oot_cutoff_date"] = cutoff.strftime("%Y-%m-%d")
+oot_path = output_dir / "engineered_data_oot.csv"
+oot.to_csv(oot_path, index=False)
 
 invoice = (
     valid.groupby(invoice_col)
@@ -142,52 +159,53 @@ if desc_col:
     top_desc = valid.groupby(stock_col)[desc_col].agg(lambda s: s.mode().iloc[0] if not s.mode().empty else "Unknown")
     top_desc.to_csv(output_dir / "product_descriptions.csv")
 
+manifest = {
+    "targets": {
+        "monetary": {
+            "task": "regression",
+            "exclude_features": ["clv_proxy", "avg_order_value", "is_high_value", "is_churned_180d", "recency_days", "total_quantity", "avg_unit_price"],
+        },
+        "is_churned_180d": {
+            "task": "classification",
+            "exclude_features": ["recency_days", "clv_proxy"],
+        },
+        "is_high_value": {
+            "task": "classification",
+            "exclude_features": ["monetary", "clv_proxy", "avg_order_value"],
+        },
+    },
+    "id_cols": [customer_col, "grain"],
+    "datetime_cols": ["first_purchase", "last_purchase"],
+    "target_cols": TARGET_COLS,
+    "leaky_from_monetary": LEAKY_FROM_MONETARY,
+    "oot_split": {"cutoff_date": "2011-09-30", "label_window_days": 90, "table": "engineered_data_oot.csv"},
+}
+(output_dir / "finn_feature_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
 report = f"""# Finn Feature Engineering Report - UCI Online Retail
 
 Input: {input_path}
 
 ## Outputs
 
-- `engineered_data.csv`: customer-level model table, {len(customer):,} rows
-- `finn_output.csv`: same customer-level table for pipeline compatibility
+- `engineered_data.csv`: full-history customer table, {len(customer):,} rows
+- `engineered_data_oot.csv`: time-cutoff table at 2011-09-30 with 90-day churn label, {len(oot):,} rows
+- `finn_feature_manifest.json`: target-specific feature exclusions for Mo
 - `invoice_basket_features.csv`: invoice-level basket table, {len(invoice):,} rows
 - `product_month_features.csv`: product-month inventory table, {len(product_month):,} rows
 
-## Grain Contract
+## Leakage Controls
 
-- Customer grain: RFM, CLV proxy, churn target candidates
-- Invoice grain: market basket readiness
-- Product-month grain: inventory/demand optimization
-- Transaction grain is not used for churn/CLV modeling
-
-## Target Columns Created
-
-- `is_churned_180d`: 1 if recency > 180 days at snapshot {snapshot.date()}
-- `clv_proxy`: historical customer monetary value
-- `is_high_value`: top 20% monetary customers
-
-## Leakage Notes
-
-These are analytical targets from the full historical dataset. For production modeling, Mo must use a time cutoff and rebuild features only from transactions before the cutoff. This file is acceptable for baseline experimentation and pipeline validation, not final deployment claims.
-
-## Feature Governance
-
-- UNKNOWN_CUSTOMER excluded from customer-level table
-- Returns/cancellations excluded from valid sales features
-- InvoiceDate parsed as real calendar dates, not Excel serial nanoseconds
-- No row-level transaction table is handed to Mo for churn/CLV
-
-## Suggested Next Steps
-
-- Iris: run RFM segmentation from `engineered_data.csv` and basket analysis from `invoice_basket_features.csv`
-- Mo: train baseline churn/high-value classifiers on `engineered_data.csv`, with leakage caveat clearly reported
+- `engineered_data.csv` keeps targets for reference, but Mo must follow `finn_feature_manifest.json`.
+- Monetary-derived columns are explicitly listed: {", ".join(LEAKY_FROM_MONETARY)}.
+- OOT validation table uses features before 2011-09-30 and labels activity in the next 90 days.
 
 FEATURE_GOVERNANCE
 ==================
 selected_feature_count: {len(customer.columns)}
 primary_grain: customer
-target_columns: is_churned_180d, is_high_value, clv_proxy
-train_only_transforms: required in Mo for production-grade validation
+target_columns: {", ".join(TARGET_COLS)}
+train_only_transforms: enforced downstream by Mo manifest
 """
 (output_dir / "finn_report.md").write_text(report, encoding="utf-8")
 
@@ -195,9 +213,9 @@ agent_report = f"""Agent Report - Finn
 ============================
 Input  : {input_path}
 Output : {engineered_path}
-Done   : built customer, invoice, and product-month feature tables
-Rows   : customer={len(customer):,}, invoice={len(invoice):,}, product_month={len(product_month):,}
-Next   : Iris for RFM/basket; Mo for baseline customer-level churn/high-value/CLV models
+Done   : built customer, OOT, invoice, and product-month feature tables
+Rows   : customer={len(customer):,}, oot={len(oot):,}, invoice={len(invoice):,}, product_month={len(product_month):,}
+Next   : Iris for RFM/basket; Mo for manifest-controlled models
 """
 (output_dir.parent / "agent_report_finn.md").write_text(agent_report, encoding="utf-8")
 status("Finn feature engineering complete")

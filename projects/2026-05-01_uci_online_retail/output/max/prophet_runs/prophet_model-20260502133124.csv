@@ -1,0 +1,30 @@
+# stan_version_major = 2
+# stan_version_minor = 37
+# stan_version_patch = 0
+# model = prophet_model
+# start_datetime = 2026-05-02 06:31:24 UTC
+# method = optimize
+#   optimize
+#     algorithm = newton
+#       newton
+#     jacobian = false (Default)
+#     iter = 10000
+#     save_iterations = false (Default)
+# id = 1 (Default)
+# data
+#   file = C:\Users\Amorntep\DATA-Agent\projects\2026-05-01_uci_online_retail\output\max\prophet_runs\ybqnt0j5.json
+# init = C:\Users\Amorntep\DATA-Agent\projects\2026-05-01_uci_online_retail\output\max\prophet_runs\2i5l1m4g.json
+# random
+#   seed = 69151
+# output
+#   file = C:\Users\Amorntep\DATA-Agent\projects\2026-05-01_uci_online_retail\output\max\prophet_runs\prophet_model-20260502133124.csv
+#   diagnostic_file =  (Default)
+#   refresh = 100 (Default)
+#   sig_figs = 8 (Default)
+#   profile_file = profile.csv (Default)
+#   save_cmdstan_config = false (Default)
+# num_threads = 1 (Default)
+# stanc_version = stanc3 v2.37.0
+# stancflags = --filename-in-msg=prophet.stan
+lp__,k,m,delta.1,delta.2,delta.3,delta.4,delta.5,delta.6,delta.7,delta.8,sigma_obs,beta.1,trend.1,trend.2,trend.3,trend.4,trend.5,trend.6,trend.7,trend.8,trend.9,trend.10,trend.11,trend.12
+82.931135,0.98393685,-3.4219619e-05,0.063338264,-0.061829875,0.026591246,-0.02661691,0.026616677,-0.027383201,0.00041888308,0.01660186,0.00039836243,-2.6414295e-16,-3.4219619e-05,0.091016653,0.18167629,0.27286674,0.36349688,0.45468496,0.54531507,0.63643222,0.72758813,0.81729026,0.90998246,0.99968459

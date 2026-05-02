@@ -1,0 +1,30 @@
+# stan_version_major = 2
+# stan_version_minor = 37
+# stan_version_patch = 0
+# model = prophet_model
+# start_datetime = 2026-05-02 15:27:53 UTC
+# method = optimize
+#   optimize
+#     algorithm = newton
+#       newton
+#     jacobian = false (Default)
+#     iter = 10000
+#     save_iterations = false (Default)
+# id = 1 (Default)
+# data
+#   file = C:\Users\Amorntep\DATA-Agent\projects\2026-05-01_uci_online_retail\output\max\_tmp\8o6rknx0.json
+# init = C:\Users\Amorntep\DATA-Agent\projects\2026-05-01_uci_online_retail\output\max\_tmp\nigbl87z.json
+# random
+#   seed = 54475
+# output
+#   file = C:\Users\Amorntep\DATA-Agent\projects\2026-05-01_uci_online_retail\output\max\prophet_runs\prophet_model-20260502222753.csv
+#   diagnostic_file =  (Default)
+#   refresh = 100 (Default)
+#   sig_figs = 8 (Default)
+#   profile_file = profile.csv (Default)
+#   save_cmdstan_config = false (Default)
+# num_threads = 1 (Default)
+# stanc_version = stanc3 v2.37.0
+# stancflags = --filename-in-msg=prophet.stan
+lp__,k,m,delta.1,delta.2,delta.3,delta.4,delta.5,delta.6,delta.7,delta.8,delta.9,delta.10,delta.11,delta.12,delta.13,delta.14,delta.15,delta.16,delta.17,delta.18,delta.19,sigma_obs,beta.1,beta.2,beta.3,beta.4,beta.5,beta.6,beta.7,beta.8,beta.9,beta.10,beta.11,beta.12,beta.13,beta.14,beta.15,beta.16,beta.17,beta.18,beta.19,beta.20,trend.1,trend.2,trend.3,trend.4,trend.5,trend.6,trend.7,trend.8,trend.9,trend.10,trend.11,trend.12,trend.13,trend.14,trend.15,trend.16,trend.17,trend.18,trend.19,trend.20,trend.21,trend.22,trend.23,trend.24,trend.25
+31.453763,-0.23166893,0.37746677,-1.4642817e-09,1.308421e-09,-2.20082e-10,1.2050946e-09,5.7053653e-10,5.7784497e-10,-3.5518329e-10,-1.9393642e-09,1.1776801e-10,-1.8352406e-10,-1.9852572e-09,-5.1851949e-10,-9.5934138e-10,1.9175476e-10,-1.3444894e-07,-2.2367429e-07,-1.8724884e-10,-5.1512118e-10,1.046979e-09,0.16925624,0.008346911,0.18668163,-1.5485464,0.43929644,-4.928991,-0.60639367,0.12229136,-0.21349245,1.513892,-2.8169179,-1.2158989,-0.17047107,0.7723534,3.2366802,0.42715337,0.63671066,-4.9059098,-0.42084371,-1.764025,-0.63161036,0.37746677,0.36762878,0.35779078,0.34890485,0.33906686,0.32954621,0.31970822,0.31018758,0.30034958,0.29051159,0.28099095,0.27115295,0.26163231,0.25179431,0.24195632,0.23307038,0.22323238,0.21371173,0.20387372,0.19435306,0.18451505,0.17467704,0.16515638,0.15531837,0.14579771

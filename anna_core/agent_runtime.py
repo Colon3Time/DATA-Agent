@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import zipfile
 from pathlib import Path
 
 from .mo_phase import detect_mo_phase
@@ -22,6 +23,7 @@ def latest_input_file(project_dir: Path | None) -> str:
     input_dir = project_dir / "input"
     if not input_dir.exists():
         return ""
+    extract_input_archives(input_dir)
     sqlites = sorted(input_dir.glob("**/*.sqlite"), key=lambda x: x.stat().st_mtime, reverse=True)
     if sqlites:
         return str(sqlites[0])
@@ -96,12 +98,29 @@ def scout_input_csv(project_dir: Path | None) -> str:
     input_dir = project_dir / "input"
     if not input_dir.exists():
         return ""
+    extract_input_archives(input_dir)
     csvs = sorted(
         input_dir.glob("**/*.csv"),
         key=lambda x: (x.stat().st_size, x.stat().st_mtime),
         reverse=True,
     )
     return str(csvs[0]) if csvs else ""
+
+
+def extract_input_archives(input_dir: Path) -> None:
+    """Unpack downloaded zip datasets in input/ so downstream agents see real CSV files."""
+    for archive in input_dir.glob("**/*.zip"):
+        marker = archive.with_suffix(archive.suffix + ".extracted")
+        if marker.exists():
+            continue
+        target = archive.parent / archive.stem
+        target.mkdir(parents=True, exist_ok=True)
+        try:
+            with zipfile.ZipFile(archive) as zf:
+                zf.extractall(target)
+            marker.write_text("ok\n", encoding="utf-8")
+        except Exception:
+            continue
 
 
 def extract_python_blocks(text: str) -> list[str]:

@@ -1,0 +1,62 @@
+[
+  {
+    "id": 2,
+    "name": "World Bank Enterprise Surveys — SME Data",
+    "source": "World Bank",
+    "url": "https://www.enterprisesurveys.org/en/data",
+    "license": "Creative Commons Attribution (Open Data)",
+    "estimated_rows": "100,000+ (หลายประเทศ)",
+    "estimated_columns": "200+ (survey questions)",
+    "relevance_score": 0.92,
+    "quality_score": 0.95,
+    "combined_score": 0.932
+  },
+  {
+    "id": 1,
+    "name": "SME Loan Default Dataset / SME Credit Risk Dataset",
+    "source": "Kaggle",
+    "url": "https://www.kaggle.com/datasets?search=sme+loan",
+    "license": "Kaggle Community License (ส่วนใหญ่ Open)",
+    "estimated_rows": "10,000 - 100,000",
+    "estimated_columns": "10 - 30",
+    "relevance_score": 0.85,
+    "quality_score": 0.75,
+    "combined_score": 0.81
+  },
+  {
+    "id": 3,
+    "name": "ข้อมูล SME รายจังหวัด (SME Provincial Data) — Thailand",
+    "source": "data.go.th / สำนักงานส่งเสริมวิสาหกิจขนาดกลางและขนาดย่อม (สสว.)",
+    "url": "https://data.go.th/dataset?q=sme&sort=metadata_modified+desc",
+    "license": "Open Government License (ข้อมูลเปิดภาครัฐ)",
+    "estimated_rows": "1,000 - 10,000 (รายจังหวัด/รายปี)",
+    "estimated_columns": "10 - 20",
+    "relevance_score": 0.88,
+    "quality_score": 0.7,
+    "combined_score": 0.808
+  },
+  {
+    "id": 4,
+    "name": "Digital Adoption Index / Firm-level Technology Adoption",
+    "source": "World Bank / Google Dataset Search",
+    "url": "https://datasetsearch.research.google.com/",
+    "license": "หลากหลาย — ส่วนใหญ่ open",
+    "estimated_rows": "5,000 - 50,000",
+    "estimated_columns": "15 - 40",
+    "relevance_score": 0.8,
+    "quality_score": 0.65,
+    "combined_score": 0.74
+  },
+  {
+    "id": 5,
+    "name": "SME Demographics and Business Registry — Thailand",
+    "source": "กรมพัฒนาธุรกิจการค้า / data.go.th",
+    "url": "https://data.go.th/dataset?q=%E0%B8%98%E0%B8%B8%E0%B8%A3%E0%B8%81%E0%B8%B4%E0%B8%88&sort=metadata_modified+desc",
+    "license": "Open Government License",
+    "estimated_rows": "500,000+",
+    "estimated_columns": "10 - 15",
+    "relevance_score": 0.82,
+    "quality_score": 0.6,
+    "combined_score": 0.732
+  }
+]

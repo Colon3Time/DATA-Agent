@@ -1,0 +1,43 @@
+{
+  "created_at": "2026-05-02T07:02:51.025Z",
+  "project": "2026-05-02_sme_worldbank",
+  "attempts": [
+    {
+      "name": "world_bank_indicator_api",
+      "url": "https://api.worldbank.org/v2/country/TH/indicator/IC.BUS.EASE.XQ?format=json",
+      "target": "input/world_bank_indicator_api.json",
+      "status": "failed",
+      "error": "TypeError: fetch failed",
+      "elapsed_seconds": 0.04
+    },
+    {
+      "name": "world_bank_enterprise_survey_databank_zip",
+      "url": "https://databank.worldbank.org/data/download/Enterprise-Survey-Data.zip",
+      "target": "input/world_bank_enterprise_survey_databank_zip.zip",
+      "status": "failed",
+      "error": "TypeError: fetch failed",
+      "elapsed_seconds": 0
+    },
+    {
+      "name": "kaggle_world_bank_enterprise_surveys",
+      "url": "https://www.kaggle.com/datasets/worldbank/world-bank-enterprise-surveys",
+      "target": "input/kaggle_world_bank_enterprise_surveys.html",
+      "status": "failed",
+      "error": "TypeError: fetch failed",
+      "elapsed_seconds": 0.01
+    },
+    {
+      "name": "world_bank_microdata_enterprise_surveys_catalog",
+      "url": "https://microdata.worldbank.org/index.php/catalog/enterprise_surveys",
+      "target": "input/world_bank_microdata_enterprise_surveys_catalog.html",
+      "status": "failed",
+      "error": "TypeError: fetch failed",
+      "elapsed_seconds": 0
+    }
+  ],
+  "final_dataset": "input/thailand_enterprise_surveys_simulated_2026.csv",
+  "final_dataset_status": "Simulated from public World Bank metadata",
+  "rows": 770,
+  "columns": 78,
+  "unique_provinces": 77
+}

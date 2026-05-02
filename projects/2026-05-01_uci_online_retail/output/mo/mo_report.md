@@ -1,24 +1,42 @@
-# Mo Baseline Modeling Report
+# Mo Model Report
 
-Input: C:\Users\Amorntep\DATA-Agent\projects\2026-05-01_uci_online_retail\output\finn\engineered_data.csv
+Input: `projects\2026-05-01_uci_online_retail\output\finn\engineered_data.csv`
+Manifest: `projects\2026-05-01_uci_online_retail\output\finn\finn_feature_manifest.json`
 Rows: 5,878
-Base feature count: 10
 
-## Results
+## Random Split Validation
 
-| task       | model          |    roc_auc |     pr_auc |         f1 |   n_test |    mae |         r2 |
-|:-----------|:---------------|-----------:|-----------:|-----------:|---------:|-------:|-----------:|
-| churn      | logistic_churn |   0.806069 |   0.688001 |   0.689249 |     1470 |  nan   | nan        |
-| churn      | rf_churn       |   0.816536 |   0.693368 |   0.706497 |     1470 |  nan   | nan        |
-| high_value | rf_high_value  |   0.99027  |   0.95896  |   0.889246 |     1470 |  nan   | nan        |
-| clv_proxy  | rf_regressor   | nan        | nan        | nan        |     1470 | 1188.6 |   0.523831 |
+### Target `monetary`
+- Task: regression
+- Features used: 5
+- Excluded: Customer ID, avg_order_value, avg_unit_price, clv_proxy, first_purchase, grain, is_churned_180d, is_high_value, last_purchase, monetary, recency_days, total_quantity
 
-## Validation Caveat
+| Model | CV | Test Metric | Secondary |
+|---|---:|---:|---|
+| Ridge | 0.2900 | 0.4034 | RMSE=14804.48, MAE=2036.50 |
+| RandomForest | 0.2112 | 0.5575 | RMSE=12749.77, MAE=1750.82 |
 
-These are baseline models on Finn's customer-level analytical table. Target-derived direct leakage was removed per task (`recency_days` for churn; `monetary`/`avg_order_value` for high-value and CLV proxy). The churn and CLV targets are still derived from full historical data for pipeline validation. Production-grade modeling must rebuild labels with a cutoff date and compute features only before that cutoff.
+### Target `is_churned_180d`
+- Task: classification
+- Features used: 8
+- Excluded: Customer ID, clv_proxy, first_purchase, grain, is_churned_180d, is_high_value, last_purchase, monetary, recency_days
 
-MODEL_GOVERNANCE
-================
-grain: customer
-leakage_status: acceptable for baseline, not final deployment
-required_next_step: time-cutoff validation before business claim
+| Model | CV | Test Metric | Secondary |
+|---|---:|---:|---|
+| LogisticRegression | 0.6917 | 0.6810 | ROC-AUC=0.8042, PR-AUC=0.6874 |
+| RandomForest | 0.7109 | 0.6974 | ROC-AUC=0.8154, PR-AUC=0.6893 |
+| GradientBoosting | 0.7071 | 0.7003 | ROC-AUC=0.8177, PR-AUC=0.6954 |
+
+### Target `is_high_value`
+- Task: classification
+- Features used: 8
+- Excluded: Customer ID, avg_order_value, clv_proxy, first_purchase, grain, is_churned_180d, is_high_value, last_purchase, monetary
+
+| Model | CV | Test Metric | Secondary |
+|---|---:|---:|---|
+| LogisticRegression | 0.8425 | 0.8489 | ROC-AUC=0.9852, PR-AUC=0.9490 |
+| RandomForest | 0.8996 | 0.9075 | ROC-AUC=0.9922, PR-AUC=0.9678 |
+| GradientBoosting | 0.9013 | 0.9045 | ROC-AUC=0.9925, PR-AUC=0.9731 |
+
+## OOT Validation
+- `is_churned_90d` ROC-AUC=0.7447, PR-AUC=0.7845, F1=0.7861

@@ -1,0 +1,68 @@
+method = optimize
+  optimize
+    algorithm = newton
+      newton
+    jacobian = false (Default)
+    iter = 10000
+    save_iterations = false (Default)
+id = 1 (Default)
+data
+  file = C:\Users\Amorntep\DATA-Agent\projects\2026-05-01_uci_online_retail\output\max\prophet_runs\ybqnt0j5.json
+init = C:\Users\Amorntep\DATA-Agent\projects\2026-05-01_uci_online_retail\output\max\prophet_runs\2i5l1m4g.json
+random
+  seed = 69151
+output
+  file = C:\Users\Amorntep\DATA-Agent\projects\2026-05-01_uci_online_retail\output\max\prophet_runs\prophet_model-20260502133124.csv
+  diagnostic_file =  (Default)
+  refresh = 100 (Default)
+  sig_figs = 8 (Default)
+  profile_file = profile.csv (Default)
+  save_cmdstan_config = false (Default)
+num_threads = 1 (Default)
+
+
+Initial log joint probability = -0.828077
+Iteration  1. Log joint probability =    39.3453. Improved by 40.1734.
+Iteration  2. Log joint probability =     49.073. Improved by 9.72768.
+Iteration  3. Log joint probability =    56.6038. Improved by 7.53081.
+Iteration  4. Log joint probability =    65.7069. Improved by 9.10305.
+Iteration  5. Log joint probability =     66.393. Improved by 0.686119.
+Iteration  6. Log joint probability =    68.3441. Improved by 1.95105.
+Iteration  7. Log joint probability =    80.7123. Improved by 12.3682.
+Iteration  8. Log joint probability =     82.304. Improved by 1.59175.
+Iteration  9. Log joint probability =     82.839. Improved by 0.534998.
+Iteration 10. Log joint probability =    82.8911. Improved by 0.0520718.
+Iteration 11. Log joint probability =    82.9311. Improved by 0.039979.
+Iteration 12. Log joint probability =    82.9311. Improved by 1.87485e-05.
+Iteration 13. Log joint probability =    82.9311. Improved by 6.6798e-06.
+Iteration 14. Log joint probability =    82.9311. Improved by 4.11706e-06.
+Iteration 15. Log joint probability =    82.9311. Improved by 2.77912e-06.
+Iteration 16. Log joint probability =    82.9311. Improved by 2.4039e-06.
+Iteration 17. Log joint probability =    82.9311. Improved by 1.82202e-06.
+Iteration 18. Log joint probability =    82.9311. Improved by 1.60275e-06.
+Iteration 19. Log joint probability =    82.9311. Improved by 1.23974e-06.
+Iteration 20. Log joint probability =    82.9311. Improved by 1.07959e-06.
+Iteration 21. Log joint probability =    82.9311. Improved by 8.44631e-07.
+Iteration 22. Log joint probability =    82.9311. Improved by 7.28331e-07.
+Iteration 23. Log joint probability =    82.9311. Improved by 5.74984e-07.
+Iteration 24. Log joint probability =    82.9311. Improved by 4.9177e-07.
+Iteration 25. Log joint probability =    82.9311. Improved by 3.91118e-07.
+Iteration 26. Log joint probability =    82.9311. Improved by 3.32266e-07.
+Iteration 27. Log joint probability =    82.9311. Improved by 2.65878e-07.
+Iteration 28. Log joint probability =    82.9311. Improved by 2.24621e-07.
+Iteration 29. Log joint probability =    82.9311. Improved by 1.80646e-07.
+Iteration 30. Log joint probability =    82.9311. Improved by 1.5192e-07.
+Iteration 31. Log joint probability =    82.9311. Improved by 1.22684e-07.
+Iteration 32. Log joint probability =    82.9311. Improved by 1.02787e-07.
+Iteration 33. Log joint probability =    82.9311. Improved by 8.32898e-08.
+Iteration 34. Log joint probability =    82.9311. Improved by 6.95666e-08.
+Iteration 35. Log joint probability =    82.9311. Improved by 5.65295e-08.
+Iteration 36. Log joint probability =    82.9311. Improved by 4.7094e-08.
+Iteration 37. Log joint probability =    82.9311. Improved by 3.83584e-08.
+Iteration 38. Log joint probability =    82.9311. Improved by 3.18885e-08.
+Iteration 39. Log joint probability =    82.9311. Improved by 2.60219e-08.
+Iteration 40. Log joint probability =    82.9311. Improved by 2.15963e-08.
+Iteration 41. Log joint probability =    82.9311. Improved by 1.7651e-08.
+Iteration 42. Log joint probability =    82.9311. Improved by 1.46274e-08.
+Iteration 43. Log joint probability =    82.9311. Improved by 1.19714e-08.
+Iteration 44. Log joint probability =    82.9311. Improved by 9.90956e-09.

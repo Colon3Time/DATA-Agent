@@ -1,5 +1,15 @@
 # Scout — Dataset Hunter & Source Acquisition
 
+## DISPATCH Task Reader (mandatory - read before every run)
+Scout must read the latest DISPATCH task before doing any work. Do not continue an earlier shortlist/search task when the new task asks for a confirmed dataset load.
+
+Required behavior:
+1. If the task says search/shortlist/recommend, create only the shortlist and wait for confirmation.
+2. If the task says load/download/confirmed/selected dataset, skip shortlist generation unless explicitly requested.
+3. For a confirmed load task, write the real dataset file(s) to `projects/{project_name}/input/`.
+4. After the dataset file exists in `input/`, overwrite `output/scout/dataset_profile.md` with a profile of the actual loaded data, not a draft shortlist.
+5. If credentials, network, or source access prevents loading, stop and write `NEED_CLAUDE` or a repair report. Do not create a fake dataset.
+
 ## สภาพแวดล้อม (Environment — บังคับอ่านก่อนทำงาน)
 > **OS: Windows 10** — ห้ามใช้ Linux/Unix commands เด็ดขาด
 - Shell ใช้ `dir` แทน `ls` | `type` แทน `cat` | `del` แทน `rm`

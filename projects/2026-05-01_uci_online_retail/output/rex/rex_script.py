@@ -1,17 +1,25 @@
+import argparse
+import os
 from pathlib import Path
-
 import pandas as pd
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--input", default="")
+parser.add_argument("--output-dir", default="")
+args, _ = parser.parse_known_args()
 
-base = Path(__file__).resolve().parents[2] / "output"
-out = base / "rex"
-out.mkdir(parents=True, exist_ok=True)
+INPUT_PATH = args.input
+OUTPUT_DIR = Path(args.output_dir)
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-country = pd.read_csv(base / "eddie" / "country_sales_summary.csv")
-monthly = pd.read_csv(base / "eddie" / "monthly_sales_summary.csv")
-rfm = pd.read_csv(base / "iris" / "rfm_segment_summary.csv")
-models = pd.read_csv(base / "mo" / "model_comparison.csv")
-finn = pd.read_csv(base / "finn" / "engineered_data.csv")
+base = OUTPUT_DIR.parent.parent  # projects/2026-05-01_uci_online_retail
+out = OUTPUT_DIR
+
+country = pd.read_csv(base / "output" / "eddie" / "country_sales_summary.csv")
+monthly = pd.read_csv(base / "output" / "eddie" / "monthly_sales_summary.csv")
+rfm = pd.read_csv(base / "output" / "iris" / "rfm_segment_summary.csv")
+models = pd.read_csv(base / "output" / "mo" / "model_comparison.csv")
+finn = pd.read_csv(base / "output" / "finn" / "engineered_data.csv")
 
 total_revenue = country["revenue"].sum()
 top_country = country.iloc[0, 0]
@@ -62,5 +70,13 @@ main_caveat: production-grade churn/CLV requires time-cutoff validation
 """
 (out / "executive_summary.md").write_text(report, encoding="utf-8")
 (out / "rex_report.md").write_text(report, encoding="utf-8")
-(base / "agent_report_rex.md").write_text("Agent Report - Rex\nOutput: executive_summary.md, rex_report.md\n", encoding="utf-8")
+(base / "output" / "agent_report_rex.md").write_text("Agent Report - Rex\nOutput: executive_summary.md, rex_report.md\n", encoding="utf-8")
+
+# Save CSV to satisfy orchestrator requirement
+summary_df = pd.DataFrame({
+    "metric": ["total_revenue", "top_country", "top_country_share_pct", "peak_month", "champions_customers", "churn_rate_pct"],
+    "value": [total_revenue, top_country, top_country_share, peak_month, int(champions), churn_rate]
+})
+summary_df.to_csv(OUTPUT_DIR / "output.csv", index=False)
+
 print("[STATUS] Rex complete")

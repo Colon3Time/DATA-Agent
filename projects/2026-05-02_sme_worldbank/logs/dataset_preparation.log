@@ -1,0 +1,26 @@
+[2026-05-02 07:02:16] DATASET_PREPARATION start
+[2026-05-02 07:02:16] DOWNLOAD_ATTEMPT start name=world_bank_indicator_api url=https://api.worldbank.org/v2/country/TH/indicator/IC.BUS.EASE.XQ?format=json
+[2026-05-02 07:02:16] DOWNLOAD_ATTEMPT failed name=world_bank_indicator_api status=failed error=TypeError: fetch failed
+[2026-05-02 07:02:16] DOWNLOAD_ATTEMPT start name=world_bank_enterprise_survey_databank_zip url=https://databank.worldbank.org/data/download/Enterprise-Survey-Data.zip
+[2026-05-02 07:02:16] DOWNLOAD_ATTEMPT failed name=world_bank_enterprise_survey_databank_zip status=failed error=TypeError: fetch failed
+[2026-05-02 07:02:16] DOWNLOAD_ATTEMPT start name=kaggle_world_bank_enterprise_surveys url=https://www.kaggle.com/datasets/worldbank/world-bank-enterprise-surveys
+[2026-05-02 07:02:16] DOWNLOAD_ATTEMPT failed name=kaggle_world_bank_enterprise_surveys status=failed error=TypeError: fetch failed
+[2026-05-02 07:02:16] DOWNLOAD_ATTEMPT start name=world_bank_microdata_enterprise_surveys_catalog url=https://microdata.worldbank.org/index.php/catalog/enterprise_surveys
+[2026-05-02 07:02:16] DOWNLOAD_ATTEMPT failed name=world_bank_microdata_enterprise_surveys_catalog status=failed error=TypeError: fetch failed
+[2026-05-02 07:02:16] DATASET_PREPARATION failed error=Error: Expected 77 provinces, parsed 76
+    at parseProvinces (C:\Users\Amorntep\DATA-Agent\projects\2026-05-02_sme_worldbank\output\scout\prepare_enterprise_survey_dataset.js:59:33)
+    at main (C:\Users\Amorntep\DATA-Agent\projects\2026-05-02_sme_worldbank\output\scout\prepare_enterprise_survey_dataset.js:331:21)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+[2026-05-02 07:02:50] DATASET_PREPARATION start
+[2026-05-02 07:02:50] DOWNLOAD_ATTEMPT start name=world_bank_indicator_api url=https://api.worldbank.org/v2/country/TH/indicator/IC.BUS.EASE.XQ?format=json
+[2026-05-02 07:02:50] DOWNLOAD_ATTEMPT failed name=world_bank_indicator_api status=failed error=TypeError: fetch failed
+[2026-05-02 07:02:50] DOWNLOAD_ATTEMPT start name=world_bank_enterprise_survey_databank_zip url=https://databank.worldbank.org/data/download/Enterprise-Survey-Data.zip
+[2026-05-02 07:02:50] DOWNLOAD_ATTEMPT failed name=world_bank_enterprise_survey_databank_zip status=failed error=TypeError: fetch failed
+[2026-05-02 07:02:50] DOWNLOAD_ATTEMPT start name=kaggle_world_bank_enterprise_surveys url=https://www.kaggle.com/datasets/worldbank/world-bank-enterprise-surveys
+[2026-05-02 07:02:50] DOWNLOAD_ATTEMPT failed name=kaggle_world_bank_enterprise_surveys status=failed error=TypeError: fetch failed
+[2026-05-02 07:02:50] DOWNLOAD_ATTEMPT start name=world_bank_microdata_enterprise_surveys_catalog url=https://microdata.worldbank.org/index.php/catalog/enterprise_surveys
+[2026-05-02 07:02:50] DOWNLOAD_ATTEMPT failed name=world_bank_microdata_enterprise_surveys_catalog status=failed error=TypeError: fetch failed
+[2026-05-02 07:02:51] FALLBACK_DATASET created path=input/thailand_enterprise_surveys_simulated_2026.csv rows=770 columns=78
+[2026-05-02 07:02:51] MANIFEST written path=input/dataset_manifest.json
+[2026-05-02 07:02:51] PROFILE written path=output/scout/dataset_profile.md
+[2026-05-02 07:02:51] DATASET_PREPARATION complete

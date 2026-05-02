@@ -1,34 +1,45 @@
 # Iris Segmentation and Basket Report
 
-Input customer table: C:\Users\Amorntep\DATA-Agent\projects\2026-05-01_uci_online_retail\output\finn\engineered_data.csv
+Input: projects\2026-05-01_uci_online_retail\output\finn\engineered_data.csv
 
-## RFM Segmentation
+## RFM Segment Recommendations
 
 Customers segmented: 5,878
 
 | segment   |   customers |   avg_recency |   avg_frequency |   avg_monetary |          revenue |
 |:----------|------------:|--------------:|----------------:|---------------:|-----------------:|
-| Champions |        1294 |       25.7836 |        17.966   |       9894.42  |      1.28034e+07 |
-| Loyal     |        1354 |       95.9446 |         5.5901  |       2315.83  |      3.13563e+06 |
-| Potential |        1453 |      201.773  |         2.70406 |        868.803 |      1.26237e+06 |
-| At Risk   |         972 |      319.404  |         1.41255 |        393.382 | 382367           |
-| Lost      |         805 |      517.415  |         1.0559  |        198.365 | 159684           |
+| Champions |        1292 |       19.726  |        17.13    |        9355.6  |      1.20874e+07 |
+| Loyal     |         978 |      170.54   |         7.9182  |        3083.89 |      3.01604e+06 |
+| Potential |        1097 |       52.9225 |         2.78304 |        1197.45 |      1.3136e+06  |
+| Lost      |        2013 |      367.718  |         1.2469  |         400.76 | 806730           |
+| At Risk   |         498 |      387.315  |         3.07229 |        1043.42 | 519623           |
 
-## Basket Readiness
+## Segment Actions
 
-Invoice basket table: C:\Users\Amorntep\DATA-Agent\projects\2026-05-01_uci_online_retail\output\finn\invoice_basket_features.csv
-Invoices available: 40,083
+- Champions: protect with early access, premium bundles, and service recovery priority.
+- Loyal: replenish and cross-sell adjacent categories.
+- Potential: move to second and third purchase with limited-time bundles.
+- At Risk: win-back only where expected margin covers incentive cost.
+- Lost: suppress broad discounts unless reactivation economics are validated.
 
-Market basket analysis is ready at invoice grain. For association rules, use valid sales line items from Eddie/Finn and exclude returns.
+## Association Rules
 
-## Business Use
+Association rules generated from 33,937 invoices x 200 products.
 
-- Champions/Loyal: retention and premium bundles
-- Potential: cross-sell and replenishment campaigns
-- At Risk/Lost: win-back offers with cost cap
+Top rules:
 
-IRIS_DECISION_FRAME
-===================
-rfm_output: rfm_segments.csv
-basket_output: basket_summary.csv
-next_agent: Vera for charts, Rex for final executive story
+| antecedents                                                      | consequents                                                      |   support |   confidence |    lift |
+|:-----------------------------------------------------------------|:-----------------------------------------------------------------|----------:|-------------:|--------:|
+| PINK REGENCY TEACUP AND SAUCER                                   | GREEN REGENCY TEACUP AND SAUCER, ROSES REGENCY TEACUP AND SAUCER | 0.0213926 |     0.708984 | 23.5198 |
+| GREEN REGENCY TEACUP AND SAUCER, ROSES REGENCY TEACUP AND SAUCER | PINK REGENCY TEACUP AND SAUCER                                   | 0.0213926 |     0.709677 | 23.5198 |
+| PINK REGENCY TEACUP AND SAUCER, ROSES REGENCY TEACUP AND SAUCER  | GREEN REGENCY TEACUP AND SAUCER                                  | 0.0213926 |     0.902985 | 22.8691 |
+| GREEN REGENCY TEACUP AND SAUCER                                  | PINK REGENCY TEACUP AND SAUCER, ROSES REGENCY TEACUP AND SAUCER  | 0.0213926 |     0.541791 | 22.8691 |
+| PINK REGENCY TEACUP AND SAUCER                                   | GREEN REGENCY TEACUP AND SAUCER                                  | 0.0251643 |     0.833984 | 21.1216 |
+
+BUSINESS_DECISION_BRIEF
+=======================
+business_lever: segmented CRM and basket bundling
+kpi: repeat purchase rate, margin per customer, basket size
+owner: CRM / merchandising
+validation_plan: holdout campaign test by RFM segment and bundle rule
+confidence: medium, depends on campaign economics and OOT validation

@@ -1,0 +1,8 @@
+check,result,detail,timestamp
+data_leakage,FAIL,"[""[dana_output.csv] High correlation with target (Quantity): ['Quantity'] (values: [1.0])"", ""[eddie_output.csv] High correlation with target (revenue): ['revenue'] (values: [1.0])"", ""[scout_output.csv] High correlation with target (Quantity): ['Quantity'] (values: [1.0])""]",2026-05-02T13:40:52.280246
+model_performance,FAIL,"['No F1-weighted or PR-AUC metrics found — likely missing imbalance-aware evaluation', 'Inventory optimization model metrics not found']",2026-05-02T13:40:52.280253
+production_readiness,PASS,"7/7 checks passed, level: Production-ready",2026-05-02T13:40:52.280256
+business_satisfaction,FAIL,2/4 criteria passed,2026-05-02T13:40:52.280258
+world_class_qc,PASS,5/5 checks passed,2026-05-02T13:40:52.280260
+inventory_optimization,FOUND,Max report,2026-05-02T13:40:52.280262
+restart_cycle,YES,Data leakage detected — Finn must rebuild features to prevent target leakage,2026-05-02T13:40:52.280264
