@@ -1,6 +1,7 @@
 from __future__ import annotations
 import argparse, csv, json
 import re
+import warnings
 from pathlib import Path
 import pandas as pd
 import numpy as np
@@ -36,7 +37,9 @@ def _looks_like_date_col(col: str, series: pd.Series) -> bool:
         sample = series.dropna().astype(str).head(20)
         if sample.empty:
             return False
-        parsed = pd.to_datetime(sample, errors="coerce")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            parsed = pd.to_datetime(sample, errors="coerce")
         return parsed.notna().mean() >= 0.6
     return False
 
