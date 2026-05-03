@@ -21,7 +21,11 @@ class KnowledgeBase:
             self.log(role, content, task, output)
 
     def load(self, agent_name: str) -> str:
-        files = sorted(self.knowledge_dir.glob("global_*.md"))
+        files = []
+        shared = self.knowledge_dir / "shared_methods.md"
+        if shared.exists():
+            files.append(shared)
+        files.extend(sorted(self.knowledge_dir.glob("global_*.md")))
         files.extend(sorted(self.knowledge_dir.glob(f"{agent_name}_*.md")))
         if not files:
             return ""

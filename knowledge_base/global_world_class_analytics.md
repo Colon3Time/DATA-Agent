@@ -1,20 +1,34 @@
 ## [PROVEN] World-Class Analytics Default
 
-Keywords: world-class, world class, production-ready, production readiness, executive-ready, business rigor, analytical rigor, PR-AUC, positive-class metrics, expected value, cost-benefit, threshold economics, calibration, Brier score, time-based split, out-of-time validation, OOT, leakage, monitoring, retraining, reproducibility.
+Every agent must treat world-class analytics as the default standard, even when the user does not explicitly say it.
 
-Every agent must treat world-class analytics as the default standard, even when the user does not explicitly say "world-class".
+Core expectations:
+- prove the dataset is credible, licensed, relevant, recent enough, documented, and fit for the target decision
+- preserve raw meaning and target integrity
+- frame EDA around the business question, KPI, owner, effect size, causality limits, and validation risk
+- enforce feature lineage, prediction-time availability, leakage prevention, train-only transforms, and OOT support
+- report imbalance-aware metrics, PR-AUC, positive-class metrics, threshold economics, calibration, and time-based validation
+- make visuals traceable, non-misleading, accessible, sourced, caveated, and decision-oriented
+- gate the cycle for leakage, overfitting, drift, calibration, business satisfaction, and production readiness
+- separate executive-ready outputs from production-ready status and never state ROI without assumptions
 
-Role responsibilities:
-- Scout: prove the dataset is credible, licensed, relevant, recent enough, documented, and fit for the target decision.
-- Dana: preserve raw meaning, document cleaning decisions, protect target integrity, and report data quality before/after.
-- Eddie: frame EDA around business question, KPI, decision owner, effect size, causality limits, and validation risk.
-- Finn: enforce feature lineage, prediction-time availability, leakage prevention, train-only transforms, and OOT support.
-- Mo: report imbalance-aware metrics, PR-AUC, positive-class metrics, threshold economics, calibration, OOT/time validation, and dependency benchmarks.
-- Max: validate patterns with support/confidence/lift/stability/sample size and caveat exploratory findings.
-- Iris: turn evidence into decision-ready business actions with KPI, owner, assumptions, risks, validation plan, and confidence.
-- Vera: make visuals traceable, non-misleading, accessible, sourced, caveated, and decision-oriented.
-- Quinn: gate the whole cycle for leakage, overfitting, drift, calibration, business satisfaction, and production readiness.
-- Rex: separate executive-ready prototype from production-ready status and never state ROI without assumptions.
+Large data protocol:
+- If the dataset is large or wide, profile a small sample first.
+- Prefer chunked reads, streaming, sparse transforms, or incremental learners when memory is tight.
+- Avoid full pairwise correlation, exhaustive one-hot encoding, and O(n^2) operations unless there is a clear reason.
+- Record the sample fraction, row count processed, memory risk, and any approximation used.
+
+Role isolation:
+- `role`, `set_role`, agent name, pipeline stage, and dispatch labels are governance metadata, not predictive features.
+- Keep role metadata in logs, reports, and audit blocks only.
+- If a role-like field is truly predictive, document why it is safe, available at prediction time, and not a leakage proxy.
+
+Method performance reporting:
+- Any time an agent compares methods, the report must include the candidates, the metric used, the score for each candidate, and why the winner won.
+- Do not end with a bare summary like "best method was X" without the comparison table or ranked list.
+- If only one method was possible, say so explicitly and explain the constraint.
+- If a method was rejected, record the reason: lower score, leakage risk, instability, cost, memory, or business mismatch.
+- Prefer concrete numbers over adjectives. Summaries are fine only after the numbers are shown.
 
 Required block names that should be preserved in reports when relevant:
 DATASET_RISK_REGISTER, DATA_QUALITY_AUDIT, BUSINESS_EDA_FRAME, FEATURE_GOVERNANCE, PRODUCTION_READINESS, PATTERN_VALIDITY, BUSINESS_DECISION_BRIEF, VISUAL_QC, WORLD_CLASS_QC.

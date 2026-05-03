@@ -12,7 +12,14 @@ from anna_core.agent_runtime import build_agent_path_message, should_regenerate_
 from anna_core.mo_phase import detect_mo_phase, mo_script_matches_phase, sync_mo_canonical_report
 from anna_core.pipeline_store import PipelineStore
 from anna_core.runner import is_shell_command_allowed
-from orchestrator_v3 import _print_gate_fail_recovery, _write_repair_note, resolve_agent_input, validate_agent_output
+from orchestrator_v3 import (
+    STATE,
+    _print_gate_fail_recovery,
+    _write_repair_note,
+    handle_cli_command,
+    resolve_agent_input,
+    validate_agent_output,
+)
 
 
 VALID_AGENTS = {"scout", "dana", "eddie", "max", "finn", "mo", "iris", "vera", "quinn", "rex"}
@@ -746,6 +753,67 @@ class VeraMeetingReportTests(unittest.TestCase):
                     project,
                 )
             )
+
+
+class RepairCommandTests(unittest.TestCase):
+    def test_repair_note_records_task_for_auto_repair(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            project.mkdir(parents=True, exist_ok=True)
+
+            note = _write_repair_note(
+                "dana",
+                "gate",
+                "missing audit block",
+                project,
+                "rerun SCOUT แล้วค่อย rerun DANA",
+                task="clean scout output and write DATA_QUALITY_AUDIT",
+            )
+
+            self.assertIsNotNone(note)
+            text = note.read_text(encoding="utf-8")
+            self.assertIn("- task: clean scout output and write DATA_QUALITY_AUDIT", text)
+
+    def test_repair_auto_reruns_latest_note(self):
+        import orchestrator_v3 as orch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            project.mkdir(parents=True, exist_ok=True)
+            _write_repair_note(
+                "dana",
+                "gate",
+                "missing audit block",
+                project,
+                "rerun SCOUT แล้วค่อย rerun DANA",
+                task="clean scout output and write DATA_QUALITY_AUDIT",
+            )
+
+            original_project = STATE.active_project
+            original_run_agent = orch.run_agent
+            original_validate = orch.validate_agent_output
+            calls: list[tuple[str, str, Path | None]] = []
+            try:
+                STATE.active_project = project
+
+                def fake_run_agent(agent_name, task, prev_agent="", project_dir=None, discover=False):
+                    calls.append((agent_name, task, project_dir))
+                    return str(project / "output" / agent_name / f"{agent_name}_output.csv")
+
+                orch.run_agent = fake_run_agent
+                orch.validate_agent_output = lambda agent, out, proj: (True, "")
+
+                with contextlib.redirect_stdout(io.StringIO()):
+                    result = handle_cli_command("/repair auto")
+
+                self.assertEqual(result, "handled")
+                self.assertEqual(calls[0][0], "dana")
+                self.assertIn("clean scout output", calls[0][1])
+                self.assertEqual(calls[0][2], project)
+            finally:
+                orch.run_agent = original_run_agent
+                orch.validate_agent_output = original_validate
+                STATE.active_project = original_project
 
 
 class MoPhaseGuardTests(unittest.TestCase):

@@ -428,6 +428,7 @@ DATA_QUALITY_AUDIT
 ==================
 Raw shape: [rows x cols]
 Cleaned shape: [rows x cols]
+Method comparison: [table with issue / method / score or effect / decision]
 Completeness change: [before -> after]
 Validity change: [before -> after]
 Rows/columns removed: [count + reason]

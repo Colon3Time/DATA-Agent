@@ -194,6 +194,7 @@ Required report block:
 ```
 PRODUCTION_READINESS
 =============Validation strategy: [Random CV / time-based / OOT / why unavailable]
+Method comparison: [table with algorithm / metric / CV score / test score / key reason]
 Imbalance evidence: [class ratio + PR-AUC + positive-class metrics]
 Threshold economics: [threshold + EV assumptions + result]
 Calibration: [Brier/calibration result or limitation]

@@ -1508,6 +1508,7 @@ def _write_repair_note(
     problem: str,
     project_dir: Path | None,
     rerun_hint: str,
+    task: str = "",
     output_path: str = "",
     stderr: str = "",
 ) -> Path | None:
@@ -1535,6 +1536,7 @@ def _write_repair_note(
             "",
             f"- kind: {kind}",
             f"- agent: {agent}",
+            f"- task: {task or '(unknown)'}",
             f"- project: {project_dir}",
             f"- problem: {problem}",
             f"- plan: {rerun_hint}",
@@ -1576,10 +1578,29 @@ def _write_repair_note(
         return None
 
 
-def _print_gate_fail_recovery(agent: str, msg: str, project_dir: Path | None) -> None:
+def _parse_repair_note_fields(text: str) -> dict[str, str]:
+    fields: dict[str, str] = {}
+    for line in text.splitlines():
+        match = re.match(r"^- ([^:]+):\s*(.*)$", line)
+        if match:
+            fields[match.group(1).strip().lower()] = match.group(2).strip()
+    return fields
+
+
+def _load_latest_repair_note(project_dir: Path | None) -> tuple[Path, str, dict[str, str]] | None:
+    if not project_dir:
+        return None
+    note = project_dir / "logs" / "latest_repair.md"
+    if not note.exists():
+        return None
+    text = note.read_text(encoding="utf-8", errors="ignore")
+    return note, text, _parse_repair_note_fields(text)
+
+
+def _print_gate_fail_recovery(agent: str, msg: str, project_dir: Path | None, task: str = "") -> None:
     """Print a clear, actionable recovery message when a pipeline gate fails."""
     rerun_hint = _gate_recovery_hint(agent, msg, project_dir)
-    repair_note = _write_repair_note(agent, "gate", msg, project_dir, rerun_hint)
+    repair_note = _write_repair_note(agent, "gate", msg, project_dir, rerun_hint, task=task)
 
     try:
         bar = "═" * 53
@@ -1632,7 +1653,7 @@ def anna_autofix_script(agent_name: str, task: str, script: Path,
     print(f"{YL}  ⟳ ANNA AUTO-FIX{RST}  {BLD}{agent_name.upper()}{RST}  (Claude กำลังวิเคราะห์...)")
     log_raw("anna", f"anna-autofix start: {agent_name}", task="anna-autofix")
 
-    anna_kb = load_kb("anna")
+    anna_kb = load_relevant_kb("anna", task, top_n=8) if task else load_kb("anna")
     anna_system = ANNA_SYSTEM + (f"\n\n---\n## Anna KB\n{anna_kb}" if anna_kb else "")
 
     try:
@@ -1673,6 +1694,7 @@ def resolve_agent_input(
     agent_name: str,
     prev_agent: str,
     project_dir: Path | None,
+    task: str = "",
     write_repair: bool = True,
 ) -> str:
     expected_candidates = _expected_handoff_candidates(agent_name, project_dir)
@@ -1705,7 +1727,7 @@ def resolve_agent_input(
         if write_repair:
             prev, _csv = _GATE_RERUN_FROM.get(agent_name, ("", ""))
             hint = f"rerun {prev.upper()} ก่อน แล้วค่อย rerun {agent_name.upper()}" if prev else f"rerun {agent_name.upper()}"
-            note = _write_repair_note(agent_name, "missing-output", msg, project_dir, hint)
+            note = _write_repair_note(agent_name, "missing-output", msg, project_dir, hint, task=task)
             if note:
                 print(f"{RD}  ✗ {msg}{RST}")
                 print(f"{YL}  Repair note: {note}{RST}")
@@ -1845,6 +1867,7 @@ def handle_failed_script(
         f"script failed after auto-fix: {script.name}",
         project_dir,
         rerun_hint,
+        task=task,
         output_path=output_path,
         stderr=stderr,
     )
@@ -2045,7 +2068,7 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
     print(f"\n{CY}┌─ {BLD}{agent_name.upper()}{RST}{CY}{YL}{iter_label}{RST}{CY} {bar}┐{RST}")
     set_pipeline_stage(agent_name, "start", task)
 
-    input_path = resolve_agent_input(agent_name, prev_agent, project_dir)
+    input_path = resolve_agent_input(agent_name, prev_agent, project_dir, task=task)
     output_dir = output_dir_for(project_dir, agent_name)
 
     # ── Priority 1: script จริง (+ auto-fix via DeepSeek ถ้า error) ──────────
@@ -2278,7 +2301,7 @@ def run_pipeline(user_input: str):
 
     set_tab_title("⏳ Anna — กำลังรัน...")
 
-    anna_kb = load_kb("anna")
+    anna_kb = load_relevant_kb("anna", user_input, top_n=8) if user_input else load_kb("anna")
     projects_list = list_projects(PROJECTS_DIR)
 
     # Intent classifier — โหลด agent specs เฉพาะเมื่อต้องการ pipeline จริงๆ
@@ -2453,16 +2476,21 @@ def run_pipeline(user_input: str):
                     fut: dispatch_project(d)
                     for fut, d in zip(_futs.keys(), grp)
                 }
+                _fut_tasks = {
+                    fut: d.get("task", "")
+                    for fut, d in zip(_futs.keys(), grp)
+                }
                 for _f in concurrent.futures.as_completed(_futs):
                     _ag = _futs[_f]
                     _proj = _fut_projects.get(_f, STATE.active_project)
+                    _task = _fut_tasks.get(_f, "")
                     try:
                         _out = _f.result()
                         _parallel_outputs[_ag] = _out
                         ok, msg = validate_agent_output(_ag, _out, _proj)
                         if not ok:
                             if _ag in ("scout", "dana", "eddie", "finn", "mo"):
-                                _print_gate_fail_recovery(_ag, msg, _proj)
+                                _print_gate_fail_recovery(_ag, msg, _proj, task=_task)
                                 _stop_pipeline = True
                             else:
                                 print(f"{YL}  ⚠ {BLD}{_ag.upper()}{RST}{YL} output warning: {msg}{RST}")
@@ -2493,7 +2521,7 @@ def run_pipeline(user_input: str):
             ok, msg = validate_agent_output(agent, out, current_project)
             if not ok:
                 if agent in ("scout", "dana", "eddie", "finn", "mo"):
-                    _print_gate_fail_recovery(agent, msg, current_project)
+                    _print_gate_fail_recovery(agent, msg, current_project, task=task)
                     _stop_pipeline = True
                     break
                 else:
@@ -2626,7 +2654,7 @@ def print_help():
         f"\n{CY}Slash commands:{RST}\n"
         f"  {BLD}/project <name>{RST}       เลือกโปรเจกต์  (alias: /p, /proj)\n"
         f"  {BLD}/resume [name] [task]{RST} ทำต่อจากโปรเจกต์/active project  (alias: /r)\n"
-        f"  {BLD}/repair{RST}               เปิดดู note ล่าสุดสำหรับแก้ gate/script fail\n"
+        f"  {BLD}/repair [auto]{RST}        เปิด note ล่าสุด หรือสั่ง auto repair จาก note\n"
         f"  {BLD}/status{RST}               ดูสถานะ pipeline  (alias: /s)\n"
         f"  {BLD}/kb <agent>{RST}           ดู knowledge base\n"
         f"  {BLD}/claude{RST}               ดู Codex usage\n"
@@ -2646,12 +2674,82 @@ def print_latest_repair_note() -> None:
     if not note.exists():
         print(f"{YL}  ยังไม่มี repair note สำหรับ {project.name}{RST}")
         return
+    text = note.read_text(encoding="utf-8", errors="ignore")
+    kind = re.search(r"^- kind:\s*(.+)$", text, re.MULTILINE)
+    agent = re.search(r"^- agent:\s*(.+)$", text, re.MULTILINE)
+    problem = re.search(r"^- problem:\s*(.+)$", text, re.MULTILINE)
+    plan = re.search(r"^- plan:\s*(.+)$", text, re.MULTILINE)
+    task = re.search(r"^- task:\s*(.+)$", text, re.MULTILINE)
+
     print(f"\n{CY}Repair note:{RST} {note}")
-    print(note.read_text(encoding="utf-8", errors="ignore")[-4000:])
+    if any((kind, agent, problem, plan)):
+        print(f"{YL}  สรุป:{RST}")
+        if kind:
+            print(f"  kind   : {kind.group(1).strip()}")
+        if agent:
+            print(f"  agent  : {agent.group(1).strip()}")
+        if problem:
+            print(f"  problem: {problem.group(1).strip()}")
+        if task:
+            print(f"  task   : {task.group(1).strip()}")
+        if plan:
+            print(f"  plan   : {plan.group(1).strip()}")
+    print(f"\n{text[-4000:]}")
+
+
+def _run_latest_repair_note() -> None:
+    project = STATE.active_project
+    if not project:
+        print(f"{RD}  ยังไม่ได้เลือก project{RST}")
+        print("  ใช้: /project <name>")
+        return
+
+    loaded = _load_latest_repair_note(project)
+    if not loaded:
+        print(f"{YL}  ยังไม่มี repair note สำหรับ {project.name}{RST}")
+        return
+
+    note, _text, fields = loaded
+    agent = fields.get("agent", "").strip().lower()
+    task = fields.get("task", "").strip()
+    kind = fields.get("kind", "").strip().lower()
+    plan = fields.get("plan", "").strip()
+
+    if not agent:
+        print(f"{RD}  repair note ไม่มี agent ที่จะ rerun ได้{RST}")
+        print(f"  ใช้ /repair เพื่อดูรายละเอียด: {note}")
+        return
+
+    if not task or task == "(unknown)":
+        print(f"{RD}  repair note ยังไม่มี task สำหรับ auto repair ของ {agent.upper()}{RST}")
+        print(f"  ใช้ /repair เพื่อดู note ล่าสุด: {note}")
+        return
+
+    print(f"\n{CY}Auto repair:{RST} {BLD}{agent.upper()}{RST}")
+    if kind:
+        print(f"  kind : {kind}")
+    if plan:
+        print(f"  plan : {plan}")
+    print(f"  note : {note}")
+
+    rerun_task = task
+    if plan and plan not in rerun_task:
+        rerun_task = f"{task}\n\nLatest repair note:\n{plan}"
+
+    out = run_agent(agent, rerun_task, project_dir=project)
+    ok, msg = validate_agent_output(agent, out, project)
+    if ok:
+        print(f"{GR}  ✓ auto repair completed for {agent.upper()}{RST}")
+        return
+
+    if agent in ("scout", "dana", "eddie", "finn", "mo"):
+        _print_gate_fail_recovery(agent, msg, project, task=task)
+    else:
+        print(f"{YL}  ⚠ {agent.upper()} ยังไม่ผ่าน validation: {msg}{RST}")
 
 
 def anna_discover(user_input: str):
-    anna_kb = load_kb("anna")
+    anna_kb = load_relevant_kb("anna", user_input, top_n=6) if user_input else load_kb("anna")
     system  = ANNA_SYSTEM + (f"\n\n---\n## Anna KB\n{anna_kb[:500]}" if anna_kb else "")
     result  = call_claude(system, user_input, label="ANNA discover")
     save_kb("anna", f"Task: {user_input}\nDiscovery:\n{result}")
@@ -2758,7 +2856,7 @@ def run_all_pipeline_command(extra_instruction: str = "") -> None:
         if scout_csv.exists():
             ok, msg = validate_agent_output("scout", str(scout_csv), project)
             if not ok:
-                _print_gate_fail_recovery("scout", msg, project)
+                _print_gate_fail_recovery("scout", msg, project, task="run-all resume from scout output")
                 print(f"{RD}  RUN-ALL stopped at SCOUT{RST}")
                 return
             resume_from_scout = True
@@ -2819,7 +2917,7 @@ def run_all_pipeline_command(extra_instruction: str = "") -> None:
             ok, msg = validate_agent_output(agent, out, project)
             if not ok:
                 if agent in ("scout", "dana", "eddie", "finn", "mo"):
-                    _print_gate_fail_recovery(agent, msg, project)
+                    _print_gate_fail_recovery(agent, msg, project, task=task)
                     print(f"{RD}  RUN-ALL stopped at {agent.upper()}{RST}")
                     return
                 print(f"{YL}  ⚠ {agent.upper()} output warning: {msg}{RST}")
@@ -2908,8 +3006,12 @@ def handle_cli_command(user_input: str) -> str:
         extra = user_input[7:].strip() if lower.startswith("run-all ") else ""
         run_all_pipeline_command(extra)
         return "handled"
-    if lower == "repair":
-        print_latest_repair_note()
+    if lower == "repair" or lower.startswith("repair "):
+        repair_arg = user_input[6:].strip() if lower.startswith("repair ") else ""
+        if repair_arg.lower() in ("auto", "run", "repair", "rerun", "fix"):
+            _run_latest_repair_note()
+        else:
+            print_latest_repair_note()
         return "handled"
     if lower == "project":
         CLI.print_status()

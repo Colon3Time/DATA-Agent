@@ -276,6 +276,7 @@ Required report block:
 FEATURE_GOVERNANCE
 ==================
 Selected feature count: [N]
+Method comparison: [table with candidate method / metric / score / feature count / decision]
 Feature lineage: [documented/missing]
 Prediction-time availability: [all valid/list invalid or unknown]
 Leakage controls: [dropped/flagged none/list]

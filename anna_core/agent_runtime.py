@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import bz2
+import gzip
+import lzma
 import re
+import shutil
+import tarfile
 import zipfile
 from pathlib import Path
 
@@ -17,20 +22,151 @@ def delete_old_scripts(output_dir: Path | None) -> None:
             old_py.unlink()
 
 
+_ARCHIVE_SUFFIXES = (
+    ".zip",
+    ".tar",
+    ".tar.gz",
+    ".tgz",
+    ".tar.bz2",
+    ".tbz2",
+    ".tar.xz",
+    ".txz",
+    ".gz",
+    ".bz2",
+    ".xz",
+)
+
+
+def _is_within(base_dir: Path, candidate: Path) -> bool:
+    base = base_dir.resolve()
+    try:
+        candidate.resolve().relative_to(base)
+        return True
+    except Exception:
+        return False
+
+
+def _archive_stem(path: Path) -> str:
+    stem = path.name
+    for suffix in path.suffixes:
+        if stem.lower().endswith(suffix.lower()):
+            stem = stem[: -len(suffix)]
+    return stem or path.stem
+
+
+def _archive_target_dir(input_dir: Path, archive_path: Path) -> Path:
+    return input_dir / "_extracted" / _archive_stem(archive_path)
+
+
+def _extract_zip(archive_path: Path, target_dir: Path) -> None:
+    with zipfile.ZipFile(archive_path) as zf:
+        for member in zf.infolist():
+            if member.is_dir():
+                continue
+            member_path = target_dir / member.filename
+            if not _is_within(target_dir, member_path):
+                raise ValueError(f"Unsafe path in archive: {member.filename}")
+            member_path.parent.mkdir(parents=True, exist_ok=True)
+            with zf.open(member) as src, member_path.open("wb") as dst:
+                shutil.copyfileobj(src, dst)
+
+
+def _extract_tar(archive_path: Path, target_dir: Path) -> None:
+    with tarfile.open(archive_path) as tf:
+        for member in tf.getmembers():
+            member_path = target_dir / member.name
+            if not _is_within(target_dir, member_path):
+                raise ValueError(f"Unsafe path in archive: {member.name}")
+            if member.isdir():
+                member_path.mkdir(parents=True, exist_ok=True)
+                continue
+            if member.issym() or member.islnk():
+                raise ValueError(f"Unsupported link entry in archive: {member.name}")
+            if not member.isfile():
+                continue
+            member_path.parent.mkdir(parents=True, exist_ok=True)
+            src = tf.extractfile(member)
+            if src is None:
+                continue
+            with src, member_path.open("wb") as dst:
+                shutil.copyfileobj(src, dst)
+
+
+def _extract_single_file(archive_path: Path, target_dir: Path, opener) -> None:
+    out_name = archive_path.name
+    if out_name.lower().endswith(".gz"):
+        out_name = out_name[:-3]
+    elif out_name.lower().endswith(".bz2"):
+        out_name = out_name[:-4]
+    elif out_name.lower().endswith(".xz"):
+        out_name = out_name[:-3]
+    target_file = target_dir / out_name
+    target_file.parent.mkdir(parents=True, exist_ok=True)
+    with opener(archive_path, "rb") as src, target_file.open("wb") as dst:
+        shutil.copyfileobj(src, dst)
+
+
+def _extract_archive(archive_path: Path, target_dir: Path) -> None:
+    name = archive_path.name.lower()
+    if name.endswith(".zip"):
+        _extract_zip(archive_path, target_dir)
+        return
+    if name.endswith((".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz")):
+        _extract_tar(archive_path, target_dir)
+        return
+    if name.endswith(".gz"):
+        _extract_single_file(archive_path, target_dir, gzip.open)
+        return
+    if name.endswith(".bz2"):
+        _extract_single_file(archive_path, target_dir, bz2.open)
+        return
+    if name.endswith(".xz"):
+        _extract_single_file(archive_path, target_dir, lzma.open)
+        return
+    raise ValueError(f"Unsupported archive type: {archive_path.name}")
+
+
+def materialize_project_inputs(project_dir: Path | None) -> None:
+    if not project_dir:
+        return
+    input_dir = project_dir / "input"
+    if not input_dir.exists():
+        return
+
+    archives = sorted(
+        [
+            p
+            for p in input_dir.glob("**/*")
+            if p.is_file() and any(str(p).lower().endswith(sfx) for sfx in _ARCHIVE_SUFFIXES)
+        ],
+        key=lambda x: x.stat().st_mtime,
+        reverse=True,
+    )
+    if not archives:
+        return
+
+    extracted_root = input_dir / "_extracted"
+    for archive_path in archives:
+        target_dir = _archive_target_dir(input_dir, archive_path)
+        marker = target_dir / ".source"
+        signature = f"{archive_path.stat().st_size}:{archive_path.stat().st_mtime_ns}"
+        if marker.exists() and marker.read_text(encoding="utf-8", errors="ignore") == signature:
+            continue
+        if target_dir.exists():
+            shutil.rmtree(target_dir, ignore_errors=True)
+        target_dir.mkdir(parents=True, exist_ok=True)
+        _extract_archive(archive_path, target_dir)
+        marker.write_text(signature, encoding="utf-8")
+    extracted_root.mkdir(parents=True, exist_ok=True)
+
+
 def latest_input_file(project_dir: Path | None) -> str:
     if not project_dir:
         return ""
     input_dir = project_dir / "input"
     if not input_dir.exists():
         return ""
-    extract_input_archives(input_dir)
-    xlsx = sorted(
-        list(input_dir.glob("**/*.xlsx")) + list(input_dir.glob("**/*.xls")),
-        key=lambda x: (x.stat().st_size, x.stat().st_mtime),
-        reverse=True,
-    )
-    if xlsx:
-        return str(xlsx[0])
+    materialize_project_inputs(project_dir)
     sqlites = sorted(input_dir.glob("**/*.sqlite"), key=lambda x: x.stat().st_mtime, reverse=True)
     if sqlites:
         return str(sqlites[0])
@@ -105,7 +241,7 @@ def scout_input_csv(project_dir: Path | None) -> str:
     input_dir = project_dir / "input"
     if not input_dir.exists():
         return ""
-    extract_input_archives(input_dir)
+    materialize_project_inputs(project_dir)
     csvs = sorted(
         input_dir.glob("**/*.csv"),
         key=lambda x: (x.stat().st_size, x.stat().st_mtime),
