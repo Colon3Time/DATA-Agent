@@ -221,6 +221,8 @@ print(f"Anomalies: {anomalies.sum()} rows ({anomalies.mean():.1%})")
 
 Max owns hidden-pattern credibility. A discovered pattern must be stable, explainable, and useful; otherwise it is only exploratory noise.
 
+If `output/dana/column_roles.json` exists, use it to keep `id`, `date`, and `label` columns out of pattern mining inputs unless the task explicitly requires them for temporal context or supervised leakage checks.
+
 Required pattern rigor:
 - Report pattern strength with quantitative evidence: support, confidence, lift, silhouette, anomaly rate, effect size, or stability score.
 - Validate important patterns with holdout, bootstrap, subgroup consistency, temporal stability, or repeated random seeds when possible.

@@ -48,6 +48,8 @@ from anna_core.mo_phase import detect_mo_phase, mo_script_matches_phase, sync_mo
 from anna_core.project import AgentSpecLoader, ProjectDetector
 from anna_core.runner import run_python_script
 from core.schema_contract import infer_producer_from_path, validate_handoff
+from anna_core.runner import agent_script_is_usable, builtin_agent_script
+from anna_core.runner import agent_script_is_placeholder
 from anna_core.state import OrchestratorState
 
 if sys.platform == "win32":
@@ -149,6 +151,15 @@ def set_tab_title(title: str):
     if not TERMINAL_TITLE_ENABLED:
         return
     print(f'\033]0;{title}\007', end='', flush=True)
+
+
+def set_pipeline_stage(agent_name: str, stage: str, detail: str = "") -> None:
+    """Show a compact live stage indicator in terminal title and logs."""
+    label = f"{agent_name.upper()} :: {stage}"
+    if detail:
+        label += f" — {detail[:48]}"
+    print(f"{DIM}  [stage] {label}{RST}")
+    set_tab_title(f"⏳ {label}")
 
 
 # ── Intent Classifier ─────────────────────────────────────────────────────────
@@ -369,8 +380,10 @@ def find_agent_script(agent_name: str, project_dir: Path|None) -> Path|None:
     agent_dir = project_dir / "output" / agent_name
     if agent_dir.exists():
         scripts = sorted(agent_dir.glob("*.py"), key=lambda x: x.stat().st_mtime)
-        if scripts:
-            return scripts[-1]
+        for script in reversed(scripts):
+            ok, _reason = agent_script_is_usable(script)
+            if ok:
+                return script
     return None
 
 
@@ -427,11 +440,37 @@ def normalize_scout_loaded_dataset(project_dir: Path | None, output_dir: Path) -
     _write_scout_profile_fallback(project_dir, dest)
     return str(dest)
 
+def validate_or_discard_script(script: Path) -> bool:
+    ok, reason = agent_script_is_usable(script)
+    if not ok:
+        try:
+            script.unlink(missing_ok=True)
+        except Exception:
+            pass
+        log_raw("system", f"discarded unusable script: {script.name} ({reason})", task="script-validate")
+    return ok
+
+
+def write_builtin_script(agent_name: str, output_dir: Path) -> Path | None:
+    code = builtin_agent_script(agent_name)
+    if not code:
+        return None
+    path = output_dir / f"{agent_name}_script.py"
+    path.write_text(code, encoding="utf-8")
+    return path
 
 def run_script(script_path: Path, input_path: str, output_dir: Path) -> tuple[str, int, str]:
     """Returns (output_path, returncode, stderr)"""
     output_dir.mkdir(parents=True, exist_ok=True)
     sanitize_python_script_file(script_path)
+    ok, reason = agent_script_is_usable(script_path)
+    if not ok:
+        try:
+            script_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        return str(output_dir), 127, f"unusable script: {reason}"
+    set_pipeline_stage(output_dir.name, "script", script_path.name)
     print(f"\n{CY}  ▶ SCRIPT{RST}  {BLD}{script_path.name}{RST}  {DIM}← {input_path or 'no input'}{RST}")
     print(f"{DIM}  กด ESC เพื่อหยุด script นี้{RST}")
 
@@ -443,6 +482,7 @@ def run_script(script_path: Path, input_path: str, output_dir: Path) -> tuple[st
     if result.stdout:
         print(result.stdout[-2000:])
     if result.returncode != 0:
+        set_pipeline_stage(output_dir.name, "script-error", f"exit {result.returncode}")
         print(f"{RD}  ╔══ SCRIPT ERROR ══╗{RST}")
         print(f"{RD}{result.stderr[:500]}{RST}")
         print(f"{RD}  ╚{'═'*18}╝{RST}")
@@ -474,6 +514,7 @@ def run_script(script_path: Path, input_path: str, output_dir: Path) -> tuple[st
         scout_csv = normalize_scout_loaded_dataset(project_dir, output_dir)
         if scout_csv:
             return scout_csv, 0, result.stderr
+    set_pipeline_stage(output_dir.name, "script-done", Path(out_path).name if out_path else "no-output")
     return out_path, result.returncode, result.stderr
 
 
@@ -851,6 +892,40 @@ def _read_csv_shape(path: Path) -> tuple[int, int]:
     return rows, df_head.shape[1]
 
 
+def _read_column_roles(project_dir: Path | None) -> dict[str, object]:
+    if not project_dir:
+        return {}
+    roles_path = project_dir / "output" / "dana" / "column_roles.json"
+    if not roles_path.exists():
+        return {}
+    try:
+        return json.loads(roles_path.read_text(encoding="utf-8", errors="ignore"))
+    except Exception:
+        return {}
+
+
+def _role_columns(role_blob: dict[str, object], role_name: str) -> list[str]:
+    roles = role_blob.get("roles", {})
+    if not isinstance(roles, dict):
+        return []
+    return [str(c) for c, r in roles.items() if str(r).lower() == role_name.lower()]
+
+
+def _has_supervised_target(role_blob: dict[str, object]) -> bool:
+    target = role_blob.get("target_column")
+    return bool(target and str(target).strip().lower() not in {"", "unknown", "none", "null"})
+
+
+def _feature_guard_note(role_blob: dict[str, object]) -> str:
+    if not role_blob:
+        return "No Dana role metadata found."
+    supervised = _has_supervised_target(role_blob)
+    ids = _role_columns(role_blob, "id")
+    dates = _role_columns(role_blob, "date")
+    labels = _role_columns(role_blob, "label")
+    return f"Dana roles: supervised={supervised}; id={ids[:12]}; date={dates[:12]}; label={labels[:12]}"
+
+
 def _binary_target_signature(csv_path: Path, target: str) -> tuple[bool, float, set[str]]:
     """Return (has_target, positive_rate, unique_values_as_strings)."""
     import pandas as _pd
@@ -898,6 +973,11 @@ def validate_agent_output(agent_name: str, output_path: str,
             with open(str(p), encoding="utf-8") as fh:
                 full_rows = sum(1 for _ in fh) - 1
             if agent_name in ("scout", "dana", "eddie", "finn", "max") and full_rows < 20:
+                if agent_name == "scout":
+                    return False, (
+                        f"{p.name} มีแค่ {full_rows} rows — Scout ต้องส่ง dataset จริงหรือ shortlist.md "
+                        f"แต่ห้ามใช้ CSV placeholder/manifest แทน dataset output"
+                    )
                 return False, (f"{p.name} มีแค่ {full_rows} rows — "
                                f"อาจโหลดไฟล์ผิด (outlier_flags? ควรเป็น *_output.csv)")
             base_msg = f"{p.name} ({full_rows} rows, {df.shape[1]} cols)"
@@ -949,6 +1029,17 @@ def validate_agent_output(agent_name: str, output_path: str,
                 if m_target and m_target.group(1).lower() != "review_score":
                     return False, (f"Scout gate FAIL (Olist): target_column='{m_target.group(1)}' "
                                    f"ต้องเป็น 'review_score' สำหรับ Olist dataset")
+        if p.suffix == ".csv":
+            try:
+                from anna_core.runner import scout_output_is_placeholder
+
+                if scout_output_is_placeholder(p):
+                    return False, (
+                        f"Scout gate FAIL: {p.name} ดูเหมือน placeholder/manifest ไม่ใช่ dataset จริง "
+                        f"ให้ scout download หรือ assemble dataset จริงก่อน"
+                    )
+            except Exception as e:
+                return False, f"Scout gate FAIL: ตรวจ placeholder ของ scout ไม่ได้: {e}"
 
     elif agent_name == "dana" and proj:
         scout_csv = proj / "output" / "scout" / "scout_output.csv"
@@ -1033,6 +1124,7 @@ def validate_agent_output(agent_name: str, output_path: str,
         try:
             import pandas as _pd
             target = _read_project_target(proj)
+            role_blob = _read_column_roles(proj)
             df_head = _pd.read_csv(str(p), nrows=5)
             cols_lower = {c: c.lower() for c in df_head.columns}
             leak_cols = [
@@ -1041,6 +1133,15 @@ def validate_agent_output(agent_name: str, output_path: str,
             ]
             if leak_cols:
                 return False, f"Finn gate FAIL: leakage/id-like features in output: {leak_cols[:8]}"
+            if _has_supervised_target(role_blob):
+                forbidden_roles = set(_role_columns(role_blob, "id")) | set(_role_columns(role_blob, "date")) | set(_role_columns(role_blob, "label"))
+                forbidden_lower = {c.lower() for c in forbidden_roles}
+                supervised_leaks = [c for c in df_head.columns if c.lower() in forbidden_lower and c.lower() != str(target).lower()]
+                if supervised_leaks:
+                    return False, (
+                        f"Finn gate FAIL: supervised task must exclude Dana roles id/date/label: "
+                        f"{supervised_leaks[:8]}"
+                    )
             if target:
                 if target not in df_head.columns:
                     return False, f"Finn gate FAIL: target '{target}' หายออกจาก output"
@@ -1249,6 +1350,16 @@ def _gate_recovery_hint(agent: str, msg: str, project_dir: Path | None) -> str:
         if src.exists():
             return f"rerun {agent.upper()} จาก {src.name} ({src.parent.name}/)"
         return f"rerun {prev.upper()} ก่อน แล้วค่อย rerun {agent.upper()}"
+    elif agent == "scout":
+        if "placeholder" in msg.lower() or "manifest" in msg.lower() or "dataset จริง" in msg:
+            return (
+                "dispatch scout ใหม่ — ให้ download/assemble dataset จริง, "
+                "เขียน scout_output.csv เป็นข้อมูลจริง, dataset_profile.md ต้องมี target_column ชัดเจน และมี DATASET_RISK_REGISTER"
+            )
+        else:
+            return "dispatch scout ใหม่ — ระบุ target_column ให้ชัดเจน"
+    else:
+        return f"ตรวจสอบ output ของ {agent} แล้ว dispatch ใหม่"
 
     if agent == "scout":
         if "DATASET_RISK_REGISTER" in msg:
@@ -1775,7 +1886,17 @@ def run_existing_script_agent(
     archive_path = archive_agent_outputs_before_rerun(Path(output_dir), agent_name)
     if archive_path:
         log_raw("system", f"Archived old outputs → {archive_path}", task=agent_name)
-
+    if not validate_or_discard_script(script):
+        fallback = write_builtin_script(agent_name, output_dir)
+        if fallback:
+            script = fallback
+        else:
+            return complete_agent_handoff(
+                agent_name,
+                str(output_dir),
+                task,
+                f"discarded unusable script {script.name}; no builtin fallback",
+            )
     output_path, returncode, stderr = run_script_with_deepseek_autofix(
         agent_name, task, script, input_path, output_dir, max_retries=15
     )
@@ -1845,8 +1966,24 @@ def run_generated_script_agent(
     code_blocks: list[str],
     project_dir: Path | None,
 ) -> str:
+    if not code_blocks:
+        fallback = write_builtin_script(agent_name, output_dir)
+        if fallback:
+            py_path = fallback
+            print(f"{GR}  ✓ {BLD}{agent_name.upper()}{RST}{GR} builtin script saved — กำลังรัน...{RST}  {DIM}→ {py_path}{RST}")
+            output_path, returncode, stderr = run_script_with_deepseek_autofix(
+                agent_name, task, py_path, input_path, output_dir, max_retries=15
+            )
+            if returncode != 0:
+                output_path, ok = handle_failed_script(agent_name, task, py_path, input_path, output_dir, stderr)
+                if not ok:
+                    output_path = str(report_path)
+            return complete_agent_handoff(agent_name, output_path, task, f"builtin fallback script → {output_path}")
+        return complete_agent_handoff(agent_name, str(report_path), task, f"no executable script blocks; used report {report_path.name}")
     py_path = output_dir / f"{agent_name}_script.py"
     py_path.write_text(_strip_python_fences("\n\n".join(code_blocks)), encoding="utf-8")
+    if not validate_or_discard_script(py_path):
+        return complete_agent_handoff(agent_name, str(report_path), task, f"discarded unusable generated script; used report {report_path.name}")
     print(f"{GR}  ✓ {BLD}{agent_name.upper()}{RST}{GR} script saved — กำลังรัน...{RST}  {DIM}→ {py_path}{RST}")
 
     output_path, returncode, stderr = run_script_with_deepseek_autofix(
@@ -1862,7 +1999,7 @@ def run_generated_script_agent(
         sync_mo_canonical_report(output_dir, detect_mo_phase(task))
 
     if agent_name == "scout" and project_dir:
-        output_path = scout_input_csv(project_dir) or output_path
+        output_path = latest_input_file(project_dir) or scout_input_csv(project_dir) or output_path
 
     return complete_agent_handoff(agent_name, output_path, task, f"รัน script (DeepSeek+run) → {output_path}")
 
@@ -1906,6 +2043,7 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
     iter_label = f" [{iter_count}/{MAX_AGENT_ITER}]" if iter_count > 1 else ""
     bar = "─" * max(0, 48 - len(agent_name) - len(iter_label))
     print(f"\n{CY}┌─ {BLD}{agent_name.upper()}{RST}{CY}{YL}{iter_label}{RST}{CY} {bar}┐{RST}")
+    set_pipeline_stage(agent_name, "start", task)
 
     input_path = resolve_agent_input(agent_name, prev_agent, project_dir)
     output_dir = output_dir_for(project_dir, agent_name)
@@ -1913,6 +2051,9 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
     # ── Priority 1: script จริง (+ auto-fix via DeepSeek ถ้า error) ──────────
     script = find_agent_script(agent_name, project_dir)
     if script and output_dir and not discover:
+        archive_path = archive_agent_outputs_before_rerun(Path(output_dir), agent_name)
+        if archive_path:
+            log_raw("system", f"Archived old outputs → {archive_path}", task=agent_name)
         if (
             agent_name == "scout"
             and scout_download_task_requires_fresh_script(task, project_dir)
@@ -1928,6 +2069,7 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
         if not script:
             pass
         elif agent_name != "mo" or mo_script_matches_phase(script, detect_mo_phase(task)):
+            set_pipeline_stage(agent_name, "script-reuse", script.name)
             return run_existing_script_agent(agent_name, task, script, input_path, output_dir)
         else:
             mo_phase = detect_mo_phase(task)
@@ -1943,6 +2085,7 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
 
     message = build_agent_path_message(agent_name, task, input_path, output_dir, project_dir)
 
+    set_pipeline_stage(agent_name, "llm", "building response")
     result = call_agent_llm(agent_name, task, system, message, discover)
 
     # Auto-extract Self-Improvement discovery ไปเก็บ KB
@@ -1957,13 +2100,16 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
         report_path = output_dir / f"{agent_name}_report.md"
         report_path.write_text(result, encoding="utf-8")
 
+        set_pipeline_stage(agent_name, "extract-code", "scan response")
         code_blocks = ensure_python_blocks(agent_name, task, system, input_path, output_dir, result)
 
         if code_blocks:
+            set_pipeline_stage(agent_name, "run-code", f"{len(code_blocks)} block(s)")
             return run_generated_script_agent(
                 agent_name, task, input_path, output_dir, report_path, code_blocks, project_dir
             )
 
+        set_pipeline_stage(agent_name, "report-only", report_path.name)
         return handle_report_only_agent(agent_name, task, report_path, project_dir)
 
     log_raw(agent_name, result[:200], task=task)
@@ -2079,7 +2225,9 @@ def _anna_autofix_response(original: str, user_input: str, anna_system: str,
         f"Response เดิม:\n```\n{original[:2000]}\n```\n\n"
         f"Task เดิมของ user: {user_input}\n\n"
         f"วิเคราะห์ปัญหาและตอบใหม่ให้ถูกต้อง "
-        f"ถ้าต้อง dispatch ให้แน่ใจว่า JSON valid และ agent name ถูกต้อง "
+        f"ถ้าต้อง dispatch ให้เรียก CREATE_DIR ก่อน DISPATCH เสมอสำหรับ project ใหม่, "
+        f"ให้ task เป็น JSON string บรรทัดเดียวโดยไม่มี newline หรือ \\n, "
+        f"และให้แน่ใจว่า JSON valid และ agent name ถูกต้อง "
         f"(valid agents: scout, dana, eddie, max, finn, mo, iris, vera, quinn, rex)"
     )
 
@@ -2108,7 +2256,10 @@ def _anna_repair_dispatch_plan(
         + "\n```\n\n"
         "Rewrite the response so it satisfies the Anna Output Contract v3. "
         "If agent work is needed, include project CREATE_DIR or existing project reference before DISPATCH. "
-        "Use valid DISPATCH JSON only. If required context is missing, ASK_USER instead of guessing."
+        "For a new project, CREATE_DIR tags must appear before the first DISPATCH. "
+        "Use valid one-line DISPATCH JSON only; task must be a single-line string with no newline characters or escaped \\n sequences. "
+        "Use only valid agents: scout, dana, eddie, max, finn, mo, iris, vera, quinn, rex. "
+        "If required context is missing, ASK_USER instead of guessing."
     )
     fixed = call_claude(anna_system, repair_prompt, label="ANNA plan repair")
     log_raw("anna", f"dispatch validation repaired: dispatches={len(parse_dispatches(fixed))}", task="anna-plan-guard")
@@ -2226,6 +2377,7 @@ def run_pipeline(user_input: str):
         dispatches,
         active_project=STATE.active_project,
         read_pipeline=pipeline_read,
+        source_text=anna_response,
     )
     if plan_issues:
         fixed = _anna_repair_dispatch_plan(anna_response, user_input, anna_system, plan_issues)
@@ -2246,6 +2398,7 @@ def run_pipeline(user_input: str):
             dispatches,
             active_project=STATE.active_project,
             read_pipeline=pipeline_read,
+            source_text=anna_response,
         )
         if plan_issues:
             print(f"{RD}  ✗ Anna plan ยังไม่ผ่าน validation:{RST}")
@@ -2636,10 +2789,10 @@ def run_all_pipeline_command(extra_instruction: str = "") -> None:
         blind_rule += " " + extra_instruction
 
     sequence: list[tuple[str, str]] = [
-        ("scout", "เริ่ม pipeline จากข้อมูลใน input/ ของ project นี้ ตรวจไฟล์ทั้งหมด เลือก dataset หลัก สร้าง scout_output.csv และ dataset_profile.md. ต้องมี DATASET_RISK_REGISTER ระบุ source credibility, license, business fit, target suitability, recency, leakage risk, bias/coverage risk และ verdict. " + blind_rule),
+        ("scout", "เริ่ม pipeline จากข้อมูลใน input/ ของ project นี้ ตรวจไฟล์ทั้งหมด เลือก dataset หลัก สร้าง scout_output.csv และ dataset_profile.md. ถ้ามีไฟล์ workbook (.xlsx/.xls) ให้ใช้ไฟล์นั้นเป็น source หลักและ export row-level dataset จริงออกมา. ต้องมี DATASET_RISK_REGISTER ระบุ source credibility, license, business fit, target suitability, recency, leakage risk, bias/coverage risk และ verdict. ใช้ scout_shortlist.md เฉพาะกรณียังไม่ได้ dataset จริงเท่านั้น และห้ามปล่อย placeholder/manifest 5 แถวใน scout_output.csv. " + blind_rule),
         ("dana", "ทำ data cleaning จาก Scout output สร้าง dana_output.csv และ dana_report.md. ห้ามใช้ target ใน outlier detection และห้ามลบ target. ต้องมี DATA_QUALITY_AUDIT ระบุ before/after quality, removals, imputation, outlier strategy, train-only safeguards, bias impact และ downstream warnings. " + blind_rule),
-        ("eddie", "ทำ EDA จาก Dana output หา pattern/relationships และเขียน PIPELINE_SPEC ให้ครบ สร้าง eddie_output.csv และ eddie_report.md. ต้องมี BUSINESS_EDA_FRAME ระบุ business question, owner, KPI, effect size, causality status, temporal/leakage risk, imbalance/skew risk และ validation strategy. " + blind_rule),
-        ("finn", "ทำ feature engineering/feature selection จาก Eddie output สร้าง finn_output.csv และ finn_report.md. ใช้ target จาก Scout เท่านั้น เก็บ target เป็น label ห้ามเลือก target เป็น feature. ต้องมี FEATURE_GOVERNANCE ระบุ lineage, prediction-time availability, leakage controls, train-only transforms, temporal/OOT support, actionability และ warnings. " + blind_rule),
+        ("eddie", "ทำ EDA จาก Dana output หา pattern/relationships และเขียน PIPELINE_SPEC ให้ครบ สร้าง eddie_output.csv และ eddie_report.md. ถ้ามี output/dana/column_roles.json ให้ใช้เป็น context เพื่อแยก id/date/label ออกจาก feature analysis. ต้องมี BUSINESS_EDA_FRAME ระบุ business question, owner, KPI, effect size, causality status, temporal/leakage risk, imbalance/skew risk และ validation strategy. " + blind_rule),
+        ("finn", "ทำ feature engineering/feature selection จาก Eddie output สร้าง finn_output.csv และ finn_report.md. ใช้ target จาก Scout เท่านั้น เก็บ target เป็น label ห้ามเลือก target เป็น feature. ต้องอ่าน output/dana/column_roles.json ถ้ามี และต้องตัด/กัน id, date, label ออกจาก feature set ใน supervised tasks จริง ๆ ไม่ใช่แค่ตรวจชื่อคอลัมน์. ต้องมี FEATURE_GOVERNANCE ระบุ lineage, prediction-time availability, leakage controls, train-only transforms, temporal/OOT support, actionability และ warnings. " + blind_rule),
         ("mo", "train และ compare models จาก Finn output สร้าง mo_output.csv, model report และ metrics. ถ้า F1/AUC/Accuracy ใกล้ 1.0 ให้ถือว่าอาจ leakage และรายงาน fail. ต้องมี PR-AUC/positive-class metrics/threshold economics/calibration/OOT readiness เมื่อเป็น classification. " + blind_rule),
         ("quinn", "ตรวจ QC/model/data/business satisfaction จากผลก่อนหน้า สร้าง quinn_output.csv และ quinn_report.md. ต้องตรวจ target consistency, leakage columns, perfect metrics, report/CSV contradiction และ WORLD_CLASS_QC. " + blind_rule),
         ("iris", "สรุป business insights/action recommendations จากผล pipeline สร้าง iris_output.csv และ iris_report.md. ต้องมี BUSINESS_DECISION_BRIEF ระบุ business lever, KPI, owner, assumptions, risks, validation plan, confidence และห้ามแนะนำ action จากหลักฐานอ่อนโดยไม่ติด caveat. " + blind_rule),

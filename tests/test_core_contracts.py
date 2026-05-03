@@ -34,6 +34,33 @@ class DispatchParserTests(unittest.TestCase):
         self.assertEqual(parser.parse_dispatches(text), [])
         self.assertEqual(rejected, ["unknown"])
 
+    def test_rejects_malformed_json(self):
+        rejected = []
+        parser = DispatchParser(VALID_AGENTS, on_reject=rejected.append)
+        text = '<DISPATCH>{"agent":"scout","task":"find dataset",}</DISPATCH>'
+        self.assertEqual(parser.parse_dispatches(text), [])
+        self.assertEqual(rejected, ["<malformed>"])
+
+    def test_rejects_payload_without_outer_json_object(self):
+        rejected = []
+        parser = DispatchParser(VALID_AGENTS, on_reject=rejected.append)
+        text = '<DISPATCH>"agent":"scout","task":"find dataset"</DISPATCH>'
+        self.assertEqual(parser.parse_dispatches(text), [])
+        self.assertEqual(rejected, ["<malformed>"])
+
+    def test_normalizes_valid_agent_name(self):
+        parser = DispatchParser(VALID_AGENTS)
+        text = '<DISPATCH>{"agent":"Scout","task":"find dataset and write dataset_profile.md"}</DISPATCH>'
+        self.assertEqual(
+            parser.parse_dispatches(text),
+            [{"agent": "scout", "task": "find dataset and write dataset_profile.md"}],
+        )
+
+    def test_rejects_task_with_escaped_newline(self):
+        parser = DispatchParser(VALID_AGENTS)
+        text = '<DISPATCH>{"agent":"scout","task":"find marketing dataset\\nand save scout_output.csv"}</DISPATCH>'
+        self.assertEqual(parser.parse_dispatches(text), [])
+
     def test_extracts_ask_user(self):
         parser = DispatchParser(VALID_AGENTS)
         self.assertEqual(parser.parse_ask_user("<ASK_USER>confirm?</ASK_USER>"), "confirm?")
@@ -47,6 +74,31 @@ class AnnaPlanValidationTests(unittest.TestCase):
             read_pipeline=lambda _agent: "",
         )
         self.assertIn("No active project was selected or created before DISPATCH.", issues)
+
+    def test_blocks_create_dir_after_dispatch(self):
+        issues = validate_dispatch_plan(
+            [{"agent": "scout", "task": "find marketing dataset and save scout_output.csv"}],
+            active_project=Path("projects/demo"),
+            read_pipeline=lambda _agent: "",
+            source_text='<DISPATCH>{"agent":"scout","task":"find marketing dataset and save scout_output.csv"}</DISPATCH>\n<CREATE_DIR path="projects/demo/input"/>',
+        )
+        self.assertTrue(any("CREATE_DIR appears after DISPATCH" in issue for issue in issues))
+
+    def test_blocks_multiline_task_value(self):
+        issues = validate_dispatch_plan(
+            [{"agent": "scout", "task": "find marketing dataset\nsave scout_output.csv"}],
+            active_project=Path("projects/demo"),
+            read_pipeline=lambda _agent: "",
+        )
+        self.assertTrue(any("single-line JSON string" in issue for issue in issues))
+
+    def test_blocks_invalid_agent_in_validator(self):
+        issues = validate_dispatch_plan(
+            [{"agent": "anna", "task": "find marketing dataset and save scout_output.csv"}],
+            active_project=Path("projects/demo"),
+            read_pipeline=lambda _agent: "",
+        )
+        self.assertTrue(any("invalid agent" in issue for issue in issues))
 
     def test_blocks_mo_before_finn(self):
         issues = validate_dispatch_plan(

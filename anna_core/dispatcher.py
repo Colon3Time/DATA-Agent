@@ -25,10 +25,14 @@ class DispatchParser:
             raw = re.sub(r"^```[a-z]*\n?", "", raw).rstrip("`").strip()
             parsed = self._parse_json_payload(raw)
             if parsed is None:
+                if self.on_reject:
+                    self.on_reject("<malformed>")
                 continue
             agent = parsed.get("agent", "").lower().strip()
             task = parsed.get("task", "").strip()
-            if agent in self.valid_agents and task and task not in ("...", ""):
+            if agent in self.valid_agents and task and task not in ("...", "") and "\n" not in task and "\r" not in task:
+                parsed["agent"] = agent
+                parsed["task"] = task
                 results.append(parsed)
             elif agent and self.on_reject:
                 self.on_reject(agent)
@@ -48,20 +52,5 @@ class DispatchParser:
             data = json.loads(raw)
             return data if isinstance(data, dict) else None
         except json.JSONDecodeError:
-            pass
-
-        try:
-            data = json.loads("{" + raw + "}")
-            return data if isinstance(data, dict) else None
-        except json.JSONDecodeError:
-            pass
-
-        inline = re.search(r"\{.*?\}", raw, re.DOTALL)
-        if inline:
-            try:
-                data = json.loads(inline.group())
-                return data if isinstance(data, dict) else None
-            except json.JSONDecodeError:
-                pass
-        return None
+            return None
 

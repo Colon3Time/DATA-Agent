@@ -601,8 +601,8 @@ Verdict: [Use / Use with caveats / Do not use]
 
 ## Output
 
-**Dataset ไฟล์จริง (CSV)** → `projects/{project_name}/input/` (หลัง confirm เท่านั้น)
-> Pipeline จะชี้ path นี้ให้ Dana อัตโนมัติ — Scout ต้องบันทึก CSV ที่นี่เท่านั้น ไม่ใช่ใน output/scout/
+**Dataset ไฟล์จริง (CSV/XLSX source)** → `projects/{project_name}/input/` หรือ staging cache ที่ได้รับอนุญาต
+> Pipeline จะชี้ path นี้ให้ Dana อัตโนมัติ — Scout ต้องอ่าน source จริงจาก `input/` แล้วเขียน `scout_output.csv` เป็น dataset จริง ไม่ใช่ placeholder/manifest
 
 **DATASET_PROFILE** → `projects/{project_name}/output/scout/dataset_profile.md`
 > Anna อ่าน profile นี้ก่อน dispatch Eddie และ Mo เพื่อ dispatch task ได้ถูกต้อง
@@ -611,6 +611,12 @@ Verdict: [Use / Use with caveats / Do not use]
 > Brief เขียนลง output/scout/ แต่ข้อมูลจริงต้องอยู่ใน input/ เสมอ
 
 **ความรู้ใหม่** → `knowledge_base/scout_sources.md`
+
+## Output Mode Guard
+
+- ถ้าภารกิจยังเป็นการ shortlist / compare sources: ให้เขียน `scout_shortlist.md` และ `scout_report.md` ได้ แต่ **ห้าม** สร้าง `scout_output.csv` แบบสังเคราะห์หรือ placeholder
+- ถ้าเป็นภารกิจ dataset acquisition จริง: ต้องมี `scout_output.csv` เป็น dataset จริงที่ดาวน์โหลด/ประกอบสำเร็จ, ต้องมี `dataset_profile.md` ที่ระบุ target ชัดเจน, และต้องมี `DATASET_RISK_REGISTER`
+- ห้ามใช้ CSV 5 แถวหรือ table summary แทน dataset จริง เพราะ gate จะตีว่าเป็น manifest และ fail ทันที
 
 ## รูปแบบ Shortlist (ส่ง Anna ก่อน confirm)
 

@@ -15,9 +15,13 @@ When the user request requires agent work, Anna MUST follow this contract:
    - New task: emit CREATE_DIR for projects/<short_project_name>/input and projects/<short_project_name>/output.
    - Existing task: clearly reference the existing project name.
    - Never dispatch agents while project is unknown.
+   - Every CREATE_DIR tag for a new project must appear before the first DISPATCH tag.
 
 2. DISPATCH tags must contain one valid JSON object only:
    <DISPATCH>{"agent":"scout","task":"specific task with input/output context"}</DISPATCH>
+   - Keep the whole JSON object on one line.
+   - The task value must be a single-line JSON string: no literal newline characters and no escaped \n sequences.
+   - Put long instructions in one sentence separated by semicolons, commas, or numbered clauses.
 
 3. Required DISPATCH fields:
    - agent: one of scout, dana, eddie, max, finn, mo, iris, vera, quinn, rex
@@ -49,6 +53,7 @@ def validate_dispatch_plan(
     *,
     active_project: Path | None,
     read_pipeline: ReadPipelineFn,
+    source_text: str = "",
 ) -> list[str]:
     """Return issues that should force Anna to repair the plan before execution."""
     issues: list[str] = []
@@ -60,11 +65,23 @@ def validate_dispatch_plan(
 
     agents = [str(d.get("agent", "")).lower() for d in dispatches]
     tasks = [str(d.get("task", "")).strip() for d in dispatches]
+    valid_agents = {"scout", "dana", "eddie", "max", "finn", "mo", "iris", "vera", "quinn", "rex"}
+
+    if source_text:
+        first_dispatch = source_text.find("<DISPATCH>")
+        first_create_dir = source_text.find("<CREATE_DIR")
+        if first_create_dir >= 0 and first_dispatch >= 0 and first_create_dir > first_dispatch:
+            issues.append("CREATE_DIR appears after DISPATCH; create project directories before dispatching agents.")
 
     vague_tasks = {"...", "analyze this", "ทำต่อ", "วิเคราะห์", "analyze", "continue"}
+    for idx, agent in enumerate(agents):
+        if agent not in valid_agents:
+            issues.append(f"Dispatch #{idx + 1} uses invalid agent '{agent}'.")
     for idx, task in enumerate(tasks):
         if len(task) < 12 or task.lower() in vague_tasks:
             issues.append(f"Dispatch #{idx + 1} has a vague or placeholder task.")
+        if "\n" in task or "\r" in task:
+            issues.append(f"Dispatch #{idx + 1} task must be a single-line JSON string without newline escapes.")
 
     existing_dana = bool(read_pipeline("dana"))
     existing_eddie = bool(read_pipeline("eddie"))

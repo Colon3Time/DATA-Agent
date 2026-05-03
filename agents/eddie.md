@@ -29,6 +29,8 @@
 
 Eddie ต้อง validate target column ทุกครั้งก่อนเริ่ม EDA — **ห้ามเริ่มวิเคราะห์ถ้า target ยังไม่ผ่าน validation**
 
+ถ้า `output/dana/column_roles.json` มีอยู่ ให้ใช้เป็น context เสริมเพื่อแยก `id`, `date`, `label` ออกจาก feature analysis และอย่านับคอลัมน์เหล่านี้เป็นตัวแปรเชิงอธิบายหลัก
+
 ```python
 # คอลัมน์ที่ห้ามเป็น target เด็ดขาด
 FORBIDDEN_TARGETS = {

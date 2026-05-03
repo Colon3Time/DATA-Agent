@@ -6,6 +6,7 @@ import sys
 import re
 import threading
 import time
+import ast
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -191,3 +192,74 @@ def run_python_script(
         stderr=result["stderr"] or "",
         returncode=proc.returncode,
     )
+
+
+def scout_output_is_placeholder(csv_path: Path) -> bool:
+    """Return True when a scout CSV looks like a shortlist/manifest instead of a real dataset."""
+    try:
+        import pandas as _pd
+
+        df = _pd.read_csv(str(csv_path), nrows=20)
+        rows = sum(1 for _ in open(str(csv_path), encoding="utf-8")) - 1
+        if rows < 1000:
+            return True
+        if df.shape[1] <= 5 and rows < 50000:
+            return True
+        return False
+    except Exception:
+        return True
+
+
+def agent_script_is_placeholder(script_path: Path) -> bool:
+    """Return True when an agent script is too small or looks like a stub."""
+    try:
+        if not script_path.exists() or script_path.suffix != ".py":
+            return True
+        text = script_path.read_text(encoding="utf-8", errors="ignore").strip().lower()
+        if script_path.stat().st_size < 400:
+            return True
+        if not text:
+            return True
+        stub_signals = (
+            "fixed script written",
+            "syntax check passed",
+            "placeholder",
+            "stub",
+            "todo",
+        )
+        return any(sig in text for sig in stub_signals)
+    except Exception:
+        return True
+
+
+def agent_script_is_usable(script_path: Path) -> tuple[bool, str]:
+    """Return whether a script looks like real executable Python, not a stub."""
+    try:
+        if not script_path.exists() or script_path.suffix != ".py":
+            return False, "missing or not a .py file"
+        text = script_path.read_text(encoding="utf-8-sig", errors="ignore").strip()
+        if len(text) < 1000:
+            return False, "script too small"
+        if agent_script_is_placeholder(script_path):
+            return False, "script looks like placeholder/stub"
+        try:
+            ast.parse(text)
+        except SyntaxError as e:
+            return False, f"syntax error: {e.msg}"
+        return True, "ok"
+    except Exception as e:
+        return False, f"validation failed: {e}"
+
+
+def builtin_agent_script(agent_name: str) -> str:
+    """Load a conservative built-in script from the template directory."""
+    template_dir = Path(__file__).with_name("builtin_templates")
+    template_path = template_dir / f"{agent_name}.py"
+    try:
+        if template_path.exists():
+            return template_path.read_text(encoding="utf-8")
+    except Exception:
+        return ""
+    return ""
+
+
