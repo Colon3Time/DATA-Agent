@@ -30,12 +30,24 @@ from anna_core.actions import WorkspacePaths
 from anna_core.action_executor import ActionExecutor, ActionPalette
 from anna_core.anna_contract import ANNA_OUTPUT_CONTRACT, validate_dispatch_plan
 from anna_core.cli_runtime import CliPalette, CliRenderer
+from anna_core.app_commands import AppCommands, CommandPalette
 from anna_core.config import load_config
 from anna_core.dispatcher import DispatchParser
 from anna_core.intent import IntentClassifier
+from anna_core.evaluation import build_eval_report, run_system_eval, run_and_write_default_eval
+from anna_core.gates import (
+    agent_output_newer_than as _agent_output_newer_than,
+    archive_agent_outputs_before_rerun,
+    check_pipeline_spec,
+    quinn_hard_gate,
+    resolve_input_path,
+)
 from anna_core.kb import KnowledgeBase
 from anna_core.logging import RawLogger, SessionMemoryStore
 from anna_core.llm import LLMClient, TerminalPalette
+from anna_core.model_policy import ModelPolicy
+from anna_core.reviewer import ResponseReviewer
+from anna_core.router import TaskRouter
 from anna_core.pipeline_store import PipelineStore
 from anna_core.pipeline_runtime import (
     build_anna_system_prompt,
@@ -46,6 +58,7 @@ from anna_core.pipeline_runtime import (
 )
 from anna_core.mo_phase import detect_mo_phase, mo_script_matches_phase, sync_mo_canonical_report
 from anna_core.project import AgentSpecLoader, ProjectDetector
+from anna_core.run_guard import begin_project_run, mark_output_current, output_is_current, promote_upstream_outputs
 from anna_core.runner import run_python_script
 from core.schema_contract import infer_producer_from_path, validate_handoff
 from anna_core.runner import agent_script_is_usable, builtin_agent_script
@@ -58,6 +71,24 @@ if sys.platform == "win32":
 BASE_DIR = Path(__file__).parent
 load_app_env(BASE_DIR / ".env")
 CONFIG = load_config(BASE_DIR)
+
+
+def _configure_text_streams() -> None:
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+    try:
+        sys.stdin.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+
+_configure_text_streams()
 
 # ── Colors ────────────────────────────────────────────────────────────────────
 def _supports_ansi() -> bool:
@@ -118,11 +149,13 @@ ANNA_PERSONA_GUARD = """
 
 ANNA_SYSTEM = (BASE_DIR / "CLAUDE.md").read_text(encoding="utf-8") + ANNA_PERSONA_GUARD
 
-VALID_AGENTS = {"scout", "dana", "eddie", "max", "finn", "mo", "iris", "vera", "quinn", "rex"}
+VALID_AGENTS = {"scout", "dana", "eddie", "iris_eda", "max", "finn", "mo", "iris", "vera", "quinn", "rex"}
+SIDE_CAR_AGENTS = {"iris_eda"}
 
 # ── CRISP-DM Phase Mapping ──────────────────────────────────────────────────
 CRISP_DM_PHASES = {
     "data_understanding": ["scout", "eddie"],
+    "analysis_bridge": ["iris_eda"],
     "data_preparation":   ["dana", "max", "finn"],
     "modeling":           ["mo"],
     "evaluation":         ["quinn", "iris"],
@@ -215,6 +248,9 @@ WORKSPACE_PATHS = WorkspacePaths(BASE_DIR)
 PROJECT_DETECTOR = ProjectDetector(PROJECTS_DIR)
 AGENT_SPEC_LOADER = AgentSpecLoader(AGENTS_DIR, VALID_AGENTS)
 INTENT_CLASSIFIER = IntentClassifier(_PIPELINE_KW, _CHAT_KW)
+TASK_ROUTER = TaskRouter()
+MODEL_POLICY = ModelPolicy()
+RESPONSE_REVIEWER = ResponseReviewer()
 ACTION_EXECUTOR = ActionExecutor(
     base_dir=BASE_DIR,
     projects_dir=PROJECTS_DIR,
@@ -291,6 +327,13 @@ def call_claude(system_prompt: str, user_message: str, label: str = "") -> str:
     return LLM.call_claude(system_prompt, user_message, label=label)
 
 
+def call_model(provider: str, system_prompt: str, user_message: str, label: str = "", history: list | None = None) -> str:
+    provider = (provider or "deepseek").lower()
+    if provider == "codex":
+        return call_claude(system_prompt, user_message, label=label)
+    return call_deepseek(system_prompt, user_message, label=label, history=history)
+
+
 # ── Knowledge Base ────────────────────────────────────────────────────────────
 
 def load_kb(agent_name: str) -> str:
@@ -337,7 +380,14 @@ def pipeline_write(agent_name: str, file_path: str):
     PIPELINE.write(agent_name, file_path)
 
 def pipeline_read(agent_name: str) -> str:
-    return PIPELINE.read(agent_name)
+    path = PIPELINE.read(agent_name)
+    if not path:
+        return ""
+    project_dir = PIPELINE.project_dir or STATE.active_project
+    if project_dir and infer_producer_from_path(path, project_dir):
+        if not output_is_current(Path(path), project_dir):
+            return ""
+    return path
 
 _last_pipeline_project: Path | None = None
 
@@ -383,6 +433,13 @@ def find_agent_script(agent_name: str, project_dir: Path|None) -> Path|None:
         for script in reversed(scripts):
             ok, _reason = agent_script_is_usable(script)
             if ok:
+                if agent_name == "finn":
+                    try:
+                        text = script.read_text(encoding="utf-8", errors="ignore").lower()
+                        if "finn_feature_manifest" not in text or "recency_days" not in text or "monetary" not in text:
+                            continue
+                    except Exception:
+                        continue
                 return script
     return None
 
@@ -455,6 +512,7 @@ def write_builtin_script(agent_name: str, output_dir: Path) -> Path | None:
     code = builtin_agent_script(agent_name)
     if not code:
         return None
+    output_dir.mkdir(parents=True, exist_ok=True)
     path = output_dir / f"{agent_name}_script.py"
     path.write_text(code, encoding="utf-8")
     return path
@@ -656,6 +714,15 @@ def get_system_prompt(agent_name: str, task: str = "") -> str:
                 "- ต้องมี production-readiness verdict: OOT/time split status, PR-AUC status, calibration status, cost-benefit threshold, dependency benchmark status\n"
                 "- ต้องเขียน output/mo/mo_report.md ใหม่เป็น Phase 3 report ห้ามคง report Phase 1/2 เดิมไว้\n"
             )
+    if agent_name == "iris_eda":
+        base += (
+            "\n\n---\n## Iris EDA Bridge Guard (mandatory)\n"
+            "- งานนี้คือ early business insight หลัง Eddie EDA เท่านั้น ห้ามทำ final decision brief หรือ modeling recommendation แทน Iris รอบสุดท้าย\n"
+            "- ต้องอ่าน Eddie output/report แล้วสรุปเป็น BUSINESS_EDA_BRIEF ที่บอก insight, evidence, business hypothesis, key risk, follow-up question, next handoff, และ confidence\n"
+            "- ต้องชี้ชัดว่าอะไรคือ evidence ที่ยืนยันได้จริง และอะไรคือ hypothesis ที่ยังต้องส่งต่อให้ Finn/Mo ตรวจต่อ\n"
+            "- ห้ามเปลี่ยน target_column, problem_type, หรือ schema ownership ของ Scout\n"
+            "- ถ้าเจอ conflict ระหว่าง Eddie report กับ dataset_profile ให้บันทึก conflict และขอ repair แทนการเดาเอง\n"
+        )
     kb = load_relevant_kb(agent_name, task) if task else load_kb(agent_name)
     if kb:
         base += f"\n\n---\n## Knowledge Base — {agent_name}\n{kb}"
@@ -673,6 +740,7 @@ def extract_key_blocks(text: str) -> str:
         "DATASET_RISK_REGISTER",
         "DATA_QUALITY_AUDIT",
         "BUSINESS_EDA_FRAME",
+        "BUSINESS_EDA_BRIEF",
         "FEATURE_GOVERNANCE",
         "PRODUCTION_READINESS",
         "PATTERN_VALIDITY",
@@ -997,6 +1065,7 @@ def validate_agent_output(agent_name: str, output_path: str,
     if agent_name == "scout" and proj:
         profile_path = proj / "output" / "scout" / "dataset_profile.md"
         scout_report = proj / "output" / "scout" / "scout_report.md"
+        problem_type = ""
         if scout_report.exists():
             txt = scout_report.read_text(encoding="utf-8", errors="ignore").lower()
             if "dataset_risk_register" not in txt:
@@ -1033,7 +1102,7 @@ def validate_agent_output(agent_name: str, output_path: str,
             try:
                 from anna_core.runner import scout_output_is_placeholder
 
-                if scout_output_is_placeholder(p):
+                if not _problem_type_allows_missing_target(problem_type) and scout_output_is_placeholder(p):
                     return False, (
                         f"Scout gate FAIL: {p.name} ดูเหมือน placeholder/manifest ไม่ใช่ dataset จริง "
                         f"ให้ scout download หรือ assemble dataset จริงก่อน"
@@ -1086,8 +1155,10 @@ def validate_agent_output(agent_name: str, output_path: str,
                 key_cols = [c for c in _df_check.columns if c.lower() in {"customer_id", "client_id", "account_id", "user_id"}]
                 for key in key_cols:
                     sample = _pd.read_csv(str(p), usecols=[key])
-                    dupes = sample[key].astype(str).str.strip().duplicated().sum()
-                    if dupes:
+                    trimmed = sample[key].astype(str).str.strip()
+                    dupes = trimmed.duplicated().sum()
+                    unique_ratio = trimmed.nunique(dropna=True) / max(len(trimmed), 1)
+                    if dupes and unique_ratio >= 0.95:
                         return False, (
                             f"Dana gate FAIL: key column '{key}' ยังมี duplicates หลัง trim ({dupes} rows)"
                         )
@@ -1127,9 +1198,13 @@ def validate_agent_output(agent_name: str, output_path: str,
             role_blob = _read_column_roles(proj)
             df_head = _pd.read_csv(str(p), nrows=5)
             cols_lower = {c: c.lower() for c in df_head.columns}
+            customer_key_cols = {"customer_id", "customer id"}
+            rfm_like = {"recency_days", "frequency", "monetary"}
+            aggregated_customer_table = rfm_like.issubset(set(cols_lower.values()))
             leak_cols = [
                 c for c, lc in cols_lower.items()
                 if _forbidden_model_column(c, target)
+                and not (aggregated_customer_table and lc in customer_key_cols)
             ]
             if leak_cols:
                 return False, f"Finn gate FAIL: leakage/id-like features in output: {leak_cols[:8]}"
@@ -1255,6 +1330,30 @@ def validate_agent_output(agent_name: str, output_path: str,
         except Exception as e:
             return False, f"Mo gate exception: {e}"
 
+    elif agent_name == "iris_eda" and proj:
+        report_candidates = [
+            proj / "output" / "iris_eda" / "iris_eda_report.md",
+            proj / "output" / "iris_eda" / "analysis_bridge.md",
+            proj / "output" / "iris_eda" / "business_insight.md",
+        ]
+        existing_reports = [r for r in report_candidates if r.exists()]
+        if not existing_reports:
+            return False, "Iris EDA gate FAIL: missing iris_eda_report.md"
+        txt = existing_reports[0].read_text(encoding="utf-8", errors="ignore").lower()
+        required_groups = {
+            "business eda brief": ("business_eda_brief", "business eda brief"),
+            "evidence": ("evidence", "finding", "pattern", "metric"),
+            "follow-up": ("follow-up", "follow up", "next step", "handoff", "finn", "mo"),
+            "risk/caveat": ("risk", "limitation", "caveat", "uncertainty", "conflict"),
+            "confidence": ("confidence", "low", "medium", "high"),
+        }
+        missing = [
+            name for name, terms in required_groups.items()
+            if not any(term in txt for term in terms)
+        ]
+        if missing:
+            return False, "Iris EDA gate FAIL: missing bridge rigor — " + ", ".join(missing)
+
     elif agent_name == "iris" and proj:
         report = proj / "output" / "iris" / "iris_report.md"
         if not report.exists():
@@ -1281,7 +1380,7 @@ def validate_agent_output(agent_name: str, output_path: str,
             return False, "Quinn gate FAIL: missing quinn_report.md"
         txt = report.read_text(encoding="utf-8", errors="ignore").lower()
         if "restart_cycle: yes" in txt or "verdict: unsatisfied" in txt or "status: fail" in txt:
-            return False, "Quinn HARD GATE FAIL: QC verdict requires RESTART_CYCLE. Pipeline blocked until fixed."
+            return False, "Quinn HARD GATE FAIL: QC verdict requires restart_cycle / restart required. Pipeline blocked until fixed."
         required = ("leakage", "overfitting", "drift", "calibration", "business_satisfaction")
         missing = [term for term in required if term not in txt]
         if missing:
@@ -1330,6 +1429,11 @@ def validate_agent_output(agent_name: str, output_path: str,
             if missing:
                 return False, "Rex gate FAIL: missing executive rigor — " + ", ".join(missing)
 
+    if proj:
+        try:
+            mark_output_current(p, proj)
+        except Exception:
+            pass
     return True, base_msg
 
 
@@ -1338,6 +1442,7 @@ _GATE_RERUN_FROM: dict[str, tuple[str, str]] = {
     "scout": ("",       ""),
     "dana":  ("scout",  "scout_output.csv"),
     "eddie": ("dana",   "dana_output.csv"),
+    "iris_eda": ("eddie", "eddie_output.csv"),
     "finn":  ("eddie",  "eddie_output.csv"),
     "mo":    ("finn",   "engineered_data.csv"),
 }
@@ -1351,33 +1456,28 @@ def _gate_recovery_hint(agent: str, msg: str, project_dir: Path | None) -> str:
             return f"rerun {agent.upper()} จาก {src.name} ({src.parent.name}/)"
         return f"rerun {prev.upper()} ก่อน แล้วค่อย rerun {agent.upper()}"
     elif agent == "scout":
-        if "placeholder" in msg.lower() or "manifest" in msg.lower() or "dataset จริง" in msg:
-            return (
-                "dispatch scout ใหม่ — ให้ download/assemble dataset จริง, "
-                "เขียน scout_output.csv เป็นข้อมูลจริง, dataset_profile.md ต้องมี target_column ชัดเจน และมี DATASET_RISK_REGISTER"
-            )
-        else:
-            return "dispatch scout ใหม่ — ระบุ target_column ให้ชัดเจน"
-    else:
-        return f"ตรวจสอบ output ของ {agent} แล้ว dispatch ใหม่"
-
-    if agent == "scout":
-        if "DATASET_RISK_REGISTER" in msg:
-            return "แก้ scout_report.md ให้มี DATASET_RISK_REGISTER แล้ว rerun Scout หรือ /resume project"
         problem_type = _project_profile_field(project_dir, "problem_type")
         if _problem_type_allows_missing_target(problem_type):
             return (
                 "Scout เป็นงาน unsupervised/clustering — ไม่ต้องระบุ target_column. "
                 "ถ้ายังเห็น gate fail นี้ ให้ restart orchestrator แล้ว /resume project"
             )
+        if "DATASET_RISK_REGISTER" in msg:
+            return "แก้ scout_report.md ให้มี DATASET_RISK_REGISTER แล้ว rerun Scout หรือ /resume project"
         if "target_column=unknown" in msg:
             return (
                 "dispatch Scout ใหม่พร้อมกำหนดโจทย์ supervised ให้ชัด "
                 "หรือเปลี่ยน problem_type เป็น clustering ถ้าเป็น RFM/segmentation"
             )
-        return "ตรวจ scout_report.md และ dataset_profile.md แล้ว rerun Scout"
-
-    return f"ตรวจสอบ output ของ {agent} แล้ว dispatch ใหม่"
+        if "placeholder" in msg.lower() or "manifest" in msg.lower() or "dataset จริง" in msg:
+            return (
+                "dispatch Scout ใหม่ — ให้ download/assemble dataset จริง, "
+                "เขียน scout_output.csv เป็นข้อมูลจริง, dataset_profile.md ต้องมี target_column ชัดเจน และมี DATASET_RISK_REGISTER"
+            )
+        else:
+            return "dispatch Scout ใหม่ — ระบุ target_column ให้ชัดเจน"
+    else:
+        return f"ตรวจสอบ output ของ {agent} แล้ว dispatch ใหม่"
 
 
 def _safe_rel(path: Path, base: Path | None) -> str:
@@ -1393,6 +1493,7 @@ def _expected_handoff_candidates(agent_name: str, project_dir: Path | None) -> l
     candidates: dict[str, list[Path]] = {
         "dana": [project_dir / "output" / "scout" / "scout_output.csv"],
         "eddie": [project_dir / "output" / "dana" / "dana_output.csv"],
+        "iris_eda": [project_dir / "output" / "eddie" / "eddie_output.csv"],
         "finn": [project_dir / "output" / "eddie" / "eddie_output.csv"],
         "mo": [
             project_dir / "output" / "finn" / "engineered_data.csv",
@@ -1404,66 +1505,6 @@ def _expected_handoff_candidates(agent_name: str, project_dir: Path | None) -> l
         ],
     }
     return candidates.get(agent_name, [])
-
-
-def archive_agent_outputs_before_rerun(agent_dir: Path, agent_name: str) -> str:
-    """
-    Move old top-level report/data outputs aside before rerun so the agent
-    directory has one fresh source of truth after the new run completes.
-    """
-    if not agent_dir.exists():
-        return ""
-    preserve_dirs = {"_archive", "__pycache__", "_tmp", ".gitkeep"}
-    items = [
-        p for p in agent_dir.iterdir()
-        if p.name not in preserve_dirs and p.suffix.lower() != ".py"
-    ]
-    if not items:
-        return ""
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    archive = agent_dir / "_archive" / ts
-    archive.mkdir(parents=True, exist_ok=True)
-    for p in items:
-        shutil.move(str(p), str(archive / p.name))
-    try:
-        rel = archive.relative_to(agent_dir.parent)
-    except ValueError:
-        rel = archive
-    print(f"{CY}[ARCHIVE]{RST} {agent_name} outputs → {rel}")
-    return str(archive)
-
-
-def quinn_hard_gate(project_dir: Path | None) -> tuple[bool, str, str]:
-    """
-    Returns (is_blocked, reason, restart_target).
-    A Quinn RESTART_CYCLE: YES is a hard block for downstream agents.
-    """
-    if not project_dir:
-        return False, "", ""
-    q = project_dir / "output" / "quinn" / "quinn_report.md"
-    if not q.exists():
-        q = project_dir / "output" / "quinn" / "quinn_qc_report.md"
-    if not q.exists():
-        return False, "", ""
-    txt = q.read_text(encoding="utf-8", errors="ignore")
-    txt_lower = txt.lower()
-    if "restart_cycle: yes" not in txt_lower and "restart_cycle:yes" not in txt_lower:
-        return False, "", ""
-    m = re.search(r"restart\s+from[:\s]+(\w+)", txt, re.IGNORECASE)
-    target = m.group(1).lower() if m else "finn"
-    reason = f"Quinn ordered RESTART_CYCLE: YES (Restart From: {target.upper()})"
-    return True, reason, target
-
-
-def _agent_output_newer_than(project_dir: Path, agent: str, reference: Path) -> bool:
-    agent_dir = project_dir / "output" / agent
-    if not agent_dir.exists() or not reference.exists():
-        return False
-    ref_time = reference.stat().st_mtime
-    for p in agent_dir.iterdir():
-        if p.is_file() and p.suffix.lower() in {".csv", ".md", ".json"} and p.stat().st_mtime > ref_time:
-            return True
-    return False
 
 
 def enforce_quinn_gate(agent_name: str, project_dir: Path | None, force_past_quinn: bool = False) -> bool:
@@ -1621,31 +1662,6 @@ def _print_gate_fail_recovery(agent: str, msg: str, project_dir: Path | None, ta
     log_raw("system", f"gate FAIL recovery hint: {agent} — {msg} → {rerun_hint}", task="gate")
 
 
-def check_pipeline_spec(output_dir: Path) -> bool:
-    """ตรวจว่า eddie_report.md มี PIPELINE_SPEC block ครบหรือไม่"""
-    if not output_dir or not output_dir.exists():
-        return False
-    reports = sorted(output_dir.glob("*.md"), key=lambda x: x.stat().st_mtime, reverse=True)
-    if not reports:
-        return False
-    text = reports[0].read_text(encoding="utf-8", errors="ignore")
-    required = ["PIPELINE_SPEC", "problem_type", "recommended_model", "target_column"]
-    return all(k.lower() in text.lower() for k in required)
-
-
-def resolve_input_path(prev_agent: str, raw_path: str, project_dir: Path | None) -> str:
-    """If Scout's pipeline points to a .md report, find actual CSV in project input/ instead."""
-    if prev_agent != "scout" or not raw_path or not project_dir:
-        return raw_path
-    if not raw_path.endswith(".md"):
-        return raw_path
-    input_dir = project_dir / "input"
-    if not input_dir.exists():
-        return raw_path
-    csvs = sorted(input_dir.glob("*.csv"), key=lambda x: x.stat().st_mtime, reverse=True)
-    return str(csvs[0]) if csvs else raw_path
-
-
 def anna_autofix_script(agent_name: str, task: str, script: Path,
                         input_path: str, output_dir: Path, stderr: str) -> tuple[str, bool]:
     """Anna ใช้ Claude วิเคราะห์และแก้ script เมื่อ DeepSeek retry ทั้งหมดล้มเหลว"""
@@ -1711,14 +1727,23 @@ def resolve_agent_input(
                     print(f"{CY}  ⟳ Iris input → finn/{candidate.name} (forced){RST}")
                     log_raw("system", f"Iris input forced to finn/{candidate.name}", task="iris")
                 producer = "finn" if agent_name in {"mo", "iris"} else candidate.parent.name
-                ok, schema_errors = validate_handoff(producer, agent_name, candidate, project_dir)
-                if not ok:
-                    schema_msg = f"Schema contract FAIL: {producer.upper()} → {agent_name.upper()}\n" + "\n".join(schema_errors)
+                if project_dir and not output_is_current(candidate, project_dir):
+                    stale_msg = (
+                        f"STALE output detected for {candidate.name}; current run no longer accepts prior generation "
+                        f"for {producer.upper()} → {agent_name.upper()}"
+                    )
                     if write_repair:
-                        _write_repair_note(agent_name, "schema-mismatch", schema_msg, project_dir, f"rerun @{producer} or check upstream output")
-                    raise RuntimeError(schema_msg)
-                print(f"{GR}  ✓ Schema OK: {producer.upper()} → {agent_name.upper()}{RST}")
-                log_raw("system", "Schema validation passed", task=agent_name)
+                        _write_repair_note(agent_name, "stale-output", stale_msg, project_dir, f"rerun @{producer} or repair upstream output")
+                    raise RuntimeError(stale_msg)
+                if task.strip():
+                    ok, schema_errors = validate_handoff(producer, agent_name, candidate, project_dir)
+                    if not ok:
+                        schema_msg = f"Schema contract FAIL: {producer.upper()} → {agent_name.upper()}\n" + "\n".join(schema_errors)
+                        if write_repair:
+                            _write_repair_note(agent_name, "schema-mismatch", schema_msg, project_dir, f"rerun @{producer} or check upstream output")
+                        raise RuntimeError(schema_msg)
+                    print(f"{GR}  ✓ Schema OK: {producer.upper()} → {agent_name.upper()}{RST}")
+                    log_raw("system", "Schema validation passed", task=agent_name)
                 return str(candidate)
 
         msg = _missing_handoff_message(agent_name, project_dir)
@@ -1737,13 +1762,44 @@ def resolve_agent_input(
     if agent_name == "dana" and prev_agent == "scout" and project_dir:
         scout_csv = project_dir / "output" / "scout" / "scout_output.csv"
         if scout_csv.exists():
+            if not output_is_current(scout_csv, project_dir):
+                msg = "STALE scout output detected; rerun SCOUT before DANA"
+                if write_repair:
+                    _write_repair_note(agent_name, "stale-output", msg, project_dir, "rerun SCOUT แล้วค่อย rerun DANA", task=task)
+                raise RuntimeError(msg)
             print(f"{CY}  ⟳ Dana input → scout_output.csv (forced){RST}")
             log_raw("system", f"Dana input forced to scout_output.csv", task="dana")
             return str(scout_csv)
 
+    if agent_name == "iris_eda" and project_dir:
+        eddie_csv = project_dir / "output" / "eddie" / "eddie_output.csv"
+        if eddie_csv.exists():
+            if not output_is_current(eddie_csv, project_dir):
+                msg = "STALE Eddie output detected; rerun EDDIE before IRIS_EDA"
+                if write_repair:
+                    _write_repair_note(agent_name, "stale-output", msg, project_dir, "rerun EDDIE แล้วค่อย rerun IRIS_EDA", task=task)
+                raise RuntimeError(msg)
+            print(f"{CY}  ⟳ Iris EDA input → eddie_output.csv (forced){RST}")
+            log_raw("system", "Iris EDA input forced to eddie_output.csv", task="iris_eda")
+            if task.strip():
+                ok, schema_errors = validate_handoff("eddie", agent_name, eddie_csv, project_dir)
+                if not ok:
+                    schema_msg = f"Schema contract FAIL: EDDIE → IRIS_EDA\n" + "\n".join(schema_errors)
+                    if write_repair:
+                        _write_repair_note(agent_name, "schema-mismatch", schema_msg, project_dir, "rerun EDDIE or check upstream output")
+                    raise RuntimeError(schema_msg)
+                print(f"{GR}  ✓ Schema OK: EDDIE → IRIS_EDA{RST}")
+                log_raw("system", "Schema validation passed", task=agent_name)
+            return str(eddie_csv)
+
     if agent_name == "mo" and project_dir:
         engineered_csv = project_dir / "output" / "finn" / "engineered_data.csv"
         if engineered_csv.exists():
+            if not output_is_current(engineered_csv, project_dir):
+                msg = "STALE Finn engineered_data output detected; rerun FINN before MO"
+                if write_repair:
+                    _write_repair_note(agent_name, "stale-output", msg, project_dir, "rerun FINN แล้วค่อย rerun MO", task=task)
+                raise RuntimeError(msg)
             print(f"{CY}  ⟳ Mo input → finn/engineered_data.csv (forced){RST}")
             log_raw("system", "Mo input forced to finn/engineered_data.csv", task="mo")
             return str(engineered_csv)
@@ -1791,17 +1847,24 @@ def resolve_agent_input(
                         break
         except Exception:
             pass
+    if input_path and project_dir and infer_producer_from_path(input_path, project_dir):
+        if not output_is_current(Path(input_path), project_dir):
+            msg = f"STALE output detected: {Path(input_path).name} belongs to a prior run"
+            if write_repair:
+                _write_repair_note(agent_name, "stale-output", msg, project_dir, f"rerun @{prev_agent} or repair upstream output", task=task)
+            raise RuntimeError(msg)
     if input_path and project_dir:
         producer = infer_producer_from_path(input_path, project_dir) or prev_agent
-        ok, schema_errors = validate_handoff(producer, agent_name, input_path, project_dir)
-        if not ok:
-            schema_msg = f"Schema contract FAIL: {producer.upper()} → {agent_name.upper()}\n" + "\n".join(schema_errors)
-            if write_repair:
-                _write_repair_note(agent_name, "schema-mismatch", schema_msg, project_dir, f"rerun @{producer} or check upstream output")
-            raise RuntimeError(schema_msg)
-        if producer:
-            print(f"{GR}  ✓ Schema OK: {producer.upper()} → {agent_name.upper()}{RST}")
-            log_raw("system", "Schema validation passed", task=agent_name)
+        if task.strip():
+            ok, schema_errors = validate_handoff(producer, agent_name, input_path, project_dir)
+            if not ok:
+                schema_msg = f"Schema contract FAIL: {producer.upper()} → {agent_name.upper()}\n" + "\n".join(schema_errors)
+                if write_repair:
+                    _write_repair_note(agent_name, "schema-mismatch", schema_msg, project_dir, f"rerun @{producer} or check upstream output")
+                raise RuntimeError(schema_msg)
+            if producer:
+                print(f"{GR}  ✓ Schema OK: {producer.upper()} → {agent_name.upper()}{RST}")
+                log_raw("system", "Schema validation passed", task=agent_name)
     return input_path
 
 
@@ -1895,6 +1958,13 @@ def complete_agent_handoff(agent_name: str, output_path: str, task: str, message
     pipeline_write(agent_name, output_path)
     log_raw(agent_name, message, task=task, output=output_path)
     log_raw("system", f"pipeline handoff: {agent_name} → {output_path}", task="pipeline")
+    if STATE.active_project and agent_name == "finn":
+        companion = Path(output_path).parent / "engineered_data.csv"
+        if companion.exists():
+            try:
+                mark_output_current(companion, STATE.active_project)
+            except Exception:
+                pass
     print(f"{GR}  ✓ {BLD}{agent_name.upper()}{RST}{GR} done{RST}  {DIM}→ {output_path}{RST}")
     return output_path
 
@@ -1928,7 +1998,6 @@ def run_existing_script_agent(
 
     if agent_name == "mo":
         sync_mo_canonical_report(output_dir, detect_mo_phase(task))
-
     report_summary = read_report_summary(output_dir, agent_name)
     action_msg = f"รัน script {script.name} สำเร็จ"
     if report_summary:
@@ -2020,7 +2089,6 @@ def run_generated_script_agent(
 
     if agent_name == "mo":
         sync_mo_canonical_report(output_dir, detect_mo_phase(task))
-
     if agent_name == "scout" and project_dir:
         output_path = latest_input_file(project_dir) or scout_input_csv(project_dir) or output_path
 
@@ -2073,6 +2141,8 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
 
     # ── Priority 1: script จริง (+ auto-fix via DeepSeek ถ้า error) ──────────
     script = find_agent_script(agent_name, project_dir)
+    if output_dir and not discover and builtin_agent_script(agent_name):
+        script = None
     if script and output_dir and not discover:
         archive_path = archive_agent_outputs_before_rerun(Path(output_dir), agent_name)
         if archive_path:
@@ -2103,6 +2173,12 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
     # ── ลบ script เก่าเฉพาะตอนจะสร้างใหม่ (Priority 1 ไม่ผ่าน) ──────────────
     delete_old_scripts(output_dir)
 
+    if output_dir and not discover and not script:
+        builtin_script = write_builtin_script(agent_name, output_dir)
+        if builtin_script:
+            set_pipeline_stage(agent_name, "script-reuse", builtin_script.name)
+            return run_existing_script_agent(agent_name, task, builtin_script, input_path, output_dir)
+
     # ── Priority 2: LLM ───────────────────────────────────────
     system = get_system_prompt(agent_name, task=task)
 
@@ -2131,6 +2207,10 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
             return run_generated_script_agent(
                 agent_name, task, input_path, output_dir, report_path, code_blocks, project_dir
             )
+
+        if agent_name == "iris_eda":
+            set_pipeline_stage(agent_name, "report-only", report_path.name)
+            return handle_report_only_agent(agent_name, task, report_path, project_dir)
 
         set_pipeline_stage(agent_name, "report-only", report_path.name)
         return handle_report_only_agent(agent_name, task, report_path, project_dir)
@@ -2186,7 +2266,12 @@ def response_has_anna_actions(response: str) -> bool:
     return any(f"<{tag}" in response for tag in action_tags)
 
 
-def summarize_action_results(anna_system: str, action_results: str, label: str = "ANNA") -> str:
+def summarize_action_results(
+    anna_system: str,
+    action_results: str,
+    label: str = "ANNA",
+    provider: str = "deepseek",
+) -> str:
     followup = (
         "ผลลัพธ์จากการดำเนินการ:\n\n"
         f"{action_results}\n\n"
@@ -2194,7 +2279,7 @@ def summarize_action_results(anna_system: str, action_results: str, label: str =
         "ห้ามส่ง action tags เพิ่ม เช่น <RUN_SHELL>, <RUN_PYTHON>, <READ_FILE>, <DISPATCH>\n"
         "ถ้าผลลัพธ์ไม่พอ ให้บอกว่าข้อมูลไม่พอและถามผู้ใช้เป็นภาษาไทยธรรมดา"
     )
-    return call_deepseek(anna_system, followup, label=label, history=STATE.anna_history)
+    return call_model(provider, anna_system, followup, label=label, history=STATE.anna_history)
 
 
 def execute_anna_actions_until_stable(
@@ -2202,6 +2287,7 @@ def execute_anna_actions_until_stable(
     anna_system: str,
     user_input: str,
     max_rounds: int = 3,
+    summary_provider: str = "deepseek",
 ) -> tuple[str, str]:
     all_results: list[str] = []
     current = anna_response
@@ -2213,7 +2299,7 @@ def execute_anna_actions_until_stable(
         print(f"\n{CY}  ⟳ ส่งผลลัพธ์กลับให้ Anna...{RST}")
         STATE.anna_history.append({"role": "user", "content": user_input if round_no == 0 else "action follow-up"})
         STATE.anna_history.append({"role": "assistant", "content": current})
-        current = summarize_action_results(anna_system, action_results, label="ANNA")
+        current = summarize_action_results(anna_system, action_results, label="ANNA", provider=summary_provider)
         STATE.anna_history.append({"role": "user", "content": "action results summary request"})
         STATE.anna_history.append({"role": "assistant", "content": current})
         if not response_has_anna_actions(current):
@@ -2227,8 +2313,13 @@ def execute_anna_actions_until_stable(
 
 # ── Anna Auto-Fix ─────────────────────────────────────────────────────────────
 
-def _anna_autofix_response(original: str, user_input: str, anna_system: str,
-                            action_errors: str = "") -> str:
+def _anna_autofix_response(
+    original: str,
+    user_input: str,
+    anna_system: str,
+    action_errors: str = "",
+    provider: str = "codex",
+) -> str:
     """Anna auto-fix: dispatch malformed หรือ action errors → Claude วิเคราะห์ใหม่
     (เหมือน agent script auto-fix แต่ใช้กับ planning ของ Anna เอง)
     """
@@ -2251,10 +2342,10 @@ def _anna_autofix_response(original: str, user_input: str, anna_system: str,
         f"ถ้าต้อง dispatch ให้เรียก CREATE_DIR ก่อน DISPATCH เสมอสำหรับ project ใหม่, "
         f"ให้ task เป็น JSON string บรรทัดเดียวโดยไม่มี newline หรือ \\n, "
         f"และให้แน่ใจว่า JSON valid และ agent name ถูกต้อง "
-        f"(valid agents: scout, dana, eddie, max, finn, mo, iris, vera, quinn, rex)"
+        f"(valid agents: scout, dana, eddie, iris_eda, max, finn, mo, iris, vera, quinn, rex)"
     )
 
-    fixed = call_claude(anna_system, fix_prompt, label="ANNA auto-fix")
+    fixed = call_model(provider, anna_system, fix_prompt, label="ANNA auto-fix")
     log_raw("anna", f"anna-autofix done: dispatches={len(parse_dispatches(fixed))}", task="anna-autofix")
     return fixed
 
@@ -2264,6 +2355,7 @@ def _anna_repair_dispatch_plan(
     user_input: str,
     anna_system: str,
     issues: list[str],
+    provider: str = "codex",
 ) -> str:
     print(f"\n{YL}{'─'*55}{RST}")
     print(f"{YL}  ⟳ ANNA plan validation{RST}  (repairing dispatch plan...)")
@@ -2281,10 +2373,10 @@ def _anna_repair_dispatch_plan(
         "If agent work is needed, include project CREATE_DIR or existing project reference before DISPATCH. "
         "For a new project, CREATE_DIR tags must appear before the first DISPATCH. "
         "Use valid one-line DISPATCH JSON only; task must be a single-line string with no newline characters or escaped \\n sequences. "
-        "Use only valid agents: scout, dana, eddie, max, finn, mo, iris, vera, quinn, rex. "
+        "Use only valid agents: scout, dana, eddie, iris_eda, max, finn, mo, iris, vera, quinn, rex. "
         "If required context is missing, ASK_USER instead of guessing."
     )
-    fixed = call_claude(anna_system, repair_prompt, label="ANNA plan repair")
+    fixed = call_model(provider, anna_system, repair_prompt, label="ANNA plan repair")
     log_raw("anna", f"dispatch validation repaired: dispatches={len(parse_dispatches(fixed))}", task="anna-plan-guard")
     return fixed
 
@@ -2310,8 +2402,13 @@ def run_pipeline(user_input: str):
     if intent == "chat":
         print(f"{DIM}  [intent: chat — skip agent specs]{RST}")
 
-    # Session memory — โหลด recent session summaries ให้ Anna จำได้ข้าม session
-    session_mem = SESSION_MEMORY.tail(2000)
+    # Session memory — combine recent memory with query-relevant memory
+    session_mem = SESSION_MEMORY.build_context(user_input, tail_chars=1600, top_n=4)
+
+    route = TASK_ROUTER.route(user_input, intent=intent, context=f"{anna_kb}\n{session_mem}")
+    anna_choice = MODEL_POLICY.choose("anna_primary", route)
+    summary_choice = MODEL_POLICY.choose("anna_summary", route)
+    repair_choice = MODEL_POLICY.choose("anna_repair", route)
 
     anna_system = build_anna_system_prompt(
         ANNA_SYSTEM + ANNA_OUTPUT_CONTRACT,
@@ -2329,9 +2426,9 @@ def run_pipeline(user_input: str):
             consolidate_kb(ag)
 
     print(f"\n{YL}{'═'*55}{RST}")
-    anna_response = call_deepseek(anna_system, user_input, label="ANNA", history=STATE.anna_history)
+    anna_response = call_model(anna_choice.provider, anna_system, user_input, label="ANNA", history=STATE.anna_history)
     log_raw("User", user_input)
-    log_raw("Anna", anna_response, task="รับคำสั่งจาก User และวางแผน dispatch")
+    log_raw("Anna", anna_response, task=f"รับคำสั่งจาก User และวางแผน dispatch [{anna_choice.provider}]")
 
     # เก็บ dispatch จาก response แรกก่อน — ป้องกันหายหลัง action execution
     first_dispatches = parse_dispatches(anna_response)
@@ -2341,6 +2438,7 @@ def run_pipeline(user_input: str):
         anna_response,
         anna_system,
         user_input,
+        summary_provider=summary_choice.provider,
     )
     if not action_results:
         STATE.anna_history.append({"role": "user",      "content": user_input})
@@ -2365,22 +2463,34 @@ def run_pipeline(user_input: str):
         print(f"\n{CY}  ⟳ dispatch จาก response แรก ({len(first_dispatches)} รายการ){RST}")
         dispatches = first_dispatches
 
+    review = RESPONSE_REVIEWER.review_anna(
+        user_input=user_input,
+        anna_response=anna_response,
+        intent=intent,
+        dispatches=dispatches,
+        plan_issues=[],
+        action_results=action_results,
+        route=route,
+    )
+
     # ── Anna auto-fix (เหมือน agent script auto-fix) ──────────────────────────
     # trigger เมื่อ: (1) มี <DISPATCH> แต่ parse ไม่ได้  (2) action มี ERROR และยังไม่มี dispatch
     # ไม่ trigger ถ้ามี valid dispatches อยู่แล้ว (เช่น action เล็กๆ fail แต่ dispatch ดีอยู่)
     dispatch_attempted = "<DISPATCH>" in anna_response
     action_had_errors  = bool(action_results) and "ERROR" in action_results
     if (dispatch_attempted and not dispatches) or (action_had_errors and not dispatches):
+        repair_provider = review.repair_provider if (review.findings or action_had_errors or dispatch_attempted) else repair_choice.provider
         fixed = _anna_autofix_response(
             anna_response, user_input, anna_system,
             action_errors=action_results if action_had_errors else "",
+            provider=repair_provider,
         )
         if action_had_errors:
             new_acts = execute_anna_actions(fixed)
             # สร้าง summary เฉพาะกรณีที่ fixed ยังไม่มี dispatch (ไม่งั้นจะทับ dispatch ดี)
             if new_acts and not parse_dispatches(fixed):
                 fp = f"ผลลัพธ์จากการดำเนินการ:\n\n{new_acts}\n\nโปรดสรุปและตอบผู้ใช้เป็นภาษาไทย"
-                fixed = call_deepseek(anna_system, fp, label="ANNA auto-fix summary")
+                fixed = call_model(summary_choice.provider, anna_system, fp, label="ANNA auto-fix summary")
         anna_response = fixed
         STATE.anna_history[-1] = {"role": "assistant", "content": anna_response}
         dispatches = parse_dispatches(anna_response)
@@ -2403,12 +2513,19 @@ def run_pipeline(user_input: str):
         source_text=anna_response,
     )
     if plan_issues:
-        fixed = _anna_repair_dispatch_plan(anna_response, user_input, anna_system, plan_issues)
+        repair_provider = review.repair_provider if (review.findings or plan_issues) else repair_choice.provider
+        fixed = _anna_repair_dispatch_plan(
+            anna_response,
+            user_input,
+            anna_system,
+            plan_issues,
+            provider=repair_provider,
+        )
         repaired_actions = execute_anna_actions(fixed)
         if repaired_actions:
             print(f"\n{CY}  ⟳ ส่งผลลัพธ์ plan repair กลับให้ Anna...{RST}")
             followup = f"ผลลัพธ์จากการดำเนินการ:\n\n{repaired_actions}\n\nโปรดตอบด้วย dispatch plan ที่ถูกต้องตาม Anna Output Contract v3"
-            fixed = call_deepseek(anna_system, followup, label="ANNA plan repair summary", history=STATE.anna_history)
+            fixed = call_model(summary_choice.provider, anna_system, followup, label="ANNA plan repair summary", history=STATE.anna_history)
         anna_response = fixed
         STATE.anna_history[-1] = {"role": "assistant", "content": anna_response}
         if STATE.active_project is None:
@@ -2434,6 +2551,10 @@ def run_pipeline(user_input: str):
             if codex:
                 print_text_box("CODEX", codex, MG)
             return
+    if STATE.active_project is not None:
+        run_id = begin_project_run(STATE.active_project, reason="pipeline")
+        if dispatches:
+            promote_upstream_outputs(STATE.active_project, dispatches[0].get("agent", ""), run_id)
     proj_name = STATE.active_project.name if STATE.active_project else "unknown"
     print(f"\n{CY}  ⟳ Pipeline:{RST} {BLD}{len(dispatches)} agent(s){RST}  {DIM}│ project: {proj_name}{RST}")
 
@@ -2469,11 +2590,11 @@ def run_pipeline(user_input: str):
             with concurrent.futures.ThreadPoolExecutor(max_workers=len(grp)) as _pool:
                 _futs = {
                     _pool.submit(run_agent, d["agent"], d["task"],
-                                 prev_agent, dispatch_project(d), d.get("discover", False)): d["agent"]
+                                 prev_agent, COMMANDS.dispatch_project(d), d.get("discover", False)): d["agent"]
                     for d in grp
                 }
                 _fut_projects = {
-                    fut: dispatch_project(d)
+                    fut: COMMANDS.dispatch_project(d)
                     for fut, d in zip(_futs.keys(), grp)
                 }
                 _fut_tasks = {
@@ -2499,8 +2620,9 @@ def run_pipeline(user_input: str):
                     completed.append(_ag)
             # prev_agent = agent ที่เขียน pipeline output จริง (ไม่ใช่แค่ตัวท้ายในลิสต์)
             _data_agents = [d["agent"] for d in grp
-                            if pipeline_read(d["agent"]) and d["agent"] not in ("vera", "rex", "quinn")]
-            prev_agent = _data_agents[-1] if _data_agents else grp[-1]["agent"]
+                            if pipeline_read(d["agent"]) and d["agent"] not in ("vera", "rex", "quinn", "iris_eda")]
+            if _data_agents:
+                prev_agent = _data_agents[-1]
             if _stop_pipeline:
                 break
         else:
@@ -2511,7 +2633,7 @@ def run_pipeline(user_input: str):
             discover = d.get("discover", False)
             if not agent or not task:
                 continue
-            current_project = dispatch_project(d)
+            current_project = COMMANDS.dispatch_project(d)
             if current_project and current_project != STATE.active_project:
                 STATE.active_project = current_project
                 global _last_pipeline_project
@@ -2547,7 +2669,8 @@ def run_pipeline(user_input: str):
                         log_raw("system", "PIPELINE_SPEC missing after 2 retries", task="pipeline-guard")
 
             completed.append(agent)
-            prev_agent = agent
+            if agent not in SIDE_CAR_AGENTS:
+                prev_agent = agent
 
     if completed:
         print(f"\n{YL}{'═'*55}{RST}")
@@ -2572,7 +2695,7 @@ def run_pipeline(user_input: str):
             last_path=last_path,
             reports_block=reports_block,
         )
-        summary = call_deepseek(anna_system, summary_msg, label="ANNA summary", history=STATE.anna_history)
+        summary = call_model(summary_choice.provider, anna_system, summary_msg, label="ANNA summary", history=STATE.anna_history)
         STATE.anna_history.append({"role": "user",      "content": summary_msg})
         STATE.anna_history.append({"role": "assistant", "content": summary})
 
@@ -2616,7 +2739,8 @@ def run_pipeline(user_input: str):
                 run_agent(agent, task, prev_agent=prev_agent,
                           project_dir=STATE.active_project, discover=discover)
                 completed.append(agent)
-                prev_agent = agent
+                if agent not in SIDE_CAR_AGENTS:
+                    prev_agent = agent
                 print(f"\n{GR}  ✓ {BLD}{agent}{RST}{GR} เสร็จแล้ว  (total: {len(completed)}){RST}")
 
             if _stop_cont:
@@ -2630,7 +2754,7 @@ def run_pipeline(user_input: str):
                 f"รวม agent ทั้งหมดที่เสร็จ: {', '.join(completed)}\n"
                 f"สรุปผลและระบุว่า pipeline เสร็จสมบูรณ์หรือต้องดำเนินการต่อ"
             )
-            summary = call_deepseek(anna_system, cont_msg, label="ANNA summary", history=STATE.anna_history)
+            summary = call_model(summary_choice.provider, anna_system, cont_msg, label="ANNA summary", history=STATE.anna_history)
             STATE.anna_history.append({"role": "user",      "content": cont_msg})
             STATE.anna_history.append({"role": "assistant", "content": summary})
 
@@ -2649,415 +2773,113 @@ def log_raw(role: str, content: str, task: str = "", output: str = ""):
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
+COMMANDS = AppCommands(
+    state=STATE,
+    cli=CLI,
+    pipeline=PIPELINE,
+    projects_dir=PROJECTS_DIR,
+    palette=CommandPalette(
+        reset=RST,
+        bold=BLD,
+        dim=DIM,
+        cyan=CY,
+        green=GR,
+        yellow=YL,
+        red=RD,
+        blue=BL,
+        magenta=MG,
+        white=WH,
+    ),
+    set_tab_title=set_tab_title,
+    notify_tab=notify_tab,
+    run_pipeline=run_pipeline,
+    run_agent=run_agent,
+    validate_agent_output=validate_agent_output,
+    print_gate_recovery=_print_gate_fail_recovery,
+    write_repair_note=lambda agent, kind, problem, project_dir, rerun_hint: _write_repair_note(
+        agent, kind, problem, project_dir, rerun_hint
+    ),
+    delete_old_scripts=delete_old_scripts,
+    output_dir_for=output_dir_for,
+    quinn_hard_gate=quinn_hard_gate,
+    agent_output_newer_than=_agent_output_newer_than,
+    load_kb=load_kb,
+    load_relevant_kb=load_relevant_kb,
+    save_kb=save_kb,
+    call_claude=call_claude,
+    anna_system=ANNA_SYSTEM,
+    get_last_pipeline_project=lambda: _last_pipeline_project,
+    set_last_pipeline_project=lambda project: globals().__setitem__("_last_pipeline_project", project),
+    pipeline_clear=pipeline_clear,
+)
+
+
 def print_help():
-    print(
-        f"\n{CY}Slash commands:{RST}\n"
-        f"  {BLD}/project <name>{RST}       เลือกโปรเจกต์  (alias: /p, /proj)\n"
-        f"  {BLD}/resume [name] [task]{RST} ทำต่อจากโปรเจกต์/active project  (alias: /r)\n"
-        f"  {BLD}/repair [auto]{RST}        เปิด note ล่าสุด หรือสั่ง auto repair จาก note\n"
-        f"  {BLD}/status{RST}               ดูสถานะ pipeline  (alias: /s)\n"
-        f"  {BLD}/kb <agent>{RST}           ดู knowledge base\n"
-        f"  {BLD}/claude{RST}               ดู Codex usage\n"
-        f"  {BLD}/end{RST}                  reset session\n"
-        f"  {BLD}/exit{RST}                 ออกจากระบบ\n"
-    )
-    CLI.print_help()
+    COMMANDS.print_help()
 
 
 def print_latest_repair_note() -> None:
-    project = STATE.active_project
-    if not project:
-        print(f"{RD}  ยังไม่ได้เลือก project{RST}")
-        print("  ใช้: /project <name>")
-        return
-    note = project / "logs" / "latest_repair.md"
-    if not note.exists():
-        print(f"{YL}  ยังไม่มี repair note สำหรับ {project.name}{RST}")
-        return
-    text = note.read_text(encoding="utf-8", errors="ignore")
-    kind = re.search(r"^- kind:\s*(.+)$", text, re.MULTILINE)
-    agent = re.search(r"^- agent:\s*(.+)$", text, re.MULTILINE)
-    problem = re.search(r"^- problem:\s*(.+)$", text, re.MULTILINE)
-    plan = re.search(r"^- plan:\s*(.+)$", text, re.MULTILINE)
-    task = re.search(r"^- task:\s*(.+)$", text, re.MULTILINE)
-
-    print(f"\n{CY}Repair note:{RST} {note}")
-    if any((kind, agent, problem, plan)):
-        print(f"{YL}  สรุป:{RST}")
-        if kind:
-            print(f"  kind   : {kind.group(1).strip()}")
-        if agent:
-            print(f"  agent  : {agent.group(1).strip()}")
-        if problem:
-            print(f"  problem: {problem.group(1).strip()}")
-        if task:
-            print(f"  task   : {task.group(1).strip()}")
-        if plan:
-            print(f"  plan   : {plan.group(1).strip()}")
-    print(f"\n{text[-4000:]}")
+    COMMANDS.print_latest_repair_note()
 
 
 def _run_latest_repair_note() -> None:
-    project = STATE.active_project
-    if not project:
-        print(f"{RD}  ยังไม่ได้เลือก project{RST}")
-        print("  ใช้: /project <name>")
-        return
-
-    loaded = _load_latest_repair_note(project)
-    if not loaded:
-        print(f"{YL}  ยังไม่มี repair note สำหรับ {project.name}{RST}")
-        return
-
-    note, _text, fields = loaded
-    agent = fields.get("agent", "").strip().lower()
-    task = fields.get("task", "").strip()
-    kind = fields.get("kind", "").strip().lower()
-    plan = fields.get("plan", "").strip()
-
-    if not agent:
-        print(f"{RD}  repair note ไม่มี agent ที่จะ rerun ได้{RST}")
-        print(f"  ใช้ /repair เพื่อดูรายละเอียด: {note}")
-        return
-
-    if not task or task == "(unknown)":
-        print(f"{RD}  repair note ยังไม่มี task สำหรับ auto repair ของ {agent.upper()}{RST}")
-        print(f"  ใช้ /repair เพื่อดู note ล่าสุด: {note}")
-        return
-
-    print(f"\n{CY}Auto repair:{RST} {BLD}{agent.upper()}{RST}")
-    if kind:
-        print(f"  kind : {kind}")
-    if plan:
-        print(f"  plan : {plan}")
-    print(f"  note : {note}")
-
-    rerun_task = task
-    if plan and plan not in rerun_task:
-        rerun_task = f"{task}\n\nLatest repair note:\n{plan}"
-
-    out = run_agent(agent, rerun_task, project_dir=project)
-    ok, msg = validate_agent_output(agent, out, project)
-    if ok:
-        print(f"{GR}  ✓ auto repair completed for {agent.upper()}{RST}")
-        return
-
-    if agent in ("scout", "dana", "eddie", "finn", "mo"):
-        _print_gate_fail_recovery(agent, msg, project, task=task)
-    else:
-        print(f"{YL}  ⚠ {agent.upper()} ยังไม่ผ่าน validation: {msg}{RST}")
+    COMMANDS._run_latest_repair_note()
 
 
 def anna_discover(user_input: str):
-    anna_kb = load_relevant_kb("anna", user_input, top_n=6) if user_input else load_kb("anna")
-    system  = ANNA_SYSTEM + (f"\n\n---\n## Anna KB\n{anna_kb[:500]}" if anna_kb else "")
-    result  = call_claude(system, user_input, label="ANNA discover")
-    save_kb("anna", f"Task: {user_input}\nDiscovery:\n{result}")
+    COMMANDS.anna_discover(user_input)
 
 
 def read_cli_input() -> str | None:
-    try:
-        proj = f" {DIM}[{STATE.active_project.name}]{RST}" if STATE.active_project else ""
-        proj_title = f" [{STATE.active_project.name}]" if STATE.active_project else ""
-        set_tab_title(f"🟢 Anna{proj_title} — พร้อม")
-        return input(f"{BLD}{WH}คุณ{RST}{proj}{BLD}{WH}:{RST} ").strip()
-    except (EOFError, KeyboardInterrupt):
-        print(f"\n{YL}  ลาก่อนค่ะ{RST}")
-        return None
+    return COMMANDS.read_cli_input()
 
 
 def _split_resume_args(raw: str) -> tuple[str, str]:
-    """Split `resume <project> <extra instruction>` without requiring quotes."""
-    raw = raw.strip()
-    if not raw:
-        return "", ""
-    if PROJECTS_DIR.exists():
-        project_names = sorted(
-            [p.name for p in PROJECTS_DIR.iterdir() if p.is_dir()],
-            key=len,
-            reverse=True,
-        )
-        raw_lower = raw.lower()
-        for project_name in project_names:
-            if raw_lower == project_name.lower():
-                return project_name, ""
-            prefix = project_name.lower() + " "
-            if raw_lower.startswith(prefix):
-                return project_name, raw[len(project_name):].strip()
-    parts = raw.split(" ", 1)
-    return parts[0], parts[1].strip() if len(parts) > 1 else ""
+    return COMMANDS._split_resume_args(raw)
 
 
 def resume_project(name: str = "", extra_instruction: str = "") -> None:
-    if not name and STATE.active_project:
-        project = STATE.active_project
-        message = ""
-    else:
-        project, message = CLI.resolve_project(name)
-    if not project:
-        color = YL if message.startswith("พบหลาย") else RD
-        print(f"{color}  {message}{RST}")
-        return
-    STATE.active_project = project
-    PIPELINE.rebuild_from_project(project)
-    global _last_pipeline_project
-    _last_pipeline_project = project   # prevent pipeline_clear() from wiping the rebuild
-    done = PIPELINE.completed_agents()
-    print(f"\n{YL}  Resume:{RST} {BLD}{project.name}{RST}")
-    print(f"  เสร็จแล้ว: {GR}{', '.join(done) or 'ไม่มี'}{RST}")
-    resume_msg = (
-        f"Resume project {project.name}. "
-        f"Agents ที่เสร็จแล้ว: {', '.join(done) or 'ไม่มี'}. "
-        f"วิเคราะห์ว่าต้องทำอะไรต่อใน CRISP-DM pipeline แล้ว dispatch ต่อทันที"
-    )
-    if extra_instruction:
-        resume_msg += f"\n\nคำสั่งเพิ่มเติมจาก user:\n{extra_instruction}"
-    try:
-        run_pipeline(resume_msg)
-    except KeyboardInterrupt:
-        print(f"\n{YL}  หยุด resume pipeline{RST}")
+    COMMANDS.resume_project(name, extra_instruction)
 
 
 def dispatch_project(d: dict) -> Path | None:
-    """Resolve optional project field from a DISPATCH object."""
-    raw = str(d.get("project", "") or "").strip()
-    if not raw:
-        return STATE.active_project
-    project, message = CLI.resolve_project(raw)
-    if project:
-        return project
-    print(f"{YL}  ⚠ dispatch project ignored: {message}{RST}")
-    return STATE.active_project
+    return COMMANDS.dispatch_project(d)
 
 
 def run_all_pipeline_command(extra_instruction: str = "") -> None:
-    force_past_quinn = "--force-past-quinn" in extra_instruction
-    extra_instruction = extra_instruction.replace("--force-past-quinn", "").strip()
-    project = STATE.active_project
-    if not project:
-        print(f"{RD}  ยังไม่ได้เลือก project{RST}")
-        print("  ใช้: /project <name>")
-        return
-    blocked, reason, target = quinn_hard_gate(project)
-    if blocked and not force_past_quinn:
-        q_report = project / "output" / "quinn" / "quinn_report.md"
-        if not q_report.exists():
-            q_report = project / "output" / "quinn" / "quinn_qc_report.md"
-        if not _agent_output_newer_than(project, target, q_report):
-            print(f"\n{RD}[PIPELINE BLOCKED]{RST} {reason}")
-            print(f"{YL}Dispatch {target.upper()} first with fix.{RST}")
-            _write_repair_note("run-all", "quinn-restart-required", reason, project, f"rerun @{target} with fix, then retry")
-            return
-    input_dir = project / "input"
-    has_input_data = input_dir.exists() and any(input_dir.glob("*"))
-    resume_from_scout = False
-    if not has_input_data:
-        scout_csv = project / "output" / "scout" / "scout_output.csv"
-        if scout_csv.exists():
-            ok, msg = validate_agent_output("scout", str(scout_csv), project)
-            if not ok:
-                _print_gate_fail_recovery("scout", msg, project, task="run-all resume from scout output")
-                print(f"{RD}  RUN-ALL stopped at SCOUT{RST}")
-                return
-            resume_from_scout = True
-            print(f"{YL}  input/ ว่าง แต่ Scout output ผ่าน gate แล้ว — เริ่มต่อจาก DANA{RST}")
-        else:
-            print(f"{RD}  Project นี้ไม่มี input data: {input_dir}{RST}")
-            return
-
-    global _last_pipeline_project
-    _last_pipeline_project = project
-    STATE.reset_pipeline()
-    if resume_from_scout:
-        PIPELINE.rebuild_from_project(project)
-    else:
-        PIPELINE.clear()
-
-    print(f"\n{CY}  RUN-ALL:{RST} {BLD}{project.name}{RST}")
-    mode = "resume from valid Scout output" if resume_from_scout else "deterministic sequence, no Anna planning prompt"
-    print(f"{DIM}  mode: {mode}{RST}")
-
-    blind_rule = (
-        "ห้ามอ่าน answer_key ระหว่างทำงาน. "
-        "ให้ตัดสินใจเองตามหน้าที่ agent และบันทึก output/report ของตัวเองให้ครบ. "
-        "ถ้า input มีหลายไฟล์/หลายชั้น folder ให้เลือกไฟล์ข้อมูลหลักที่เหมาะสมเอง. "
-        "ถ้า CSV ไม่ใช่ comma delimiter ให้ detect delimiter เอง เช่น sep=None, engine='python'."
-    )
-    if extra_instruction:
-        blind_rule += " " + extra_instruction
-
-    sequence: list[tuple[str, str]] = [
-        ("scout", "เริ่ม pipeline จากข้อมูลใน input/ ของ project นี้ ตรวจไฟล์ทั้งหมด เลือก dataset หลัก สร้าง scout_output.csv และ dataset_profile.md. ถ้ามีไฟล์ workbook (.xlsx/.xls) ให้ใช้ไฟล์นั้นเป็น source หลักและ export row-level dataset จริงออกมา. ต้องมี DATASET_RISK_REGISTER ระบุ source credibility, license, business fit, target suitability, recency, leakage risk, bias/coverage risk และ verdict. ใช้ scout_shortlist.md เฉพาะกรณียังไม่ได้ dataset จริงเท่านั้น และห้ามปล่อย placeholder/manifest 5 แถวใน scout_output.csv. " + blind_rule),
-        ("dana", "ทำ data cleaning จาก Scout output สร้าง dana_output.csv และ dana_report.md. ห้ามใช้ target ใน outlier detection และห้ามลบ target. ต้องมี DATA_QUALITY_AUDIT ระบุ before/after quality, removals, imputation, outlier strategy, train-only safeguards, bias impact และ downstream warnings. " + blind_rule),
-        ("eddie", "ทำ EDA จาก Dana output หา pattern/relationships และเขียน PIPELINE_SPEC ให้ครบ สร้าง eddie_output.csv และ eddie_report.md. ถ้ามี output/dana/column_roles.json ให้ใช้เป็น context เพื่อแยก id/date/label ออกจาก feature analysis. ต้องมี BUSINESS_EDA_FRAME ระบุ business question, owner, KPI, effect size, causality status, temporal/leakage risk, imbalance/skew risk และ validation strategy. " + blind_rule),
-        ("finn", "ทำ feature engineering/feature selection จาก Eddie output สร้าง finn_output.csv และ finn_report.md. ใช้ target จาก Scout เท่านั้น เก็บ target เป็น label ห้ามเลือก target เป็น feature. ต้องอ่าน output/dana/column_roles.json ถ้ามี และต้องตัด/กัน id, date, label ออกจาก feature set ใน supervised tasks จริง ๆ ไม่ใช่แค่ตรวจชื่อคอลัมน์. ต้องมี FEATURE_GOVERNANCE ระบุ lineage, prediction-time availability, leakage controls, train-only transforms, temporal/OOT support, actionability และ warnings. " + blind_rule),
-        ("mo", "train และ compare models จาก Finn output สร้าง mo_output.csv, model report และ metrics. ถ้า F1/AUC/Accuracy ใกล้ 1.0 ให้ถือว่าอาจ leakage และรายงาน fail. ต้องมี PR-AUC/positive-class metrics/threshold economics/calibration/OOT readiness เมื่อเป็น classification. " + blind_rule),
-        ("quinn", "ตรวจ QC/model/data/business satisfaction จากผลก่อนหน้า สร้าง quinn_output.csv และ quinn_report.md. ต้องตรวจ target consistency, leakage columns, perfect metrics, report/CSV contradiction และ WORLD_CLASS_QC. " + blind_rule),
-        ("iris", "สรุป business insights/action recommendations จากผล pipeline สร้าง iris_output.csv และ iris_report.md. ต้องมี BUSINESS_DECISION_BRIEF ระบุ business lever, KPI, owner, assumptions, risks, validation plan, confidence และห้ามแนะนำ action จากหลักฐานอ่อนโดยไม่ติด caveat. " + blind_rule),
-        ("vera", "สร้าง visualization/report ที่เหมาะสมจากผล pipeline สร้าง vera_output.csv และ vera_report.md. ต้องมี VISUAL_QC สำหรับ chart สำคัญ ระบุ source evidence, decision purpose, chart rationale, misleading-risk check, accessibility และ caveat. " + blind_rule),
-        ("rex", "รวม final executive report จากทุก agent สร้าง rex_output.csv และ final report. ห้ามสรุปว่า success ถ้า Quinn fail หรือ Mo metrics/report ขัดกัน. " + blind_rule),
-    ]
-
-    if resume_from_scout:
-        sequence = sequence[1:]
-        prev_agent = "scout"
-        completed: list[str] = ["scout"]
-    else:
-        prev_agent = ""
-        completed = []
-    for agent, task in sequence:
-        try:
-            # RUN-ALL is a fresh pipeline run. Do not reuse stale generated scripts
-            # from older experiments because they can lock in wrong target choices.
-            delete_old_scripts(output_dir_for(project, agent))
-            out = run_agent(agent, task, prev_agent=prev_agent, project_dir=project, force_past_quinn=force_past_quinn)
-            if not out:
-                print(f"{RD}  RUN-ALL stopped at {agent.upper()}{RST}")
-                return
-            ok, msg = validate_agent_output(agent, out, project)
-            if not ok:
-                if agent in ("scout", "dana", "eddie", "finn", "mo"):
-                    _print_gate_fail_recovery(agent, msg, project, task=task)
-                    print(f"{RD}  RUN-ALL stopped at {agent.upper()}{RST}")
-                    return
-                print(f"{YL}  ⚠ {agent.upper()} output warning: {msg}{RST}")
-            completed.append(agent)
-            prev_agent = agent
-        except KeyboardInterrupt:
-            print(f"\n{YL}  RUN-ALL stopped by user{RST}")
-            return
-        except Exception as e:
-            print(f"{RD}  RUN-ALL failed at {agent.upper()}: {e}{RST}")
-            return
-
-    print(f"\n{GR}  RUN-ALL complete:{RST} {', '.join(completed)}")
+    COMMANDS.run_all_pipeline_command(extra_instruction)
 
 
 def _looks_like_run_all(user_input: str) -> bool:
-    lower = user_input.lower()
-    return (
-        ("run pipeline" in lower or "pipeline ทั้งระบบ" in lower or "ทั้งระบบ" in lower)
-        and ("agent" in lower or "pipeline" in lower)
-    ) or ("เริ่มpipeline" in lower) or ("เริ่ม pipeline" in lower and "ใหม่" in lower)
+    return AppCommands.looks_like_run_all(user_input)
 
 
 def run_direct_agent_command(user_input: str) -> None:
-    parts = user_input[1:].split(" ", 1)
-    agent_part = parts[0].lower()
-    task = parts[1] if len(parts) > 1 else ""
-    if not task:
-        print(f"{RD}  ใช้งาน:{RST} @{agent_part} <task>")
-        return
-    discover = agent_part.endswith("!")
-    agent_name = agent_part.rstrip("!")
-    force_past_quinn = "--force-past-quinn" in task
-    task = task.replace("--force-past-quinn", "").strip()
-    set_tab_title(f"⏳ {agent_name.upper()} — กำลังรัน...")
-    run_agent(agent_name, task, project_dir=STATE.active_project, discover=discover, force_past_quinn=force_past_quinn)
-    notify_tab(success=True, label=f"{agent_name.upper()} เสร็จ")
+    COMMANDS.run_direct_agent_command(user_input)
+
+
+def _sync_command_hooks() -> None:
+    COMMANDS.run_pipeline = run_pipeline
+    COMMANDS.run_agent = run_agent
+    COMMANDS.validate_agent_output = validate_agent_output
+    COMMANDS.print_gate_recovery = _print_gate_fail_recovery
+    COMMANDS.write_repair_note = _write_repair_note
+    COMMANDS.delete_old_scripts = delete_old_scripts
+    COMMANDS.output_dir_for = output_dir_for
+    COMMANDS.quinn_hard_gate = quinn_hard_gate
+    COMMANDS.agent_output_newer_than = _agent_output_newer_than
+    COMMANDS.load_kb = load_kb
+    COMMANDS.load_relevant_kb = load_relevant_kb
+    COMMANDS.save_kb = save_kb
+    COMMANDS.call_claude = call_claude
+    COMMANDS.get_last_pipeline_project = lambda: _last_pipeline_project
+    COMMANDS.set_last_pipeline_project = lambda project: globals().__setitem__("_last_pipeline_project", project)
+    COMMANDS.pipeline_clear = pipeline_clear
 
 
 def handle_cli_command(user_input: str) -> str:
-    if user_input.startswith("/"):
-        parts = user_input[1:].split(" ", 1)
-        slash_cmd = parts[0].lower()
-        slash_arg = parts[1].strip() if len(parts) > 1 else ""
-        alias = {
-            "p": "project",
-            "proj": "project",
-            "project": "project",
-            "r": "resume",
-            "resume": "resume",
-            "run": "run-all",
-            "run-all": "run-all",
-            "all": "run-all",
-            "repair": "repair",
-            "fix": "repair",
-            "s": "status",
-            "st": "status",
-            "status": "status",
-            "kb": "kb",
-            "help": "help",
-            "h": "help",
-            "?": "help",
-            "claude": "claude",
-            "end": "end session",
-            "end-session": "end session",
-            "exit": "exit",
-            "quit": "exit",
-        }.get(slash_cmd)
-        if alias is None:
-            print(f"{YL}  ไม่รู้จักคำสั่ง /{slash_cmd} — ใช้ /help เพื่อดูคำสั่ง{RST}")
-            return "handled"
-        user_input = f"{alias} {slash_arg}".strip()
-
-    lower = user_input.lower()
-    if lower in ("exit", "quit"):
-        print(f"{YL}  ลาก่อนค่ะ{RST}")
-        return "exit"
-    if lower == "end session":
-        STATE.reset_session()
-        print(f"{YL}  ANNA:{RST} เริ่ม session ใหม่แล้วค่ะ  {DIM}(Codex calls reset → 0/{CLAUDE_LIMIT}){RST}")
-        return "handled"
-    if lower == "help":
-        print_help()
-        return "handled"
-    if lower == "run-all" or lower.startswith("run-all "):
-        extra = user_input[7:].strip() if lower.startswith("run-all ") else ""
-        run_all_pipeline_command(extra)
-        return "handled"
-    if lower == "repair" or lower.startswith("repair "):
-        repair_arg = user_input[6:].strip() if lower.startswith("repair ") else ""
-        if repair_arg.lower() in ("auto", "run", "repair", "rerun", "fix"):
-            _run_latest_repair_note()
-        else:
-            print_latest_repair_note()
-        return "handled"
-    if lower == "project":
-        CLI.print_status()
-        print(f"  ใช้: /project <name>")
-        return "handled"
-    if lower.startswith("project "):
-        name = user_input[8:].strip()
-        project, _message = CLI.resolve_project(name)
-        STATE.active_project = project
-        global _last_pipeline_project
-        if project:
-            PIPELINE.rebuild_from_project(project)
-            _last_pipeline_project = project
-        else:
-            PIPELINE.clear()
-            _last_pipeline_project = None
-        status = f"{GR}{STATE.active_project}{RST}" if STATE.active_project else f"{RD}ไม่พบ project นี้{RST}"
-        print(f"{YL}  ANNA:{RST} Active project → {status}")
-        return "handled"
-    if lower.startswith("kb "):
-        name = user_input[3:].strip()
-        CLI.print_kb(name, load_kb(name))
-        return "handled"
-    if lower in ("status", "stauts", "stats", "stat", "สถานะ"):
-        CLI.print_status()
-        return "handled"
-    if lower == "resume":
-        resume_project()
-        return "handled"
-    if lower.startswith("resume "):
-        project_name, extra_instruction = _split_resume_args(user_input[7:].strip())
-        resume_project(project_name, extra_instruction)
-        return "handled"
-    if lower in ("claude", "claude status", "codex", "codex status"):
-        CLI.print_claude_usage()
-        return "handled"
-    if user_input.startswith("!!"):
-        anna_discover(user_input[2:].strip())
-        return "handled"
-    if user_input.startswith("@"):
-        run_direct_agent_command(user_input)
-        return "handled"
-    if _looks_like_run_all(user_input):
-        run_all_pipeline_command(user_input)
-        return "handled"
-    return "pipeline"
+    _sync_command_hooks()
+    return COMMANDS.handle_cli_command(user_input)
 
 
 def main():
@@ -3066,38 +2888,11 @@ def main():
 
     CLI.print_header()
 
-    # ── ESC monitor (daemon thread) ───────────────────────────
     _mon = threading.Thread(target=_esc_monitor, daemon=True)
     _mon.start()
 
-    # ── Main loop ─────────────────────────────────────────────
-    while True:
-        user_input = read_cli_input()
-        if user_input is None:
-            break
-
-        if not user_input:
-            continue
-        command_result = handle_cli_command(user_input)
-        if command_result == "exit":
-            break
-        if command_result == "handled":
-            continue
-
-        try:
-            run_pipeline(user_input)
-            notify_tab(success=True, label="เสร็จสิ้น — พร้อมรับคำสั่ง")
-        except KeyboardInterrupt:
-            with STATE._proc_lock:
-                _kb_procs = list(STATE._active_procs)
-            for _kp in _kb_procs:
-                try:
-                    _kp.kill()
-                except OSError:
-                    pass
-            print(f"\n{YL}  หยุด pipeline แล้ว — พร้อมรับคำสั่งใหม่{RST}")
-            STATE.stop_requested.clear()
-            notify_tab(success=False, label="หยุดกลางคัน")
+    _sync_command_hooks()
+    COMMANDS.main_loop(COMMANDS.read_cli_input)
 
 
 if __name__ == "__main__":

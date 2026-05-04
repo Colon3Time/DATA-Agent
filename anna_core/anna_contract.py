@@ -24,7 +24,7 @@ When the user request requires agent work, Anna MUST follow this contract:
    - Put long instructions in one sentence separated by semicolons, commas, or numbered clauses.
 
 3. Required DISPATCH fields:
-   - agent: one of scout, dana, eddie, max, finn, mo, iris, vera, quinn, rex
+   - agent: one of scout, dana, eddie, iris_eda, max, finn, mo, iris, vera, quinn, rex
    - task: concrete instruction with file paths, handoff context, or exact expected output
 
 4. Optional DISPATCH fields:
@@ -65,7 +65,7 @@ def validate_dispatch_plan(
 
     agents = [str(d.get("agent", "")).lower() for d in dispatches]
     tasks = [str(d.get("task", "")).strip() for d in dispatches]
-    valid_agents = {"scout", "dana", "eddie", "max", "finn", "mo", "iris", "vera", "quinn", "rex"}
+    valid_agents = {"scout", "dana", "eddie", "iris_eda", "max", "finn", "mo", "iris", "vera", "quinn", "rex"}
 
     if source_text:
         first_dispatch = source_text.find("<DISPATCH>")

@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .run_guard import output_is_current
+
 
 class PipelineStore:
     """Path-based handoff store for agent outputs."""
 
     def __init__(self, pipeline_dir: Path) -> None:
         self.pipeline_dir = pipeline_dir
+        self.project_dir: Path | None = None
 
     def write(self, agent_name: str, file_path: str) -> None:
         self.pipeline_dir.mkdir(exist_ok=True)
@@ -29,7 +32,7 @@ class PipelineStore:
         for pf in self.pipeline_dir.glob("*_path.txt"):
             agent = pf.stem.replace("_path", "")
             val = pf.read_text(encoding="utf-8").strip()
-            if Path(val).exists():
+            if Path(val).exists() and output_is_current(Path(val), self.project_dir):
                 done.append(agent)
         return done
 
@@ -53,6 +56,7 @@ class PipelineStore:
           4. any *.md
         """
         self.clear()
+        self.project_dir = project_dir
         output_root = project_dir / "output"
         if not output_root.exists():
             return
@@ -62,6 +66,7 @@ class PipelineStore:
             agent = agent_dir.name
             # Priority 1: canonical <agent>_output.csv
             named_csv = sorted(agent_dir.glob(f"{agent}_output.csv"), key=lambda x: x.stat().st_mtime)
+            named_csv = [p for p in named_csv if output_is_current(p, project_dir)]
             if named_csv:
                 self.write(agent, str(named_csv[-1]))
                 continue
@@ -70,29 +75,36 @@ class PipelineStore:
             all_csv = sorted(agent_dir.glob("*.csv"), key=lambda x: x.stat().st_mtime)
             main_csv = [f for f in all_csv
                         if any(pat in f.stem.lower() for pat in self._MAIN_DATA_STEMS)
-                        and not any(pat in f.stem.lower() for pat in self._SUPPLEMENTARY_STEMS)]
+                        and not any(pat in f.stem.lower() for pat in self._SUPPLEMENTARY_STEMS)
+                        and output_is_current(f, project_dir)]
             if main_csv:
                 self.write(agent, str(main_csv[-1]))
                 continue
             # Priority 2b: non-supplementary CSVs (denylist filters known diagnostic files)
-            allowed_csv = [f for f in all_csv
-                           if not any(pat in f.stem.lower() for pat in self._SUPPLEMENTARY_STEMS)]
+            allowed_csv = [
+                f for f in all_csv
+                if not any(pat in f.stem.lower() for pat in self._SUPPLEMENTARY_STEMS)
+                and output_is_current(f, project_dir)
+            ]
             if allowed_csv:
                 self.write(agent, str(allowed_csv[-1]))
                 continue
             # Priority 2c: last resort — any CSV (even supplementary) if nothing else exists
-            if all_csv:
-                self.write(agent, str(all_csv[-1]))
+            current_csv = [f for f in all_csv if output_is_current(f, project_dir)]
+            if current_csv:
+                self.write(agent, str(current_csv[-1]))
                 continue
             if agent in self._CSV_HANDOFF_AGENTS:
                 continue
             # Priority 3: <agent>_report.md
             named_md = sorted(agent_dir.glob(f"{agent}_report.md"), key=lambda x: x.stat().st_mtime)
+            named_md = [p for p in named_md if output_is_current(p, project_dir)]
             if named_md:
                 self.write(agent, str(named_md[-1]))
                 continue
             # Priority 4: any *.md
             any_md = sorted(agent_dir.glob("*.md"), key=lambda x: x.stat().st_mtime)
+            any_md = [p for p in any_md if output_is_current(p, project_dir)]
             if any_md:
                 self.write(agent, str(any_md[-1]))
 

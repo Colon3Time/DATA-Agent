@@ -11,6 +11,7 @@ from anna_core.dispatcher import DispatchParser
 from anna_core.agent_runtime import build_agent_path_message, should_regenerate_vera_script_for_meeting_report
 from anna_core.mo_phase import detect_mo_phase, mo_script_matches_phase, sync_mo_canonical_report
 from anna_core.pipeline_store import PipelineStore
+from anna_core.run_guard import begin_project_run, mark_output_current
 from anna_core.runner import is_shell_command_allowed
 from orchestrator_v3 import (
     STATE,
@@ -22,7 +23,7 @@ from orchestrator_v3 import (
 )
 
 
-VALID_AGENTS = {"scout", "dana", "eddie", "max", "finn", "mo", "iris", "vera", "quinn", "rex"}
+VALID_AGENTS = {"scout", "dana", "eddie", "iris_eda", "max", "finn", "mo", "iris", "vera", "quinn", "rex"}
 
 
 class DispatchParserTests(unittest.TestCase):
@@ -161,6 +162,19 @@ class AnnaPlanValidationTests(unittest.TestCase):
         )
         self.assertFalse(issues)
 
+    def test_allows_iris_eda_between_eddie_and_finn(self):
+        issues = validate_dispatch_plan(
+            [
+                {"agent": "dana", "task": "clean scout_output.csv and save dana_output.csv"},
+                {"agent": "eddie", "task": "run EDA on dana_output.csv and save eddie_output.csv"},
+                {"agent": "iris_eda", "task": "write a business insight bridge from eddie_output.csv"},
+                {"agent": "finn", "task": "engineer final features and save finn_output.csv"},
+            ],
+            active_project=Path("projects/demo"),
+            read_pipeline=lambda _agent: "",
+        )
+        self.assertFalse(issues)
+
 
 class PipelineStoreTests(unittest.TestCase):
     def test_rebuild_ignores_report_only_data_handoff_agent(self):
@@ -179,6 +193,82 @@ class PipelineStoreTests(unittest.TestCase):
 
             self.assertEqual(store.read("max"), "")
             self.assertTrue(store.read("scout").endswith("scout_output.csv"))
+
+    def test_completed_agents_ignore_stale_outputs_after_new_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            project = base / "project"
+            dana_dir = project / "output" / "dana"
+            dana_dir.mkdir(parents=True)
+            dana_csv = dana_dir / "dana_output.csv"
+            dana_csv.write_text("a,b\n1,2\n", encoding="utf-8")
+
+            store = PipelineStore(base / "pipeline")
+            store.rebuild_from_project(project)
+            self.assertIn("dana", store.completed_agents())
+
+            begin_project_run(project, reason="fresh-run")
+            self.assertNotIn("dana", store.completed_agents())
+
+
+class RunGuardTests(unittest.TestCase):
+    def test_resolve_agent_input_rejects_stale_upstream_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            dana_dir = project / "output" / "dana"
+            dana_dir.mkdir(parents=True)
+            dana_csv = dana_dir / "dana_output.csv"
+            dana_csv.write_text("a,b\n1,2\n", encoding="utf-8")
+
+            begin_project_run(project, reason="first")
+            mark_output_current(dana_csv, project)
+            begin_project_run(project, reason="second")
+
+            with self.assertRaisesRegex(RuntimeError, "STALE output detected"):
+                resolve_agent_input("eddie", "dana", project, task="run EDA on dana_output.csv")
+
+
+class IrisEDABridgeTests(unittest.TestCase):
+    def test_resolve_agent_input_uses_eddie_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            eddie_dir = project / "output" / "eddie"
+            eddie_dir.mkdir(parents=True)
+            eddie_csv = eddie_dir / "eddie_output.csv"
+            eddie_csv.write_text(
+                "a,b\n" + "\n".join(f"{i},{i * 2}" for i in range(25)) + "\n",
+                encoding="utf-8",
+            )
+
+            begin_project_run(project, reason="first")
+            mark_output_current(eddie_csv, project)
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                resolved = resolve_agent_input("iris_eda", "eddie", project, task="bridge analysis from Eddie")
+
+            self.assertEqual(Path(resolved), eddie_csv)
+
+    def test_iris_eda_gate_requires_bridge_brief(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            out_dir = project / "output" / "iris_eda"
+            out_dir.mkdir(parents=True)
+            csv_path = out_dir / "iris_eda_output.csv"
+            csv_path.write_text("a,b\n1,2\n3,4\n", encoding="utf-8")
+            report = out_dir / "iris_eda_report.md"
+            report.write_text(
+                "BUSINESS_EDA_BRIEF\n=================\n"
+                "Insight: retention is weaker in one cohort\n"
+                "Evidence: eddie exploration and summary stats\n"
+                "Follow-up: send to finn\n"
+                "Risk: correlation only\n"
+                "Confidence: Medium\n",
+                encoding="utf-8",
+            )
+
+            ok, reason = validate_agent_output("iris_eda", str(csv_path), project)
+
+            self.assertTrue(ok, reason)
 
 
 class ScoutGateTests(unittest.TestCase):

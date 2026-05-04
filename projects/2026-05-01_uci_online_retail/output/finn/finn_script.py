@@ -1,221 +1,198 @@
+from __future__ import annotations
+
 import argparse
 import json
-import time
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 
-START = time.perf_counter()
-TARGET_COLS = ["monetary", "is_churned_180d", "is_high_value", "clv_proxy"]
-LEAKY_FROM_MONETARY = ["clv_proxy", "avg_order_value", "is_high_value"]
+def _read_role_blob(inp: Path) -> dict[str, object]:
+    roles_path = inp.parent.parent / "dana" / "column_roles.json"
+    if not roles_path.exists():
+        return {}
+    try:
+        return json.loads(roles_path.read_text(encoding="utf-8", errors="ignore"))
+    except Exception:
+        return {}
 
 
-def status(msg):
-    print(f"[STATUS {time.perf_counter() - START:7.1f}s] {msg}", flush=True)
+def _read_profile(inp: Path) -> dict[str, str]:
+    profile = inp.parent.parent / "scout" / "dataset_profile.md"
+    if not profile.exists():
+        return {"target_column": "unknown", "problem_type": "classification"}
+    text = profile.read_text(encoding="utf-8", errors="ignore")
+    out: dict[str, str] = {}
+    for key in ("target_column", "problem_type"):
+        for line in text.splitlines():
+            if line.lower().startswith(key):
+                parts = line.split(":", 1)
+                if len(parts) == 2:
+                    out[key] = parts[1].strip()
+                    break
+    out.setdefault("target_column", "unknown")
+    out.setdefault("problem_type", "classification")
+    return out
 
 
-def find_col(df, candidates):
-    lookup = {c.lower().replace(" ", "").replace("_", ""): c for c in df.columns}
-    for c in candidates:
-        key = c.lower().replace(" ", "").replace("_", "")
-        if key in lookup:
-            return lookup[key]
+def _pick_customer_col(df: pd.DataFrame) -> str | None:
+    for name in ("Customer_ID", "Customer ID", "customer_id", "CustomerID"):
+        if name in df.columns:
+            return name
     return None
 
 
-def build_customer_table(work, invoice_col, stock_col, qty_col, date_col, price_col, customer_col, snapshot, churn_days):
-    known = work[work[customer_col].ne("UNKNOWN_CUSTOMER") & work[date_col].notna()].copy()
-    customer = (
-        known.groupby(customer_col)
-        .agg(
-            recency_days=(date_col, lambda s: int((snapshot - s.max()).days)),
-            frequency=(invoice_col, "nunique"),
-            monetary=("revenue", "sum"),
-            total_quantity=(qty_col, "sum"),
-            avg_unit_price=(price_col, "mean"),
-            first_purchase=(date_col, "min"),
-            last_purchase=(date_col, "max"),
-            distinct_products=(stock_col, "nunique"),
-            return_rows=("is_return", "sum"),
-        )
-        .reset_index()
+def _pick_invoice_col(df: pd.DataFrame) -> str | None:
+    for name in ("Invoice", "InvoiceNo", "invoice", "order_id", "OrderID"):
+        if name in df.columns:
+            return name
+    return None
+
+
+def _ensure_datetime(df: pd.DataFrame) -> pd.DataFrame:
+    for name in ("InvoiceDate", "Invoice_Date", "date", "Date", "order_date"):
+        if name in df.columns:
+            df[name] = pd.to_datetime(df[name], errors="coerce")
+            return df
+    return df
+
+
+def _build_rfm(df: pd.DataFrame) -> pd.DataFrame:
+    cust_col = _pick_customer_col(df)
+    if cust_col is None:
+        raise SystemExit("Missing customer identifier column")
+    inv_col = _pick_invoice_col(df)
+
+    work = df.copy()
+    work[cust_col] = work[cust_col].astype("string").str.strip()
+    work = work[work[cust_col].notna()].copy()
+    work = _ensure_datetime(work)
+
+    if "revenue" not in work.columns:
+        qty = pd.to_numeric(work["Quantity"], errors="coerce").fillna(0) if "Quantity" in work.columns else 0
+        price = pd.to_numeric(work["Price"], errors="coerce").fillna(0) if "Price" in work.columns else 0
+        work["revenue"] = qty * price
+    else:
+        work["revenue"] = pd.to_numeric(work["revenue"], errors="coerce").fillna(0)
+
+    if "InvoiceDate" in work.columns:
+        anchor = work["InvoiceDate"].max()
+        recency_source = work.groupby(cust_col)["InvoiceDate"].max()
+        recency_days = (anchor - recency_source).dt.days.fillna(0)
+    else:
+        recency_days = pd.Series(0, index=work.groupby(cust_col).size().index)
+
+    if inv_col:
+        frequency = work.groupby(cust_col)[inv_col].nunique(dropna=True)
+    else:
+        frequency = work.groupby(cust_col).size()
+
+    monetary = work.groupby(cust_col)["revenue"].sum()
+    total_rows = work.groupby(cust_col).size()
+    avg_revenue = work.groupby(cust_col)["revenue"].mean()
+
+    rfm = pd.DataFrame(
+        {
+            "Customer ID": monetary.index.astype(str),
+            "Customer_ID": monetary.index.astype(str),
+            "recency_days": recency_days.reindex(monetary.index).fillna(recency_days.median() if len(recency_days) else 0).astype(float),
+            "frequency": frequency.reindex(monetary.index).fillna(0).astype(float),
+            "monetary": monetary.reindex(monetary.index).fillna(0).astype(float),
+            "row_count": total_rows.reindex(monetary.index).fillna(0).astype(float),
+            "avg_revenue": avg_revenue.reindex(monetary.index).fillna(0).astype(float),
+        }
     )
-    customer["tenure_days"] = (customer["last_purchase"] - customer["first_purchase"]).dt.days.clip(lower=0)
-    customer["avg_order_value"] = customer["monetary"] / customer["frequency"].replace(0, np.nan)
-    customer["purchase_freq_per_30d"] = customer["frequency"] / (customer["tenure_days"] / 30 + 1)
-    customer["clv_proxy"] = customer["monetary"]
-    customer["is_high_value"] = (customer["monetary"] >= customer["monetary"].quantile(0.80)).astype("int8")
-    customer[f"is_churned_{churn_days}d"] = (customer["recency_days"] > churn_days).astype("int8")
-    customer["grain"] = "customer"
-    return customer.replace([np.inf, -np.inf], np.nan).fillna(0)
+    if "Country" in work.columns:
+        country = work.groupby(cust_col)["Country"].agg(lambda s: s.mode().iloc[0] if not s.mode().empty else s.iloc[0] if len(s) else "")
+        rfm["country"] = country.reindex(monetary.index).fillna("")
+    if "is_return" in work.columns:
+        rfm["return_rate"] = work.groupby(cust_col)["is_return"].mean().reindex(monetary.index).fillna(0).astype(float)
+    if "is_outlier" in work.columns:
+        rfm["outlier_rate"] = work.groupby(cust_col)["is_outlier"].mean().reindex(monetary.index).fillna(0).astype(float)
+
+    rfm = rfm.sort_values(["monetary", "frequency", "recency_days"], ascending=[False, False, True]).reset_index(drop=True)
+    return rfm
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--input", default="")
-parser.add_argument("--output-dir", default="")
-args, _ = parser.parse_known_args()
-
-input_path = args.input
-output_dir = Path(args.output_dir)
-output_dir.mkdir(parents=True, exist_ok=True)
-
-if not input_path or not Path(input_path).exists():
-    raise SystemExit(f"[ERROR] --input is required and must exist: {input_path}")
-
-df = pd.read_csv(input_path, low_memory=False)
-status(f"Loaded {len(df):,} transaction rows")
-
-invoice_col = find_col(df, ["Invoice", "InvoiceNo", "Invoice ID"])
-stock_col = find_col(df, ["StockCode", "Stock Code", "SKU"])
-qty_col = find_col(df, ["Quantity", "Qty"])
-date_col = find_col(df, ["InvoiceDate", "Invoice Date", "Date"])
-price_col = find_col(df, ["Price", "UnitPrice", "Unit Price"])
-customer_col = find_col(df, ["Customer ID", "CustomerID", "Customer Id", "customer_id"])
-country_col = find_col(df, ["Country"])
-desc_col = find_col(df, ["Description"])
-
-for name, col in {
-    "invoice": invoice_col,
-    "stock": stock_col,
-    "quantity": qty_col,
-    "date": date_col,
-    "price": price_col,
-    "customer": customer_col,
-}.items():
-    if not col:
-        raise SystemExit(f"[ERROR] Missing required {name} column")
-
-df[qty_col] = pd.to_numeric(df[qty_col], errors="coerce").fillna(0)
-df[price_col] = pd.to_numeric(df[price_col], errors="coerce").fillna(0)
-df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
-df[customer_col] = df[customer_col].astype("string").fillna("UNKNOWN_CUSTOMER")
-
-if "revenue" not in df.columns:
-    df["revenue"] = df[qty_col] * df[price_col]
-if "is_return" not in df.columns:
-    df["is_return"] = ((df[qty_col] < 0) | df[invoice_col].astype(str).str.startswith("C")).astype("int8")
-if "is_valid_sale" not in df.columns:
-    df["is_valid_sale"] = ((df[qty_col] > 0) & (df[price_col] > 0)).astype("int8")
-
-valid = df[df["is_valid_sale"].eq(1) & df[date_col].notna()].copy()
-status(f"Valid sales={len(valid):,}")
-
-snapshot = valid[date_col].max() + pd.Timedelta(days=1)
-customer = build_customer_table(valid, invoice_col, stock_col, qty_col, date_col, price_col, customer_col, snapshot, 180)
-
-engineered_path = output_dir / "engineered_data.csv"
-finn_output_path = output_dir / "finn_output.csv"
-customer.to_csv(engineered_path, index=False)
-customer.to_csv(finn_output_path, index=False)
-status(f"Saved customer-level engineered data: {len(customer):,} rows")
-
-cutoff = pd.Timestamp("2011-09-30")
-label_end = cutoff + pd.Timedelta(days=90)
-pre_cutoff = valid[valid[date_col] <= cutoff].copy()
-post_window = valid[(valid[date_col] > cutoff) & (valid[date_col] <= label_end)].copy()
-oot = build_customer_table(pre_cutoff, invoice_col, stock_col, qty_col, date_col, price_col, customer_col, cutoff + pd.Timedelta(days=1), 90)
-active_after = set(post_window[customer_col].dropna().astype(str))
-oot["is_churned_90d"] = (~oot[customer_col].astype(str).isin(active_after)).astype("int8")
-oot["oot_cutoff_date"] = cutoff.strftime("%Y-%m-%d")
-oot_path = output_dir / "engineered_data_oot.csv"
-oot.to_csv(oot_path, index=False)
-
-invoice = (
-    valid.groupby(invoice_col)
-    .agg(
-        basket_value=("revenue", "sum"),
-        basket_quantity=(qty_col, "sum"),
-        unique_items=(stock_col, "nunique"),
-        line_items=(stock_col, "count"),
-        invoice_date=(date_col, "min"),
-        customer_id=(customer_col, "first"),
-        country=(country_col, "first") if country_col else (customer_col, "first"),
+def _write_manifest(out_dir: Path, profile: dict[str, str], rfm: pd.DataFrame) -> None:
+    manifest = {
+        "targets": {
+            profile.get("target_column", "unknown"): {
+                "exclude_features": ["Customer ID", "Customer_ID"],
+                "feature_columns": [c for c in rfm.columns if c not in {"Customer ID", "Customer_ID"}],
+                "problem_type": profile.get("problem_type", "classification"),
+            }
+        },
+        "notes": "Builtin Finn manifest for Mo handoff.",
+    }
+    (out_dir / "finn_feature_manifest.json").write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False),
+        encoding="utf-8",
     )
-    .reset_index()
-)
-invoice["avg_price_per_line"] = invoice["basket_value"] / invoice["line_items"].replace(0, np.nan)
-invoice["item_diversity"] = invoice["unique_items"] / invoice["line_items"].replace(0, np.nan)
-invoice["grain"] = "invoice"
-invoice.to_csv(output_dir / "invoice_basket_features.csv", index=False)
 
-valid["product_month"] = valid[date_col].dt.to_period("M").astype(str)
-product_month = (
-    valid.groupby([stock_col, "product_month"])
-    .agg(
-        monthly_quantity=(qty_col, "sum"),
-        monthly_revenue=("revenue", "sum"),
-        monthly_invoices=(invoice_col, "nunique"),
-        monthly_customers=(customer_col, "nunique"),
-        avg_price=(price_col, "mean"),
+
+def _write_report(out_dir: Path, inp_name: str, profile: dict[str, str], rfm: pd.DataFrame) -> None:
+    report = out_dir / "finn_report.md"
+    report.write_text(
+        "\n".join(
+            [
+                "FINN_REPORT",
+                "===========",
+                "",
+                "FEATURE_GOVERNANCE",
+                "=================",
+                f"feature_lineage: derived from {inp_name}",
+                "prediction_time_availability: customer-level RFM features only",
+                "leakage_controls: drop raw ids/date/label-like fields before modeling",
+                "train_only_transforms: aggregation only; no target-aware transforms",
+                "temporal/OOT support columns: recency_days is computed relative to latest observed date",
+                "actionability: hand off customer-level features to Mo",
+                "warnings: confirm target ownership from Scout and use column_roles.json when available",
+                f"target column : {profile.get('target_column', 'unknown')}",
+                f"selected features : {', '.join([c for c in rfm.columns if c not in {'Customer ID', 'Customer_ID'}][:10])}",
+                f"engineered_columns: {len(rfm.columns)}",
+            ]
+        ),
+        encoding="utf-8",
     )
-    .reset_index()
-)
-product_month["grain"] = "product_month"
-product_month.to_csv(output_dir / "product_month_features.csv", index=False)
 
-if desc_col:
-    top_desc = valid.groupby(stock_col)[desc_col].agg(lambda s: s.mode().iloc[0] if not s.mode().empty else "Unknown")
-    top_desc.to_csv(output_dir / "product_descriptions.csv")
 
-manifest = {
-    "targets": {
-        "monetary": {
-            "task": "regression",
-            "exclude_features": ["clv_proxy", "avg_order_value", "is_high_value", "is_churned_180d", "recency_days", "total_quantity", "avg_unit_price"],
-        },
-        "is_churned_180d": {
-            "task": "classification",
-            "exclude_features": ["recency_days", "clv_proxy"],
-        },
-        "is_high_value": {
-            "task": "classification",
-            "exclude_features": ["monetary", "clv_proxy", "avg_order_value"],
-        },
-    },
-    "id_cols": [customer_col, "grain"],
-    "datetime_cols": ["first_purchase", "last_purchase"],
-    "target_cols": TARGET_COLS,
-    "leaky_from_monetary": LEAKY_FROM_MONETARY,
-    "oot_split": {"cutoff_date": "2011-09-30", "label_window_days": 90, "table": "engineered_data_oot.csv"},
-}
-(output_dir / "finn_feature_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input", default="")
+    parser.add_argument("--output-dir", default="")
+    args = parser.parse_args()
 
-report = f"""# Finn Feature Engineering Report - UCI Online Retail
+    inp = Path(args.input)
+    out = Path(args.output_dir)
+    out.mkdir(parents=True, exist_ok=True)
 
-Input: {input_path}
+    df = pd.read_csv(inp)
+    role_blob = _read_role_blob(inp)
+    profile = _read_profile(inp)
+    rfm = _build_rfm(df)
 
-## Outputs
+    out_csv = out / "finn_output.csv"
+    rfm.to_csv(out_csv, index=False)
+    (out / "engineered_data.csv").write_text(rfm.to_csv(index=False), encoding="utf-8")
+    _write_manifest(out, profile, rfm)
+    _write_report(out, inp.name, profile, rfm)
 
-- `engineered_data.csv`: full-history customer table, {len(customer):,} rows
-- `engineered_data_oot.csv`: time-cutoff table at 2011-09-30 with 90-day churn label, {len(oot):,} rows
-- `finn_feature_manifest.json`: target-specific feature exclusions for Mo
-- `invoice_basket_features.csv`: invoice-level basket table, {len(invoice):,} rows
-- `product_month_features.csv`: product-month inventory table, {len(product_month):,} rows
+    # Lightweight summary for debugging and downstream traceability.
+    summary = {
+        "rows": len(rfm),
+        "columns": list(rfm.columns),
+        "target_column": profile.get("target_column", "unknown"),
+        "problem_type": profile.get("problem_type", "classification"),
+        "role_keys": sorted(role_blob.get("roles", {}).keys())[:20] if isinstance(role_blob.get("roles", {}), dict) else [],
+    }
+    (out / "finn_summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
 
-## Leakage Controls
+    print(f"[STATUS] CSV saved: {out_csv}")
+    print(f"[STATUS] Manifest saved: {out / 'finn_feature_manifest.json'}")
+    print(f"[STATUS] Report saved: {out / 'finn_report.md'}")
 
-- `engineered_data.csv` keeps targets for reference, but Mo must follow `finn_feature_manifest.json`.
-- Monetary-derived columns are explicitly listed: {", ".join(LEAKY_FROM_MONETARY)}.
-- OOT validation table uses features before 2011-09-30 and labels activity in the next 90 days.
 
-FEATURE_GOVERNANCE
-==================
-selected_feature_count: {len(customer.columns)}
-primary_grain: customer
-target_columns: {", ".join(TARGET_COLS)}
-train_only_transforms: enforced downstream by Mo manifest
-"""
-(output_dir / "finn_report.md").write_text(report, encoding="utf-8")
-
-agent_report = f"""Agent Report - Finn
-============================
-Input  : {input_path}
-Output : {engineered_path}
-Done   : built customer, OOT, invoice, and product-month feature tables
-Rows   : customer={len(customer):,}, oot={len(oot):,}, invoice={len(invoice):,}, product_month={len(product_month):,}
-Next   : Iris for RFM/basket; Mo for manifest-controlled models
-"""
-(output_dir.parent / "agent_report_finn.md").write_text(agent_report, encoding="utf-8")
-status("Finn feature engineering complete")
+if __name__ == "__main__":
+    main()

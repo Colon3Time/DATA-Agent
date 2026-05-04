@@ -303,6 +303,13 @@ def build_agent_path_message(
                 "Every important chart must map to a meeting section, claim, KPI, or recommendation; "
                 "do not create decorative or column-driven charts that do not support the meeting report."
             )
+    if agent_name == "iris_eda" and project_dir:
+        path_lines.append(f"Bridge input    : {project_dir / 'output' / 'eddie' / 'eddie_output.csv'}")
+        path_lines.append(f"Bridge report   : {output_dir / 'iris_eda_report.md' if output_dir else 'iris_eda_report.md'}")
+        path_lines.append(
+            "Iris EDA should bridge Eddie's exploratory findings into a short business brief for Finn/Mo; "
+            "do not overwrite Scout target ownership or produce a final executive recommendation."
+        )
     if agent_name == "scout" and project_dir:
         path_lines.append(f"Save dataset to : {project_dir / 'input'}\\")
         path_lines.append("Scout must choose the real source file from input/ and write the assembled dataset to scout_output.csv")

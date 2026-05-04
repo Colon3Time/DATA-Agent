@@ -1,55 +1,22 @@
 {
   "targets": {
-    "monetary": {
-      "task": "regression",
+    "unknown": {
       "exclude_features": [
-        "clv_proxy",
-        "avg_order_value",
-        "is_high_value",
-        "is_churned_180d",
+        "Customer ID",
+        "Customer_ID"
+      ],
+      "feature_columns": [
         "recency_days",
-        "total_quantity",
-        "avg_unit_price"
-      ]
-    },
-    "is_churned_180d": {
-      "task": "classification",
-      "exclude_features": [
-        "recency_days",
-        "clv_proxy"
-      ]
-    },
-    "is_high_value": {
-      "task": "classification",
-      "exclude_features": [
+        "frequency",
         "monetary",
-        "clv_proxy",
-        "avg_order_value"
-      ]
+        "row_count",
+        "avg_revenue",
+        "country",
+        "return_rate",
+        "outlier_rate"
+      ],
+      "problem_type": "clustering"
     }
   },
-  "id_cols": [
-    "Customer ID",
-    "grain"
-  ],
-  "datetime_cols": [
-    "first_purchase",
-    "last_purchase"
-  ],
-  "target_cols": [
-    "monetary",
-    "is_churned_180d",
-    "is_high_value",
-    "clv_proxy"
-  ],
-  "leaky_from_monetary": [
-    "clv_proxy",
-    "avg_order_value",
-    "is_high_value"
-  ],
-  "oot_split": {
-    "cutoff_date": "2011-09-30",
-    "label_window_days": 90,
-    "table": "engineered_data_oot.csv"
-  }
+  "notes": "Builtin Finn manifest for Mo handoff."
 }

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
@@ -63,8 +64,62 @@ class SessionMemoryStore:
             return ""
         return self.memory_file.read_text(encoding="utf-8")[-max_chars:]
 
+    def _entries(self) -> list[str]:
+        if not self.memory_file.exists():
+            return []
+        text = self.memory_file.read_text(encoding="utf-8")
+        return [entry.strip() for entry in text.split("\n## [") if entry.strip()]
+
+    @staticmethod
+    def _tokenize(text: str) -> set[str]:
+        return set(re.findall(r"[a-z0-9_]+", text.lower()))
+
+    def load_relevant(self, query: str, top_n: int = 4) -> str:
+        """Return the most relevant past sessions for the current query."""
+        entries = self._entries()
+        if not entries:
+            return ""
+        if not query.strip():
+            return "\n\n".join(entries[-top_n:])
+        if len(entries) <= top_n:
+            return "\n\n".join(entries)
+
+        query_tokens = self._tokenize(query)
+        if not query_tokens:
+            return "\n\n".join(entries[-top_n:])
+
+        try:
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            from sklearn.metrics.pairwise import cosine_similarity
+
+            matrix = TfidfVectorizer(min_df=1).fit_transform([query] + entries)
+            scores = cosine_similarity(matrix[0:1], matrix[1:])[0]
+            top_idx = scores.argsort()[::-1][:top_n]
+            return "\n\n".join(entries[i] for i in sorted(top_idx))
+        except Exception:
+            scored = []
+            for entry in entries:
+                entry_tokens = self._tokenize(entry)
+                overlap = len(query_tokens & entry_tokens)
+                bonus = 1 if any(term in entry.lower() for term in ("fail", "error", "rework", "leakage", "review")) else 0
+                scored.append((overlap + bonus, entry))
+            top = sorted(scored, key=lambda item: item[0], reverse=True)[:top_n]
+            return "\n\n".join(entry for _score, entry in top if _score > 0) or "\n\n".join(entries[-top_n:])
+
+    def build_context(self, query: str, *, tail_chars: int = 1200, top_n: int = 4) -> str:
+        """Combine recent memory with query-relevant memory without overfilling context."""
+        tail = self.tail(tail_chars).strip()
+        relevant = self.load_relevant(query, top_n=top_n).strip()
+        if not tail:
+            return relevant
+        if not relevant or relevant == tail:
+            return tail
+        if relevant in tail:
+            return tail
+        return f"{relevant}\n\n--- Recent Session Memory ---\n{tail}"
+
     def save(self, project_name: str, agents_done: list[str], summary_text: str) -> None:
-        self.knowledge_dir.mkdir(exist_ok=True)
+        self.knowledge_dir.mkdir(parents=True, exist_ok=True)
         ts = datetime.now().strftime("%Y-%m-%d %H:%M")
         short = summary_text.strip()[:400].replace("\n", " ")
         entry = f"\n## [{ts}] {project_name}\nAgents: {', '.join(agents_done)}\n{short}\n"
@@ -76,4 +131,3 @@ class SessionMemoryStore:
             self.memory_file.write_text("\n## [".join([""] + entries) + entry, encoding="utf-8")
         else:
             self.memory_file.write_text(entry, encoding="utf-8")
-

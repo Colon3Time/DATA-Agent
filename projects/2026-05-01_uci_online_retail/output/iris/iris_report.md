@@ -1,45 +1,35 @@
-# Iris Segmentation and Basket Report
-
-Input: projects\2026-05-01_uci_online_retail\output\finn\engineered_data.csv
-
-## RFM Segment Recommendations
-
-Customers segmented: 5,878
-
-| segment   |   customers |   avg_recency |   avg_frequency |   avg_monetary |          revenue |
-|:----------|------------:|--------------:|----------------:|---------------:|-----------------:|
-| Champions |        1292 |       19.726  |        17.13    |        9355.6  |      1.20874e+07 |
-| Loyal     |         978 |      170.54   |         7.9182  |        3083.89 |      3.01604e+06 |
-| Potential |        1097 |       52.9225 |         2.78304 |        1197.45 |      1.3136e+06  |
-| Lost      |        2013 |      367.718  |         1.2469  |         400.76 | 806730           |
-| At Risk   |         498 |      387.315  |         3.07229 |        1043.42 | 519623           |
-
-## Segment Actions
-
-- Champions: protect with early access, premium bundles, and service recovery priority.
-- Loyal: replenish and cross-sell adjacent categories.
-- Potential: move to second and third purchase with limited-time bundles.
-- At Risk: win-back only where expected margin covers incentive cost.
-- Lost: suppress broad discounts unless reactivation economics are validated.
-
-## Association Rules
-
-Association rules generated from 33,937 invoices x 200 products.
-
-Top rules:
-
-| antecedents                                                      | consequents                                                      |   support |   confidence |    lift |
-|:-----------------------------------------------------------------|:-----------------------------------------------------------------|----------:|-------------:|--------:|
-| PINK REGENCY TEACUP AND SAUCER                                   | GREEN REGENCY TEACUP AND SAUCER, ROSES REGENCY TEACUP AND SAUCER | 0.0213926 |     0.708984 | 23.5198 |
-| GREEN REGENCY TEACUP AND SAUCER, ROSES REGENCY TEACUP AND SAUCER | PINK REGENCY TEACUP AND SAUCER                                   | 0.0213926 |     0.709677 | 23.5198 |
-| PINK REGENCY TEACUP AND SAUCER, ROSES REGENCY TEACUP AND SAUCER  | GREEN REGENCY TEACUP AND SAUCER                                  | 0.0213926 |     0.902985 | 22.8691 |
-| GREEN REGENCY TEACUP AND SAUCER                                  | PINK REGENCY TEACUP AND SAUCER, ROSES REGENCY TEACUP AND SAUCER  | 0.0213926 |     0.541791 | 22.8691 |
-| PINK REGENCY TEACUP AND SAUCER                                   | GREEN REGENCY TEACUP AND SAUCER                                  | 0.0251643 |     0.833984 | 21.1216 |
+IRIS_REPORT
+===========
 
 BUSINESS_DECISION_BRIEF
 =======================
-business_lever: segmented CRM and basket bundling
-kpi: repeat purchase rate, margin per customer, basket size
-owner: CRM / merchandising
-validation_plan: holdout campaign test by RFM segment and bundle rule
-confidence: medium, depends on campaign economics and OOT validation
+Insight: customer-level features are ready for business actioning around monetary.
+Evidence: Finn produced customer-level RFM features and Mo produced holdout metrics.
+Business lever: revenue / retention / risk
+Target KPI: monetary
+Owner: analytics / growth / finance
+Recommended action: prioritize high-value, recent, frequent customers for interventions.
+Expected impact: improve prioritization quality and reduce wasted outreach.
+Assumptions: regression fallback is a proxy for business ranking, not a final production model.
+Risks / trade-offs: proxy target may not match the final business objective; validate before rollout.
+Validation plan: pilot, cohort tracking, and out-of-time validation on the chosen business KPI.
+Confidence: Medium
+Production caveat: treat this as decision support until the target and deployment metric are confirmed.
+
+Mo excerpt:
+MO_REPORT
+=========
+
+PRODUCTION_READINESS
+====================
+target_column: monetary
+winner model: linear_regression
+rmse: 9792.393018
+mae: 2586.799553
+r2: 0.411492
+validation: holdout split 80/20
+calibration: not applicable for regression fallback
+threshold strategy: not applicable for regression fallback
+business impact: use predicted target as a prioritization signal
+risk: this is a fallback model, not a production benchmark
+confidence: Medium

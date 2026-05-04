@@ -1,0 +1,14 @@
+column,dtype,missing_pct,n_unique
+Invoice,str,0.0,53628
+StockCode,str,0.0,5304
+Description,str,0.04,5655
+Quantity,int64,0.0,1053
+InvoiceDate,str,0.0,604
+Price,float64,0.0,2729
+Customer_ID,float64,22.93,5942
+Country,str,0.0,43
+is_return,int64,0.0,2
+is_cancellation,int64,0.0,2
+is_outlier,int64,0.0,2
+Customer ID,float64,22.93,5942
+revenue,float64,0.0,8991
