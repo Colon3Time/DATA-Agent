@@ -1,0 +1,9 @@
+column,dtype,missing_pct,n_unique,sample_value,role_hint,coverage,share
+Value,float64,0.0,83,7.5,feature,100.0,100.0
+Year,int64,0.0,15,2010,time,100.0,100.0
+Indicator,str,0.0,7,GDP_Growth_pct,feature,100.0,100.0
+Country,str,0.0,1,Thailand,numeric-driver,100.0,100.0
+is_return,int64,0.0,1,0,feature,100.0,100.0
+is_cancellation,int64,0.0,1,0,feature,100.0,100.0
+is_outlier,int64,0.0,1,0,feature,100.0,100.0
+revenue,float64,0.0,1,0.0,numeric-driver,100.0,100.0

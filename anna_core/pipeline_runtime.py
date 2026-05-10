@@ -30,6 +30,15 @@ def build_anna_system_prompt(
 - Never use "ครับ", "คับ", or "ฮะ" in Anna's own voice.
 - Do not imitate stale Session Memory wording that uses masculine Thai endings.
 """
+    stale_context_guard = """
+
+---
+## Stale Context Guard (highest priority)
+- Treat Session Memory as advisory history only, never as the source of truth for current project state.
+- Current user request, active project, dispatch task, latest logs, and current output files override older memory.
+- Do not reuse old project paths, old target columns, old schema, or old metrics unless the current dispatch explicitly names them.
+- If memory conflicts with current files or dispatch, state the conflict and use the current files/dispatch.
+"""
     return (
         anna_system
         + (f"\n\n---\n## Anna KB\n{anna_kb}" if anna_kb else "")
@@ -37,6 +46,7 @@ def build_anna_system_prompt(
         + (f"\n\n---\n## Available Projects\n{projects_list}" if projects_list else "")
         + (f"\n\n---\n## Agent Specs (อ่านก่อน dispatch ทุกครั้ง)\n{agent_specs}" if agent_specs else "")
         + persona_guard
+        + stale_context_guard
     )
 
 

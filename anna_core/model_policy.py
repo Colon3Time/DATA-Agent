@@ -14,6 +14,14 @@ class ModelChoice:
 class ModelPolicy:
     """Map task routes to concrete provider choices."""
 
+    def __init__(self, *, codex_enabled: bool = False) -> None:
+        self.codex_enabled = codex_enabled
+
+    def _provider(self, provider: str) -> str:
+        if provider == "codex" and not self.codex_enabled:
+            return "deepseek"
+        return provider
+
     def choose(self, stage: str, route: TaskRoute | None = None, *, fallback: str = "deepseek") -> ModelChoice:
         route = route or TaskRoute(
             intent="chat",
@@ -29,21 +37,18 @@ class ModelPolicy:
             return ModelChoice("deepseek", "agent execution stays on the fast executor model")
 
         if stage in {"agent_discover"}:
-            return ModelChoice("codex", "discovery benefits from stronger planning and code synthesis")
+            provider = self._provider(route.provider)
+            return ModelChoice(provider, f"discovery follows route provider={provider}")
 
         if stage in {"anna_repair", "anna_review"}:
-            provider = "codex" if route.risk in {"medium", "high", "critical"} or route.code_heavy else "deepseek"
+            provider = self._provider(route.provider)
             return ModelChoice(provider, f"repair/review follows route risk={route.risk}")
 
         if stage in {"anna_summary"}:
-            provider = "codex" if route.code_heavy or route.risk in {"high", "critical"} or route.needs_retrieval else "deepseek"
+            provider = self._provider(route.provider)
             return ModelChoice(provider, f"summary follows route risk={route.risk}")
 
         if stage in {"anna_primary"}:
-            provider = route.provider
-            if route.needs_retrieval and provider == "deepseek" and route.risk in {"medium", "high", "critical"}:
-                provider = "codex"
-            return ModelChoice(provider, route.reason)
+            return ModelChoice(self._provider(route.provider), route.reason)
 
-        return ModelChoice(fallback, f"fallback provider={fallback}")
-
+        return ModelChoice(self._provider(fallback), f"fallback provider={fallback}")

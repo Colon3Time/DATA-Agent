@@ -20,6 +20,20 @@ class KnowledgeBase:
         if self.log:
             self.log(role, content, task, output)
 
+    @staticmethod
+    def _dedupe_loaded_sections(text: str) -> str:
+        """Remove exact duplicate markdown sections before prompt injection."""
+        sections = [s.strip() for s in re.split(r"\n(?=##|# )", text.strip()) if s.strip()]
+        seen: set[str] = set()
+        kept: list[str] = []
+        for section in sections:
+            key = "\n".join(line.rstrip() for line in section.lower().splitlines() if line.strip())
+            if key in seen:
+                continue
+            seen.add(key)
+            kept.append(section)
+        return "\n\n".join(kept)
+
     def load(self, agent_name: str) -> str:
         files = []
         shared = self.knowledge_dir / "shared_methods.md"
@@ -35,7 +49,7 @@ class KnowledgeBase:
                 parts.append(f.read_text(encoding="utf-8"))
             except Exception:
                 pass
-        return "\n\n".join(parts)
+        return self._dedupe_loaded_sections("\n\n".join(parts))
 
     def load_relevant(self, agent_name: str, task: str, top_n: int = 6) -> str:
         kb = self.load(agent_name)

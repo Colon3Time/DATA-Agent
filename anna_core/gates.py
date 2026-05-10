@@ -10,7 +10,13 @@ def archive_agent_outputs_before_rerun(agent_dir: Path, agent_name: str) -> str:
     if not agent_dir.exists():
         return ""
     preserve_dirs = {"_archive", "__pycache__", "_tmp", ".gitkeep"}
-    items = [p for p in agent_dir.iterdir() if p.name not in preserve_dirs and p.suffix.lower() != ".py"]
+    items = [
+        p
+        for p in agent_dir.iterdir()
+        if p.name not in preserve_dirs
+        and p.suffix.lower() != ".py"
+        and ".run_id" not in p.name
+    ]
     if not items:
         return ""
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")

@@ -22,3 +22,15 @@ class KnowledgeBaseLoadingTests(unittest.TestCase):
             self.assertLess(text.index("shared section"), text.index("global section"))
             self.assertLess(text.index("global section"), text.index("anna section"))
 
+    def test_load_dedupes_repeated_sections_before_prompt_injection(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            kb_dir = Path(tmp)
+            repeated = "## Repeated\nsame body\n"
+            (kb_dir / "shared_methods.md").write_text(repeated, encoding="utf-8")
+            (kb_dir / "anna_methods.md").write_text(repeated + "\n## Unique\nagent body\n", encoding="utf-8")
+
+            kb = KnowledgeBase(kb_dir)
+            text = kb.load("anna")
+
+            self.assertEqual(text.count("## Repeated"), 1)
+            self.assertIn("## Unique", text)

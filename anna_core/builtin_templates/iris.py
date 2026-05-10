@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import argparse
+import re
 from pathlib import Path
 
 import pandas as pd
 
 
-def _load_mo_report(inp: Path) -> str:
-    mo_report = inp.parent.parent / "mo" / "mo_report.md"
-    if mo_report.exists():
-        return mo_report.read_text(encoding="utf-8", errors="ignore")
-    return ""
+def _load_report(inp: Path, agent: str) -> str:
+    report = inp.parent.parent / agent / f"{agent}_report.md"
+    return report.read_text(encoding="utf-8", errors="ignore") if report.exists() else ""
+
+
+def _field(text: str, name: str, default: str = "unknown") -> str:
+    m = re.search(rf"^{re.escape(name)}\s*:\s*(.+)$", text, re.IGNORECASE | re.MULTILINE)
+    return m.group(1).strip() if m else default
 
 
 def main() -> None:
@@ -24,47 +28,45 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=True)
 
     data = pd.read_csv(inp)
-    mo_report = _load_mo_report(inp)
-    target = "monetary" if "monetary" in data.columns else data.select_dtypes(include="number").columns[0]
-    insight_csv = out / "iris_output.csv"
+    mo_report = _load_report(inp, "mo")
+    target = _field(mo_report, "target_column", "unknown")
+    problem_type = _field(mo_report, "problem_type", "unknown")
+    winner = _field(mo_report, "winner model", "unknown")
+
     pd.DataFrame(
         {
-            "metric": ["rows", "columns", "target", "summary"],
-            "value": [len(data), len(data.columns), target, "customer-level recommendation bridge"],
+            "metric": ["rows", "columns", "target_column", "problem_type", "winner_model"],
+            "value": [len(data), len(data.columns), target, problem_type, winner],
         }
-    ).to_csv(insight_csv, index=False)
+    ).to_csv(out / "iris_output.csv", index=False)
 
-    report = out / "iris_report.md"
-    report.write_text(
-        "\n".join(
-            [
-                "IRIS_REPORT",
-                "===========",
-                "",
-                "BUSINESS_DECISION_BRIEF",
-                "=======================",
-                f"Insight: customer-level features are ready for business actioning around {target}.",
-                "Evidence: Finn produced customer-level RFM features and Mo produced holdout metrics.",
-                "Business lever: revenue / retention / risk",
-                f"Target KPI: {target}",
-                "Owner: analytics / growth / finance",
-                "Recommended action: prioritize high-value, recent, frequent customers for interventions.",
-                "Expected impact: improve prioritization quality and reduce wasted outreach.",
-                "Assumptions: regression fallback is a proxy for business ranking, not a final production model.",
-                "Risks / trade-offs: proxy target may not match the final business objective; validate before rollout.",
-                "Validation plan: pilot, cohort tracking, and out-of-time validation on the chosen business KPI.",
-                "Confidence: Medium",
-                "Production caveat: treat this as decision support until the target and deployment metric are confirmed.",
-                "",
-                "Mo excerpt:",
-                mo_report[:800] if mo_report else "missing",
-            ]
-        ),
-        encoding="utf-8",
+    report = "\n".join(
+        [
+            "IRIS_REPORT",
+            "===========",
+            "",
+            "BUSINESS_DECISION_BRIEF",
+            "=======================",
+            f"Insight: model evidence is available for target `{target}`.",
+            f"Evidence: Mo benchmark selected `{winner}` for a `{problem_type}` task.",
+            "Business lever: data governance, analytical prioritization, and risk review",
+            f"Target KPI: {target}",
+            "Owner: analytics / data product team",
+            "Recommended action: review class balance, top error modes, and source coverage before operational rollout.",
+            "Expected impact: improves confidence in downstream decisions by tying actions to the declared Scout target.",
+            "Assumptions: builtin benchmark is a minimum viable analytical check, not final model selection.",
+            "Risks / trade-offs: source metadata may encode collection-year patterns rather than deployable business behavior.",
+            "Validation plan: out-of-time validation if a real time axis exists, plus holdout review and domain sign-off.",
+            "Confidence: Low" if "confidence: low" in mo_report.lower() else "Confidence: Medium",
+            "Production caveat: do not approve production until Quinn passes target-aligned QC.",
+            "",
+            "Mo excerpt:",
+            mo_report[:800] if mo_report else "missing",
+        ]
     )
-
-    print(f"[STATUS] Insight CSV saved: {insight_csv}")
-    print(f"[STATUS] Report saved: {report}")
+    (out / "iris_report.md").write_text(report, encoding="utf-8")
+    print(f"[STATUS] Insight CSV saved: {out / 'iris_output.csv'}")
+    print(f"[STATUS] Report saved: {out / 'iris_report.md'}")
 
 
 if __name__ == "__main__":

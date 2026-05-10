@@ -56,6 +56,18 @@ _RETRIEVAL_TERMS = {
     "knowledge base",
 }
 
+_EXPLICIT_CODEX_TERMS = (
+    "use codex",
+    "ask codex",
+    "call codex",
+    "codex",
+    "ใช้ codex",
+    "เรียก codex",
+    "ให้ใช้ codex",
+    "ให้เรียก codex",
+    "สั่งให้ใช้ codex",
+)
+
 
 @dataclass(frozen=True)
 class TaskRoute:
@@ -83,27 +95,33 @@ class TaskRouter:
 
         code_heavy = len(code_hits) >= 2 or any(term in text_l for term in ("@", "<dispatch>", "<write_file>", "<run_shell>", "<run_python>"))
         needs_retrieval = bool(retrieval_hits) or any(term in text_l for term in ("latest", "recent", "current", "today", "remember"))
+        explicit_codex = "codex" in combined and any(term in combined for term in _EXPLICIT_CODEX_TERMS)
 
-        if intent == "chat" and not code_heavy and not risk_hits:
+        if explicit_codex:
+            provider = "codex"
+            risk = "medium" if code_heavy else "low"
+        elif intent == "chat" and not code_heavy and not risk_hits:
             provider = "deepseek"
             risk = "low"
         elif risk_hits:
-            provider = "codex"
+            provider = "deepseek"
             risk = "high" if len(risk_hits) < 3 else "critical"
         elif code_heavy or intent == "pipeline":
-            provider = "codex" if code_heavy else "deepseek"
+            provider = "deepseek"
             risk = "medium" if code_heavy else "low"
         else:
             provider = "deepseek"
             risk = "low"
 
-        review_provider = "codex" if risk in {"medium", "high", "critical"} or code_heavy else "deepseek"
+        review_provider = "codex" if explicit_codex else "deepseek"
         signals = tuple(sorted(set(code_hits + risk_hits + retrieval_hits)))
         reason_bits = [
             f"intent={intent}",
             f"risk={risk}",
             f"provider={provider}",
         ]
+        if explicit_codex:
+            reason_bits.append("explicit_codex=yes")
         if code_hits:
             reason_bits.append(f"code={','.join(sorted(set(code_hits))[:5])}")
         if retrieval_hits:
@@ -120,4 +138,3 @@ class TaskRouter:
             reason="; ".join(reason_bits),
             signals=signals,
         )
-

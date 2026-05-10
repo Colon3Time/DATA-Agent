@@ -1,0 +1,6 @@
+metric,value
+rows,105
+columns,14
+target_column,Value
+problem_type,regression
+winner_model,numpy_ridge_alpha_1

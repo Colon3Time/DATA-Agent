@@ -112,7 +112,7 @@ class ResponseReviewer:
         severity_order = {"low": 0, "medium": 1, "high": 2}
         severity = max((finding.severity for finding in findings), key=lambda s: severity_order.get(s, 0), default="low")
         passed = not any(finding.severity in {"medium", "high"} for finding in findings)
-        repair_provider = "codex" if route.risk in {"medium", "high", "critical"} or route.code_heavy or severity in {"medium", "high"} else "deepseek"
+        repair_provider = route.provider
         repair_hint = findings[0].suggestion if findings else ""
         return ReviewResult(
             passed=passed,

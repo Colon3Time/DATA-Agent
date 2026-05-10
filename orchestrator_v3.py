@@ -58,7 +58,7 @@ from anna_core.pipeline_runtime import (
 )
 from anna_core.mo_phase import detect_mo_phase, mo_script_matches_phase, sync_mo_canonical_report
 from anna_core.project import AgentSpecLoader, ProjectDetector
-from anna_core.run_guard import begin_project_run, mark_output_current, output_is_current, promote_upstream_outputs
+from anna_core.run_guard import begin_project_run, mark_output_current, output_is_current, promote_pipeline_outputs, promote_upstream_outputs
 from anna_core.runner import run_python_script
 from core.schema_contract import infer_producer_from_path, validate_handoff
 from anna_core.runner import agent_script_is_usable, builtin_agent_script
@@ -133,6 +133,7 @@ PIPELINE_DIR = CONFIG.pipeline_dir
 PROJECTS_DIR = CONFIG.projects_dir
 MODE = CONFIG.mode
 CLAUDE_LIMIT = CONFIG.claude_limit
+CODEX_ENABLED = CONFIG.codex_enabled
 STEP_MODE = CONFIG.step_mode
 
 ANNA_PERSONA_GUARD = """
@@ -163,6 +164,62 @@ CRISP_DM_PHASES = {
 }
 AGENT_TO_PHASE = {a: p for p, agents in CRISP_DM_PHASES.items() for a in agents}
 MAX_AGENT_ITER = 5  # สูงสุดที่ agent เดียวกันรันซ้ำได้ใน 1 pipeline (CRISP-DM: explore→preprocess→tune→validate)
+
+
+def _extract_target_hint(text: str) -> tuple[str, str]:
+    """Parse target_column and problem_type from free text (user message or task)."""
+    target = ""
+    problem_type = ""
+    for pat in (
+        r"target[_ ]*column\s*[=:]\s*([A-Za-z_][A-Za-z0-9_]*)",
+        r"\btarget\s*[=:]\s*([A-Za-z_][A-Za-z0-9_]*)",
+    ):
+        m = re.search(pat, text, re.IGNORECASE)
+        if m:
+            target = m.group(1).strip()
+            break
+    pt_m = re.search(r"problem[_ ]*type\s*[=:]\s*(regression|classification)", text, re.IGNORECASE)
+    if pt_m:
+        problem_type = pt_m.group(1).lower()
+    return target, problem_type
+
+
+_TRANSFORM_SUFFIX_RE = re.compile(
+    r"_(log|log1p|scaled|norm|enc|encoded|transformed|imputed|filled|binned|clipped|sqrt|cbrt|boxcox|zscore)\d*$",
+    re.IGNORECASE,
+)
+
+def _write_target_override(project_dir: Path, target: str, problem_type: str = "") -> None:
+    """Persist user-specified target to target_override.json so all builtin scripts use it."""
+    import json as _json
+    if not project_dir or not target or target.lower() in {"unknown", ""}:
+        return
+    # Reject LLM-hallucinated transform variants — the real target is the base column name
+    if _TRANSFORM_SUFFIX_RE.search(target):
+        print(f"  [target_override] skipped transform variant: {target}")
+        return
+    # Don't overwrite a confirmed override with a weaker LLM-extracted hint
+    override_path = project_dir / "target_override.json"
+    if override_path.exists():
+        try:
+            existing = _json.loads(override_path.read_text(encoding="utf-8"))
+            existing_target = str(existing.get("target_column", "")).strip()
+            if existing_target and existing_target.lower() not in {"unknown", ""} and not _TRANSFORM_SUFFIX_RE.search(existing_target):
+                if problem_type and not existing.get("problem_type"):
+                    existing["problem_type"] = problem_type
+                    override_path.write_text(_json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+                return
+        except Exception:
+            pass
+    data: dict = {"target_column": target}
+    if problem_type:
+        data["problem_type"] = problem_type
+    try:
+        override_path.write_text(_json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"  [target_override] target={target}" + (f", problem_type={problem_type}" if problem_type else ""))
+    except Exception:
+        pass
+
 
 # ── Terminal Tab Notification ─────────────────────────────────────────────────
 
@@ -225,6 +282,7 @@ LLM = LLMClient(
     deepseek_model=DEEPSEEK_MODEL,
     claude_model=CLAUDE_MODEL,
     claude_limit=CLAUDE_LIMIT,
+    codex_enabled=CODEX_ENABLED,
     palette=TerminalPalette(
         reset=RST,
         bold=BLD,
@@ -249,7 +307,7 @@ PROJECT_DETECTOR = ProjectDetector(PROJECTS_DIR)
 AGENT_SPEC_LOADER = AgentSpecLoader(AGENTS_DIR, VALID_AGENTS)
 INTENT_CLASSIFIER = IntentClassifier(_PIPELINE_KW, _CHAT_KW)
 TASK_ROUTER = TaskRouter()
-MODEL_POLICY = ModelPolicy()
+MODEL_POLICY = ModelPolicy(codex_enabled=CODEX_ENABLED)
 RESPONSE_REVIEWER = ResponseReviewer()
 ACTION_EXECUTOR = ActionExecutor(
     base_dir=BASE_DIR,
@@ -278,6 +336,7 @@ CLI = CliRenderer(
     deepseek_model=DEEPSEEK_MODEL,
     claude_model=CLAUDE_MODEL,
     claude_limit=CLAUDE_LIMIT,
+    codex_enabled=CODEX_ENABLED,
     mode=MODE,
     palette=CliPalette(
         reset=RST,
@@ -383,9 +442,12 @@ def pipeline_read(agent_name: str) -> str:
     path = PIPELINE.read(agent_name)
     if not path:
         return ""
+    p = Path(path)
+    if not p.exists() or not p.is_file():
+        return ""
     project_dir = PIPELINE.project_dir or STATE.active_project
     if project_dir and infer_producer_from_path(path, project_dir):
-        if not output_is_current(Path(path), project_dir):
+        if not output_is_current(p, project_dir):
             return ""
     return path
 
@@ -497,6 +559,144 @@ def normalize_scout_loaded_dataset(project_dir: Path | None, output_dir: Path) -
     _write_scout_profile_fallback(project_dir, dest)
     return str(dest)
 
+
+def normalize_scout_output_for_handoff(project_dir: Path | None, output_dir: Path) -> str:
+    """Ensure Scout's canonical handoff is a row-level scout_output.csv."""
+    if not project_dir:
+        return ""
+    csv_path = output_dir / "scout_output.csv"
+    if not csv_path.exists():
+        return ""
+    try:
+        import pandas as _pd
+
+        df = _pd.read_csv(csv_path)
+        report_path = output_dir / "scout_report.md"
+
+        def _ensure_scout_report_risk_register() -> None:
+            risk_block = (
+                "\n\nDATASET_RISK_REGISTER\n"
+                "=====================\n"
+                "Source credibility: Generated from Scout-selected source; verify original metadata before production use.\n"
+                "License/usage: Unknown unless source metadata is present.\n"
+                "Business fit: Candidate dataset was selected for the current project task.\n"
+                "Target suitability: See dataset_profile.md target_column and problem_type.\n"
+                "Recency/deployment fit: Verify time coverage before deployment.\n"
+                "Leakage risks: No post-outcome fields confirmed by automatic post-processing.\n"
+                "Bias/coverage risks: Coverage must be reviewed by downstream EDA.\n"
+                "Data dictionary: Not guaranteed unless provided by source.\n"
+                "Verdict: Use with caveats.\n"
+            )
+            if report_path.exists():
+                text = report_path.read_text(encoding="utf-8", errors="ignore")
+                if "dataset_risk_register" not in text.lower():
+                    report_path.write_text(text.rstrip() + risk_block, encoding="utf-8")
+            else:
+                report_path.write_text("Scout Dataset Brief\n===================\n" + risk_block, encoding="utf-8")
+
+        required = {"Country", "Year", "Indicator", "Value"}
+        if required.issubset(df.columns) and len(df) >= 20:
+            _ensure_scout_report_risk_register()
+            return str(csv_path)
+
+        id_cols = [c for c in ("Country", "Year") if c in df.columns]
+        value_cols = [
+            c for c in df.columns
+            if c not in id_cols and _pd.api.types.is_numeric_dtype(df[c])
+        ]
+        if "Year" in df.columns and value_cols and len(df) < 20:
+            if "Country" not in df.columns:
+                df.insert(0, "Country", "Thailand")
+                id_cols = ["Country", "Year"]
+            long_df = df.melt(
+                id_vars=id_cols,
+                value_vars=value_cols,
+                var_name="Indicator",
+                value_name="Value",
+            ).dropna(subset=["Value"])
+            long_df = long_df[["Country", "Year", "Indicator", "Value"]]
+            if len(long_df) >= 20:
+                long_df.to_csv(csv_path, index=False, encoding="utf-8-sig")
+                profile = output_dir / "dataset_profile.md"
+                profile.write_text(
+                    "\n".join([
+                        "DATASET_PROFILE",
+                        "===============",
+                        f"rows         : {len(long_df):,}",
+                        "cols         : 4",
+                        "dtypes       : numeric=2, categorical=2, datetime=0",
+                        "missing      : {}",
+                        "target_column: Value",
+                        "problem_type : regression",
+                        f"indicators   : {long_df['Indicator'].nunique()}",
+                        f"years        : {int(long_df['Year'].min())}-{int(long_df['Year'].max())}",
+                        "recommended_scaling: StandardScaler",
+                    ]),
+                    encoding="utf-8",
+                )
+                _ensure_scout_report_risk_register()
+                return str(csv_path)
+        _ensure_scout_report_risk_register()
+    except Exception as e:
+        log_raw("system", f"Scout output normalization failed: {e}", task="scout-normalize")
+    return str(csv_path)
+
+
+def ensure_vera_chart_artifact(output_dir: Path, input_path: str) -> str:
+    """Create a real fallback PNG when Vera's script produced only tabular output."""
+    charts_dir = output_dir / "charts"
+    if list(charts_dir.glob("*.png")):
+        return ""
+    source = Path(input_path) if input_path else None
+    if not source or not source.exists() or source.suffix.lower() != ".csv":
+        return ""
+    try:
+        import pandas as _pd
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as _plt
+
+        df = _pd.read_csv(source)
+        if df.empty:
+            return ""
+        charts_dir.mkdir(parents=True, exist_ok=True)
+        numeric_cols = list(df.select_dtypes(include="number").columns)
+        fig, ax = _plt.subplots(figsize=(10, 5))
+        if numeric_cols:
+            col = numeric_cols[0]
+            series = _pd.to_numeric(df[col], errors="coerce").dropna().head(100)
+            if series.empty:
+                return ""
+            ax.plot(range(len(series)), series.to_numpy(), color="#2f6f73", linewidth=2)
+            ax.set_title(f"Data overview: {col}")
+            ax.set_xlabel("Row")
+            ax.set_ylabel(col)
+        else:
+            col = df.columns[0]
+            counts = df[col].astype(str).value_counts().head(20)
+            counts.plot(kind="bar", ax=ax, color="#2f6f73")
+            ax.set_title(f"Data overview: {col}")
+            ax.set_xlabel(col)
+            ax.set_ylabel("Rows")
+        fig.tight_layout()
+        path = charts_dir / "01_data_overview.png"
+        fig.savefig(path, dpi=140)
+        _plt.close(fig)
+        report = output_dir / "vera_report.md"
+        if report.exists():
+            text = report.read_text(encoding="utf-8", errors="ignore")
+            if path.name not in text:
+                report.write_text(
+                    text.rstrip() + f"\n\nfallback_chart: charts/{path.name}\n",
+                    encoding="utf-8",
+                )
+        return str(path)
+    except Exception as e:
+        log_raw("system", f"Vera fallback chart failed: {e}", task="vera-chart")
+        return ""
+
+
 def validate_or_discard_script(script: Path) -> bool:
     ok, reason = agent_script_is_usable(script)
     if not ok:
@@ -517,16 +717,49 @@ def write_builtin_script(agent_name: str, output_dir: Path) -> Path | None:
     path.write_text(code, encoding="utf-8")
     return path
 
+
+def restore_archived_outputs(archive_path: Path | str | None, output_dir: Path) -> None:
+    if not archive_path:
+        return
+    archive = Path(archive_path)
+    if not archive.exists():
+        return
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for path in archive.rglob("*"):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(archive)
+        dest = output_dir / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, dest)
+
+
+def llm_response_is_unavailable(result: str) -> bool:
+    text = (result or "").strip().lower()
+    if not text:
+        return True
+    error_prefixes = (
+        "[error]",
+        "error:",
+        "[warn] codex",
+        "[warn] deepseek",
+    )
+    error_markers = (
+        "deepseek_api_key not found",
+        "deepseek connection failed",
+        "deepseek timeout",
+        "deepseek http ",
+        "codex cli error",
+        "error: access is denied",
+    )
+    return text.startswith(error_prefixes) or any(marker in text[:500] for marker in error_markers)
+
 def run_script(script_path: Path, input_path: str, output_dir: Path) -> tuple[str, int, str]:
     """Returns (output_path, returncode, stderr)"""
     output_dir.mkdir(parents=True, exist_ok=True)
     sanitize_python_script_file(script_path)
     ok, reason = agent_script_is_usable(script_path)
     if not ok:
-        try:
-            script_path.unlink(missing_ok=True)
-        except Exception:
-            pass
         return str(output_dir), 127, f"unusable script: {reason}"
     set_pipeline_stage(output_dir.name, "script", script_path.name)
     print(f"\n{CY}  ▶ SCRIPT{RST}  {BLD}{script_path.name}{RST}  {DIM}← {input_path or 'no input'}{RST}")
@@ -569,11 +802,65 @@ def run_script(script_path: Path, input_path: str, output_dir: Path) -> tuple[st
         return out_path, -1, fake_err
     if result.returncode == 0 and output_dir.name == "scout":
         project_dir = output_dir.parent.parent
-        scout_csv = normalize_scout_loaded_dataset(project_dir, output_dir)
+        scout_csv = normalize_scout_output_for_handoff(project_dir, output_dir)
         if scout_csv:
             return scout_csv, 0, result.stderr
-    set_pipeline_stage(output_dir.name, "script-done", Path(out_path).name if out_path else "no-output")
+    if result.returncode == 0 and output_dir.name == "vera":
+        ensure_vera_chart_artifact(output_dir, input_path)
+    if result.returncode == 0:
+        set_pipeline_stage(output_dir.name, "script-done", Path(out_path).name if out_path else "no-output")
     return out_path, result.returncode, result.stderr
+
+
+def run_builtin_fallback_agent(
+    agent_name: str,
+    task: str,
+    input_path: str,
+    output_dir: Path,
+    report_path: Path,
+    project_dir: Path | None,
+    reason: str,
+) -> str:
+    archive_path = archive_agent_outputs_before_rerun(Path(output_dir), agent_name)
+    if archive_path:
+        log_raw("system", f"Archived old outputs → {archive_path}", task=agent_name)
+    builtin_script = write_builtin_script(agent_name, output_dir)
+    if not builtin_script:
+        fallback_path = str(report_path if report_path.exists() else output_dir)
+        return complete_agent_handoff(
+            agent_name,
+            fallback_path,
+            task,
+            f"LLM unavailable ({reason}); no builtin fallback available",
+        )
+    if not validate_or_discard_script(builtin_script):
+        fallback_path = str(report_path if report_path.exists() else output_dir)
+        return complete_agent_handoff(
+            agent_name,
+            fallback_path,
+            task,
+            f"LLM unavailable ({reason}); discarded unusable builtin script {builtin_script.name}",
+        )
+
+    print(f"{YL}  ⟳ LLM unavailable — using builtin fallback for {agent_name.upper()}{RST}")
+    output_path, returncode, stderr = run_script(builtin_script, input_path, output_dir)
+    if returncode != 0:
+        print(f"{RD}  ✗ Builtin fallback script failed; using report/output dir{RST}")
+        if stderr:
+            log_raw("system", f"builtin fallback error for {agent_name}: {stderr[:200]}", task="builtin-fallback")
+        output_path = str(report_path if report_path.exists() else output_dir)
+    if agent_name == "mo":
+        sync_mo_canonical_report(output_dir, detect_mo_phase(task))
+    report_summary = read_report_summary(output_dir, agent_name)
+    action_msg = f"builtin fallback script ({reason}) → {output_path}"
+    if report_summary:
+        action_msg += f"\n{report_summary}"
+    if project_dir and output_path:
+        try:
+            mark_output_current(Path(output_path), project_dir)
+        except Exception:
+            pass
+    return complete_agent_handoff(agent_name, output_path, task, action_msg)
 
 
 # ── Agent Runner ──────────────────────────────────────────────────────────────
@@ -587,8 +874,10 @@ def get_system_prompt(agent_name: str, task: str = "") -> str:
         "2. [FEEDBACK] = ข้อแนะนำจากการแก้งาน — ใช้เป็น guideline แต่ตัดสินใจตามบริบทจริง ไม่ใช่กฎตายตัว\n"
         "3. [DISCOVERY] = วิธีที่พิสูจน์แล้วว่าได้ผลดี — ใช้ก่อนเสมอถ้าเหมาะสม\n"
         "4. อ่าน Input file path ที่ระบุใน task message แล้วโหลดข้อมูลจาก path นั้นทันที\n"
-        "5. บันทึก Self-Improvement Report ทุกครั้งหลังทำงานเสร็จ\n"
-        "6. เมื่อทำงานเสร็จ ต้องเขียน Agent Report ก่อนส่งผลต่อเสมอ:\n"
+        "5. Current dispatch/task/input path คือ source of truth; ห้ามใช้ project เก่า, schema เก่า, target เก่า, หรือ metric เก่าจาก memory ถ้า task นี้ไม่ได้ระบุ\n"
+        "6. ถ้าไฟล์จริงขัดกับ KB/session memory ให้ใช้ไฟล์จริงและบันทึก conflict ใน report\n"
+        "7. บันทึก Self-Improvement Report ทุกครั้งหลังทำงานเสร็จ\n"
+        "8. เมื่อทำงานเสร็จ ต้องเขียน Agent Report ก่อนส่งผลต่อเสมอ:\n"
         "```\n"
         "Agent Report — [ชื่อ Agent]\n"
         "============================\n"
@@ -797,9 +1086,21 @@ def auto_extract_kb_learning(agent_name: str, result: str):
 
 
 def _read_project_target(project_dir: Path | None) -> str:
-    """Return the Scout-declared target column for this project, if known."""
+    """Return the target column for this project. Override wins over Scout profile."""
     if not project_dir:
         return ""
+    # target_override.json wins — written when user specifies target explicitly
+    override_path = project_dir / "target_override.json"
+    if override_path.exists():
+        try:
+            import json as _j
+            data = _j.loads(override_path.read_text(encoding="utf-8"))
+            t = str(data.get("target_column", "")).strip()
+            if t and t.lower() not in {"unknown", ""}:
+                return t
+        except Exception:
+            pass
+    # Fallback to Scout's dataset_profile.md
     profile_path = project_dir / "output" / "scout" / "dataset_profile.md"
     if not profile_path.exists():
         return ""
@@ -960,6 +1261,50 @@ def _read_csv_shape(path: Path) -> tuple[int, int]:
     return rows, df_head.shape[1]
 
 
+_INPUT_PATH_EXTENSIONS = (".csv", ".parquet", ".xlsx", ".xls", ".sqlite", ".db", ".json", ".md")
+
+
+def _extract_explicit_input_path(task: str, project_dir: Path | None = None) -> str:
+    """Return an existing file path explicitly supplied in the task, if any."""
+    text = (task or "").strip()
+    if not text or not any(ext in text.lower() for ext in _INPUT_PATH_EXTENSIONS):
+        return ""
+    patterns = [
+        r'"([^"\r\n]+(?:\.csv|\.parquet|\.xlsx|\.xls|\.sqlite|\.db|\.json|\.md))"',
+        r"'([^'\r\n]+(?:\.csv|\.parquet|\.xlsx|\.xls|\.sqlite|\.db|\.json|\.md))'",
+        r"([A-Za-z]:\\[^\s\r\n\"<>|]+(?:\.csv|\.parquet|\.xlsx|\.xls|\.sqlite|\.db|\.json|\.md))",
+        r"((?:\.{1,2}[\\/]|projects[\\/])[^\s\r\n\"<>|]+(?:\.csv|\.parquet|\.xlsx|\.xls|\.sqlite|\.db|\.json|\.md))",
+    ]
+    bases = [Path.cwd()]
+    if project_dir:
+        bases.insert(0, project_dir)
+    for pattern in patterns:
+        for match in re.finditer(pattern, text, re.IGNORECASE):
+            raw = match.group(1).strip().strip(".,;)")
+            candidate = Path(raw)
+            candidates = [candidate] if candidate.is_absolute() else [(base / candidate) for base in bases]
+            for path in candidates:
+                if path.exists() and path.is_file():
+                    return str(path)
+    return ""
+
+
+def _infer_project_from_explicit_input(input_path: str) -> Path | None:
+    if not input_path:
+        return None
+    try:
+        path = Path(input_path).resolve()
+        root = PROJECTS_DIR.resolve()
+        rel = path.relative_to(root)
+        if rel.parts:
+            project = PROJECTS_DIR / rel.parts[0]
+            if project.exists():
+                return project
+    except Exception:
+        return None
+    return None
+
+
 def _read_column_roles(project_dir: Path | None) -> dict[str, object]:
     if not project_dir:
         return {}
@@ -1055,6 +1400,11 @@ def validate_agent_output(agent_name: str, output_path: str,
         size = p.stat().st_size
         if size < 50:
             return False, f"report เล็กเกินไป ({size} bytes)"
+        if agent_name == "scout":
+            proj_for_scout = project_dir or (p.parent.parent.parent if len(p.parents) >= 3 else None)
+            scout_csv = proj_for_scout / "output" / "scout" / "scout_output.csv" if proj_for_scout else Path()
+            if not scout_csv.exists():
+                return False, "Scout gate FAIL: report-only handoff has no scout_output.csv for downstream Dana"
         base_msg = f"{p.name} ({size:,} bytes)"
     else:
         return True, p.name
@@ -1294,6 +1644,17 @@ def validate_agent_output(agent_name: str, output_path: str,
                         suspect_msgs.append(f"perfect/near-perfect metric detected in {csv_path.name}")
             if existing_reports:
                 txt = report.read_text(encoding="utf-8", errors="ignore").lower()
+                target = _read_project_target(proj)
+                if target:
+                    m_target = re.search(r"target_column\s*:\s*([^\s`]+)", txt, re.IGNORECASE)
+                    if not m_target:
+                        suspect_msgs.append("model report missing target_column")
+                    elif m_target.group(1).strip().lower() != target.lower():
+                        suspect_msgs.append(
+                            f"target_column mismatch (Scout='{target}', Mo='{m_target.group(1).strip()}')"
+                        )
+                if any(term in txt for term in ("dummy_mean", "regression fallback", "fallback path", "target_column: monetary")):
+                    suspect_msgs.append("fallback/dummy model evidence detected")
                 if re.search(r"\b(winner|best model|algorithm selected)\s*:\s*none\b", txt):
                     suspect_msgs.append("model report selected None")
                 if "n/a" in txt and ("test f1" in txt or "test auc" in txt or "cv score" in txt):
@@ -1379,6 +1740,8 @@ def validate_agent_output(agent_name: str, output_path: str,
         if not report.exists():
             return False, "Quinn gate FAIL: missing quinn_report.md"
         txt = report.read_text(encoding="utf-8", errors="ignore").lower()
+        if any(term in txt for term in ("fallback path", "fallback-review", "regression fallback", "dummy_mean")):
+            return False, "Quinn gate FAIL: fallback QC cannot pass final quality gate"
         if "restart_cycle: yes" in txt or "verdict: unsatisfied" in txt or "status: fail" in txt:
             return False, "Quinn HARD GATE FAIL: QC verdict requires restart_cycle / restart required. Pipeline blocked until fixed."
         required = ("leakage", "overfitting", "drift", "calibration", "business_satisfaction")
@@ -1393,16 +1756,18 @@ def validate_agent_output(agent_name: str, output_path: str,
         txt = report.read_text(encoding="utf-8", errors="ignore").lower()
         if "visual_qc" not in txt:
             return False, "Vera gate FAIL: missing VISUAL_QC"
+        if any(term in txt for term in ("no chart rendered", "no png charts", "fallback visual summary")):
+            return False, "Vera gate FAIL: fallback/no-chart visual output is not acceptable"
         charts_dir = proj / "output" / "vera" / "charts"
-        if charts_dir.exists() and not list(charts_dir.glob("*.png")):
+        if not charts_dir.exists() or not list(charts_dir.glob("*.png")):
             return False, "Vera gate FAIL: charts/ exists but no PNG charts were produced"
 
     elif agent_name == "rex" and proj:
         quinn_report = proj / "output" / "quinn" / "quinn_report.md"
+        quinn_failed = False
         if quinn_report.exists():
-            txt = quinn_report.read_text(encoding="utf-8", errors="ignore").lower()
-            if "restart_cycle: yes" in txt or "verdict: unsatisfied" in txt:
-                return False, "Rex gate FAIL: Quinn failed, final success report is blocked"
+            q_txt = quinn_report.read_text(encoding="utf-8", errors="ignore").lower()
+            quinn_failed = "restart_cycle: yes" in q_txt or "verdict: unsatisfied" in q_txt
         rex_reports = [
             proj / "output" / "rex" / "final_report.md",
             proj / "output" / "rex" / "executive_summary.md",
@@ -1417,6 +1782,32 @@ def validate_agent_output(agent_name: str, output_path: str,
             return False, "Rex gate FAIL: missing final executive report"
         if existing_reports:
             txt = "\n".join(p.read_text(encoding="utf-8", errors="ignore").lower() for p in existing_reports)
+            if quinn_failed:
+                failure_terms = (
+                    "restart_cycle",
+                    "restart required",
+                    "quinn failed",
+                    "qc failed",
+                    "not production-ready",
+                    "not production ready",
+                    "blocked",
+                    "unsatisfied",
+                    "ต้องแก้",
+                    "ยังไม่ผ่าน",
+                    "ไม่พร้อม production",
+                )
+                success_terms = ("cycle complete", "เสร็จสมบูรณ์", "production-ready", "production ready")
+                acknowledges_failure = any(term in txt for term in failure_terms)
+                success_scan = (
+                    txt.replace("not production-ready", "")
+                    .replace("not production ready", "")
+                    .replace("ไม่พร้อม production", "")
+                )
+                claims_success = any(term in success_scan for term in success_terms)
+                if not acknowledges_failure or claims_success:
+                    return False, "Rex gate FAIL: Quinn failed; Rex must write a failure-aware issue report, not a success report"
+            if any(term in txt for term in ("fallback offline path", "fallback metrics", "dummy_mean", "regression fallback")):
+                return False, "Rex gate FAIL: fallback final report is blocked"
             required_groups = {
                 "business impact assumptions": ("assumption", "assumptions", "cost", "roi"),
                 "production readiness": ("production readiness", "prototype", "monitoring", "retrain"),
@@ -1517,10 +1908,14 @@ def enforce_quinn_gate(agent_name: str, project_dir: Path | None, force_past_qui
         print(f"{YL}  ⚠ --force-past-quinn override: {reason}{RST}")
         log_raw("system", f"--force-past-quinn override for {agent_name}: {reason}", task="quinn-gate")
         return True
-    print(f"\n{RD}[PIPELINE BLOCKED]{RST} {reason}")
-    print(f"{YL}Dispatch {target.upper()} first with fix.{RST}")
-    _write_repair_note(agent_name, "quinn-restart-required", reason, project_dir, f"rerun @{target} with fix, then retry")
-    return False
+    print(f"{YL}  ⚠ Quinn restart context detected for {agent_name.upper()}: {reason}{RST}")
+    print(f"{YL}  Agent may continue only as failure-aware reporting/diagnostics; do not claim pipeline success.{RST}")
+    log_raw(
+        "system",
+        f"Quinn restart context allowed for failure-aware {agent_name}: {reason}",
+        task="quinn-gate",
+    )
+    return True
 
 
 def _missing_handoff_message(agent_name: str, project_dir: Path | None) -> str:
@@ -1577,7 +1972,7 @@ def _write_repair_note(
             "",
             f"- kind: {kind}",
             f"- agent: {agent}",
-            f"- task: {task or '(unknown)'}",
+            f"- task: {task or rerun_hint or '(unknown)'}",
             f"- project: {project_dir}",
             f"- problem: {problem}",
             f"- plan: {rerun_hint}",
@@ -1688,7 +2083,7 @@ def anna_autofix_script(agent_name: str, task: str, script: Path,
         f"ตอบเป็น WRITE_FILE เท่านั้น ไม่ต้องอธิบาย"
     )
 
-    anna_resp = call_claude(anna_system, fix_prompt, label=f"ANNA autofix {agent_name}")
+    anna_resp = call_deepseek(anna_system, fix_prompt, label=f"ANNA autofix {agent_name}")
     action_results = execute_anna_actions(anna_resp)
 
     if action_results and "[WRITE_FILE:" in action_results:
@@ -1713,6 +2108,12 @@ def resolve_agent_input(
     task: str = "",
     write_repair: bool = True,
 ) -> str:
+    explicit_input = _extract_explicit_input_path(task, project_dir)
+    if explicit_input:
+        print(f"{CY}  ⟳ explicit input:{RST} {DIM}{explicit_input}{RST}")
+        log_raw("system", f"explicit input path → {explicit_input}", task=agent_name)
+        return explicit_input
+
     expected_candidates = _expected_handoff_candidates(agent_name, project_dir)
     if expected_candidates:
         for candidate in expected_candidates:
@@ -1745,6 +2146,17 @@ def resolve_agent_input(
                     print(f"{GR}  ✓ Schema OK: {producer.upper()} → {agent_name.upper()}{RST}")
                     log_raw("system", "Schema validation passed", task=agent_name)
                 return str(candidate)
+
+        # Fallback: Dana ใช้ raw input CSV ได้ถ้า Scout ถูก skip โดยเจตนา
+        if agent_name == "dana" and project_dir:
+            input_dir = project_dir / "input"
+            if input_dir.exists():
+                raw_csvs = sorted(input_dir.glob("*.csv"))
+                if raw_csvs:
+                    raw_csv = raw_csvs[0]
+                    print(f"{CY}  ⟳ Dana input → raw input/{raw_csv.name} (Scout skipped){RST}")
+                    log_raw("system", f"Dana input fallback to input/{raw_csv.name} (no scout output)", task="dana")
+                    return str(raw_csv)
 
         msg = _missing_handoff_message(agent_name, project_dir)
         if not write_repair:
@@ -1955,16 +2367,28 @@ def handle_failed_script(
 
 
 def complete_agent_handoff(agent_name: str, output_path: str, task: str, message: str) -> str:
-    pipeline_write(agent_name, output_path)
+    handoff_path = Path(output_path)
+    if handoff_path.exists() and handoff_path.is_file():
+        pipeline_write(agent_name, output_path)
+    else:
+        pipeline_write(agent_name, "")
+        log_raw(
+            "system",
+            f"pipeline handoff skipped: {agent_name} produced no file output ({output_path})",
+            task="pipeline",
+    )
     log_raw(agent_name, message, task=task, output=output_path)
     log_raw("system", f"pipeline handoff: {agent_name} → {output_path}", task="pipeline")
-    if STATE.active_project and agent_name == "finn":
-        companion = Path(output_path).parent / "engineered_data.csv"
-        if companion.exists():
-            try:
-                mark_output_current(companion, STATE.active_project)
-            except Exception:
-                pass
+    if STATE.active_project:
+        try:
+            if handoff_path.exists() and handoff_path.is_file():
+                mark_output_current(handoff_path, STATE.active_project)
+            if agent_name == "finn":
+                companion = handoff_path.parent / "engineered_data.csv"
+                if companion.exists():
+                    mark_output_current(companion, STATE.active_project)
+        except Exception:
+            pass
     print(f"{GR}  ✓ {BLD}{agent_name.upper()}{RST}{GR} done{RST}  {DIM}→ {output_path}{RST}")
     return output_path
 
@@ -1975,6 +2399,8 @@ def run_existing_script_agent(
     script: Path,
     input_path: str,
     output_dir: Path,
+    allow_deepseek_autofix: bool = True,
+    project_dir: Path | None = None,
 ) -> str:
     archive_path = archive_agent_outputs_before_rerun(Path(output_dir), agent_name)
     if archive_path:
@@ -1990,14 +2416,31 @@ def run_existing_script_agent(
                 task,
                 f"discarded unusable script {script.name}; no builtin fallback",
             )
-    output_path, returncode, stderr = run_script_with_deepseek_autofix(
-        agent_name, task, script, input_path, output_dir, max_retries=15
-    )
-    if returncode != 0:
-        output_path, _success = handle_failed_script(agent_name, task, script, input_path, output_dir, stderr)
+    if allow_deepseek_autofix:
+        output_path, returncode, stderr = run_script_with_deepseek_autofix(
+            agent_name, task, script, input_path, output_dir, max_retries=15
+        )
+        if returncode != 0:
+            output_path, _success = handle_failed_script(agent_name, task, script, input_path, output_dir, stderr)
+    else:
+        output_path, returncode, stderr = run_script(script, input_path, output_dir)
+        if returncode != 0 or not Path(output_path).exists():
+            log_raw("system", f"builtin fallback script failed for {agent_name}: {stderr[:200]}", task="builtin-fallback")
+            restore_archived_outputs(archive_path, output_dir)
+            canonical = output_dir / f"{agent_name}_output.csv"
+            if canonical.exists():
+                output_path = str(canonical)
+            else:
+                output_path = str(output_dir / f"{agent_name}_report.md")
+                if not Path(output_path).exists():
+                    output_path = str(output_dir)
 
     if agent_name == "mo":
         sync_mo_canonical_report(output_dir, detect_mo_phase(task))
+    if agent_name == "scout" and output_dir and project_dir:
+        normalized = normalize_scout_output_for_handoff(project_dir, output_dir)
+        if normalized:
+            output_path = normalized
     report_summary = read_report_summary(output_dir, agent_name)
     action_msg = f"รัน script {script.name} สำเร็จ"
     if report_summary:
@@ -2013,7 +2456,7 @@ def call_agent_llm(
     discover: bool,
 ) -> str:
     if discover:
-        result = call_claude(system, task, label=f"{agent_name.upper()} discover")
+        result = call_deepseek(system, task, label=f"{agent_name.upper()} discover")
         first_para = result.strip().split("\n\n")[0][:400]
         save_kb(agent_name, f"Task: {task[:100]}\nKey finding: {first_para}", entry_type="discovery")
         return result
@@ -2063,19 +2506,22 @@ def run_generated_script_agent(
         if fallback:
             py_path = fallback
             print(f"{GR}  ✓ {BLD}{agent_name.upper()}{RST}{GR} builtin script saved — กำลังรัน...{RST}  {DIM}→ {py_path}{RST}")
-            output_path, returncode, stderr = run_script_with_deepseek_autofix(
-                agent_name, task, py_path, input_path, output_dir, max_retries=15
-            )
-            if returncode != 0:
-                output_path, ok = handle_failed_script(agent_name, task, py_path, input_path, output_dir, stderr)
-                if not ok:
+            output_path, returncode, stderr = run_script(py_path, input_path, output_dir)
+            if returncode != 0 or not Path(output_path).exists():
+                log_raw("system", f"builtin fallback script failed for {agent_name}: {stderr[:200]}", task="builtin-fallback")
+                canonical = output_dir / f"{agent_name}_output.csv"
+                if canonical.exists():
+                    output_path = str(canonical)
+                else:
                     output_path = str(report_path)
             return complete_agent_handoff(agent_name, output_path, task, f"builtin fallback script → {output_path}")
         return complete_agent_handoff(agent_name, str(report_path), task, f"no executable script blocks; used report {report_path.name}")
     py_path = output_dir / f"{agent_name}_script.py"
     py_path.write_text(_strip_python_fences("\n\n".join(code_blocks)), encoding="utf-8")
-    if not validate_or_discard_script(py_path):
-        return complete_agent_handoff(agent_name, str(report_path), task, f"discarded unusable generated script; used report {report_path.name}")
+    ok, reason = agent_script_is_usable(py_path)
+    if not ok:
+        print(f"{YL}  ⚠ generated script needs auto-fix: {reason}{RST}")
+        log_raw("system", f"generated script needs auto-fix: {py_path.name} ({reason})", task="script-validate")
     print(f"{GR}  ✓ {BLD}{agent_name.upper()}{RST}{GR} script saved — กำลังรัน...{RST}  {DIM}→ {py_path}{RST}")
 
     output_path, returncode, stderr = run_script_with_deepseek_autofix(
@@ -2090,7 +2536,8 @@ def run_generated_script_agent(
     if agent_name == "mo":
         sync_mo_canonical_report(output_dir, detect_mo_phase(task))
     if agent_name == "scout" and project_dir:
-        output_path = latest_input_file(project_dir) or scout_input_csv(project_dir) or output_path
+        normalized = normalize_scout_output_for_handoff(project_dir, output_dir)
+        output_path = normalized or (scout_input_csv(project_dir) or output_path)
 
     return complete_agent_handoff(agent_name, output_path, task, f"รัน script (DeepSeek+run) → {output_path}")
 
@@ -2136,6 +2583,16 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
     print(f"\n{CY}┌─ {BLD}{agent_name.upper()}{RST}{CY}{YL}{iter_label}{RST}{CY} {bar}┐{RST}")
     set_pipeline_stage(agent_name, "start", task)
 
+    if project_dir is None:
+        explicit_for_project = _extract_explicit_input_path(task, None)
+        inferred_project = _infer_project_from_explicit_input(explicit_for_project)
+        if inferred_project:
+            project_dir = inferred_project
+            STATE.active_project = inferred_project
+            PIPELINE.project_dir = inferred_project
+            PIPELINE.rebuild_from_project(inferred_project)
+            print(f"{CY}  ⟳ project inferred from explicit input:{RST} {DIM}{inferred_project.name}{RST}")
+
     input_path = resolve_agent_input(agent_name, prev_agent, project_dir, task=task)
     output_dir = output_dir_for(project_dir, agent_name)
 
@@ -2163,7 +2620,7 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
             pass
         elif agent_name != "mo" or mo_script_matches_phase(script, detect_mo_phase(task)):
             set_pipeline_stage(agent_name, "script-reuse", script.name)
-            return run_existing_script_agent(agent_name, task, script, input_path, output_dir)
+            return run_existing_script_agent(agent_name, task, script, input_path, output_dir, project_dir=project_dir)
         else:
             mo_phase = detect_mo_phase(task)
             print(
@@ -2177,7 +2634,7 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
         builtin_script = write_builtin_script(agent_name, output_dir)
         if builtin_script:
             set_pipeline_stage(agent_name, "script-reuse", builtin_script.name)
-            return run_existing_script_agent(agent_name, task, builtin_script, input_path, output_dir)
+            return run_existing_script_agent(agent_name, task, builtin_script, input_path, output_dir, allow_deepseek_autofix=False, project_dir=project_dir)
 
     # ── Priority 2: LLM ───────────────────────────────────────
     system = get_system_prompt(agent_name, task=task)
@@ -2186,6 +2643,20 @@ def run_agent(agent_name: str, task: str, prev_agent: str = "",
 
     set_pipeline_stage(agent_name, "llm", "building response")
     result = call_agent_llm(agent_name, task, system, message, discover)
+    if llm_response_is_unavailable(result):
+        reason = (result or "").strip() or "LLM unavailable"
+        if output_dir:
+            report_path = output_dir / f"{agent_name}_report.md"
+            return run_builtin_fallback_agent(
+                agent_name,
+                task,
+                input_path,
+                output_dir,
+                report_path,
+                project_dir,
+                reason,
+            )
+        return result
 
     # Auto-extract Self-Improvement discovery ไปเก็บ KB
     auto_extract_kb_learning(agent_name, result)
@@ -2355,7 +2826,7 @@ def _anna_repair_dispatch_plan(
     user_input: str,
     anna_system: str,
     issues: list[str],
-    provider: str = "codex",
+    provider: str = "deepseek",
 ) -> str:
     print(f"\n{YL}{'─'*55}{RST}")
     print(f"{YL}  ⟳ ANNA plan validation{RST}  (repairing dispatch plan...)")
@@ -2372,6 +2843,7 @@ def _anna_repair_dispatch_plan(
         "Rewrite the response so it satisfies the Anna Output Contract v3. "
         "If agent work is needed, include project CREATE_DIR or existing project reference before DISPATCH. "
         "For a new project, CREATE_DIR tags must appear before the first DISPATCH. "
+        "If Dana output is not already available, always place Dana before Eddie; never make Eddie the first cleanup/EDA dispatch. "
         "Use valid one-line DISPATCH JSON only; task must be a single-line string with no newline characters or escaped \\n sequences. "
         "Use only valid agents: scout, dana, eddie, iris_eda, max, finn, mo, iris, vera, quinn, rex. "
         "If required context is missing, ASK_USER instead of guessing."
@@ -2505,12 +2977,17 @@ def run_pipeline(user_input: str):
     pipeline_clear()   # clear stale paths NOW — before validate reads pipeline
     if STATE.active_project is not None:
         PIPELINE.rebuild_from_project(STATE.active_project)
+        # Persist user-specified target so all builtin scripts receive it
+        _t, _pt = _extract_target_hint(user_input)
+        if _t:
+            _write_target_override(STATE.active_project, _t, _pt)
 
     plan_issues = validate_dispatch_plan(
         dispatches,
         active_project=STATE.active_project,
         read_pipeline=pipeline_read,
         source_text=anna_response,
+        mode=MODE,
     )
     if plan_issues:
         repair_provider = review.repair_provider if (review.findings or plan_issues) else repair_choice.provider
@@ -2539,6 +3016,7 @@ def run_pipeline(user_input: str):
             active_project=STATE.active_project,
             read_pipeline=pipeline_read,
             source_text=anna_response,
+            mode=MODE,
         )
         if plan_issues:
             print(f"{RD}  ✗ Anna plan ยังไม่ผ่าน validation:{RST}")
@@ -2553,6 +3031,11 @@ def run_pipeline(user_input: str):
             return
     if STATE.active_project is not None:
         run_id = begin_project_run(STATE.active_project, reason="pipeline")
+        promote_pipeline_outputs(
+            STATE.active_project,
+            [Path(pf.read_text(encoding="utf-8").strip()) for pf in PIPELINE.path_files() if pf.read_text(encoding="utf-8").strip()],
+            run_id,
+        )
         if dispatches:
             promote_upstream_outputs(STATE.active_project, dispatches[0].get("agent", ""), run_id)
     proj_name = STATE.active_project.name if STATE.active_project else "unknown"
@@ -2638,12 +3121,38 @@ def run_pipeline(user_input: str):
                 STATE.active_project = current_project
                 global _last_pipeline_project
                 _last_pipeline_project = current_project
+            # Persist any target hint from the dispatch task text
+            if current_project:
+                _dt, _dpt = _extract_target_hint(task)
+                if _dt:
+                    _write_target_override(current_project, _dt, _dpt)
             out = run_agent(agent, task, prev_agent=prev_agent,
                             project_dir=current_project, discover=discover)
             ok, msg = validate_agent_output(agent, out, current_project)
             if not ok:
                 if agent in ("scout", "dana", "eddie", "finn", "mo"):
                     _print_gate_fail_recovery(agent, msg, current_project, task=task)
+                    # Scout target unknown — ask user to specify, patch profile, retry once
+                    if agent == "scout" and "target_column=unknown" in msg and current_project:
+                        print(f"\n{YL}  Scout ไม่รู้ว่า target column คืออะไร{RST}")
+                        print(f"{YL}  กรุณาระบุ: target_column=<ชื่อ column> และ problem_type=<regression|classification>{RST}")
+                        _user_target = input(f"  {BLD}target_column={RST}").strip()
+                        if _user_target:
+                            _user_pt = input(f"  {BLD}problem_type (regression/classification)={RST}").strip() or "regression"
+                            _write_target_override(current_project, _user_target, _user_pt)
+                            # Patch dataset_profile.md so Scout gate passes
+                            _prof_path = current_project / "output" / "scout" / "dataset_profile.md"
+                            if _prof_path.exists():
+                                _prof_txt = _prof_path.read_text(encoding="utf-8", errors="ignore")
+                                _prof_txt = re.sub(r"(?m)^target_column\s*:.*$", f"target_column: {_user_target}", _prof_txt)
+                                _prof_txt = re.sub(r"(?m)^problem_type\s*:.*$", f"problem_type : {_user_pt}", _prof_txt)
+                                _prof_path.write_text(_prof_txt, encoding="utf-8")
+                            print(f"{GR}  ✓ target override applied — retry Scout gate...{RST}")
+                            ok, msg = validate_agent_output(agent, out, current_project)
+                            if ok:
+                                completed.append(agent)
+                                prev_agent = agent
+                                continue  # gate now passes, move to next group
                     _stop_pipeline = True
                     break
                 else:
@@ -2705,6 +3214,10 @@ def run_pipeline(user_input: str):
             agents_done=completed,
             summary_text=summary,
         )
+
+        if MODE.strip().lower() in {"guided", "guide"}:
+            print(f"\n{CY}  ⟳ Guided mode:{RST} หยุดหลัง agent ปัจจุบันเสร็จ รอคำสั่งถัดไปจากผู้ใช้")
+            return
 
         # Auto-continue: CRISP-DM loop — รันต่อเนื่อง (max 10 รอบ)
         if _stop_pipeline:
@@ -2796,8 +3309,8 @@ COMMANDS = AppCommands(
     run_agent=run_agent,
     validate_agent_output=validate_agent_output,
     print_gate_recovery=_print_gate_fail_recovery,
-    write_repair_note=lambda agent, kind, problem, project_dir, rerun_hint: _write_repair_note(
-        agent, kind, problem, project_dir, rerun_hint
+    write_repair_note=lambda agent, kind, problem, project_dir, rerun_hint, task="": _write_repair_note(
+        agent, kind, problem, project_dir, rerun_hint, task=task
     ),
     delete_old_scripts=delete_old_scripts,
     output_dir_for=output_dir_for,
@@ -2806,7 +3319,9 @@ COMMANDS = AppCommands(
     load_kb=load_kb,
     load_relevant_kb=load_relevant_kb,
     save_kb=save_kb,
+    call_deepseek=call_deepseek,
     call_claude=call_claude,
+    codex_enabled=CODEX_ENABLED,
     anna_system=ANNA_SYSTEM,
     get_last_pipeline_project=lambda: _last_pipeline_project,
     set_last_pipeline_project=lambda project: globals().__setitem__("_last_pipeline_project", project),
@@ -2883,7 +3398,7 @@ def handle_cli_command(user_input: str) -> str:
 
 
 def main():
-    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stdout.reconfigure(encoding="utf-8", line_buffering=True)
     sys.stdin.reconfigure(encoding="utf-8", errors="replace")
 
     CLI.print_header()

@@ -1,0 +1,21 @@
+{
+  "targets": {
+    "unknown": {
+      "exclude_features": [
+        "Customer ID",
+        "Customer_ID"
+      ],
+      "feature_columns": [
+        "recency_days",
+        "frequency",
+        "monetary",
+        "row_count",
+        "avg_revenue",
+        "return_rate",
+        "outlier_rate"
+      ],
+      "problem_type": "clustering"
+    }
+  },
+  "notes": "Builtin Finn manifest for Mo handoff."
+}

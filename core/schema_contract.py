@@ -10,18 +10,15 @@ HANDOFF_SCHEMAS: dict[tuple[str, str], dict[str, Any]] = {
         "min_rows": 100,
     },
     ("dana", "eddie"): {
-        "required": ["Invoice", "StockCode", "Quantity", "Price", "Customer ID", "InvoiceDate", "Country", "is_outlier"],
-        "alternatives": {
-            "Customer ID": ["Customer ID", "Customer_ID", "customer_id", "firm_id", "survey_id", "entity_id", "respondent_id"],
-        },
+        # Eddie is an exploratory bridge stage, so the contract should not
+        # hardcode a specific downstream domain schema. The guard only needs
+        # to ensure Dana produced a substantive cleaned table.
+        "required": [],
         "min_rows": 100,
     },
     ("eddie", "finn"): {
-        "required": ["Customer ID", "StockCode", "Quantity", "Price", "InvoiceDate", "revenue", "is_return"],
-        "alternatives": {
-            "Invoice": ["Invoice", "InvoiceNo", "survey_id"],
-            "Customer ID": ["Customer ID", "Customer_ID", "customer_id", "firm_id", "survey_id", "entity_id", "respondent_id"],
-        },
+        # Finn can build customer-level features from generic row-level tables.
+        "required": [],
         "min_rows": 100,
     },
     ("eddie", "iris_eda"): {
@@ -29,15 +26,19 @@ HANDOFF_SCHEMAS: dict[tuple[str, str], dict[str, Any]] = {
         "min_rows": 20,
     },
     ("finn", "mo"): {
-        "required": ["Customer ID", "recency_days", "frequency", "monetary"],
-        "alternatives": {"Customer ID": ["Customer ID", "Customer_ID", "customer_id"]},
+        # Finn output is project-specific. For retail datasets it may be RFM;
+        # for generic supervised datasets it should be a row-level feature table
+        # with the Scout-owned target still present. Validate that shape via the
+        # manifest/target checks below instead of hardcoding customer columns.
+        "required": [],
+        "alternatives": {},
         "manifest_required": "finn_feature_manifest.json",
         "manifest_keys": ["targets"],
         "min_rows": 50,
     },
     ("finn", "iris"): {
-        "required": ["Customer ID", "recency_days", "frequency", "monetary"],
-        "alternatives": {"Customer ID": ["Customer ID", "Customer_ID", "customer_id"]},
+        "required": [],
+        "alternatives": {},
         "min_rows": 50,
     },
     ("eddie", "max"): {
@@ -51,12 +52,22 @@ HANDOFF_SCHEMAS: dict[tuple[str, str], dict[str, Any]] = {
 def _is_generic_survey_table(df) -> bool:
     columns = {str(col).strip().lower().replace(" ", "_") for col in df.columns}
     survey_markers = {
+        "country",
+        "country_name",
+        "country_code",
+        "dataset",
+        "metric",
+        "value",
+        "source",
+        "source_year",
+        "source_type",
+        "source_category",
+        "source_file",
+        "iso3",
         "survey_id",
         "firm_id",
         "entity_id",
         "respondent_id",
-        "country_code",
-        "country_name",
         "survey_year",
         "province_code",
         "province_name",
@@ -118,6 +129,32 @@ def validate_handoff(
     if generic_survey_mode and key in {("dana", "eddie"), ("eddie", "finn")}:
         required = []
         alternatives_map = {}
+    if key in {("finn", "mo"), ("finn", "iris")} and project_dir:
+        import json as _json
+        target = ""
+        problem_type = ""
+        # target_override.json wins over Scout's dataset_profile.md
+        override_path = Path(project_dir) / "target_override.json"
+        if override_path.exists():
+            try:
+                _ov = _json.loads(override_path.read_text(encoding="utf-8"))
+                _t = str(_ov.get("target_column", "")).strip()
+                if _t and _t.lower() not in {"unknown", ""}:
+                    target = _t
+                problem_type = str(_ov.get("problem_type", "")).strip().lower()
+            except Exception:
+                pass
+        if not target:
+            profile_path = Path(project_dir) / "output" / "scout" / "dataset_profile.md"
+            if profile_path.exists():
+                text = profile_path.read_text(encoding="utf-8", errors="ignore")
+                for line in text.splitlines():
+                    if line.lower().startswith("target_column"):
+                        target = line.split(":", 1)[1].strip() if ":" in line else ""
+                    elif line.lower().startswith("problem_type"):
+                        problem_type = line.split(":", 1)[1].strip().lower() if ":" in line else ""
+        if problem_type in {"classification", "regression"} and target and target.lower() != "unknown":
+            required = list(dict.fromkeys([*required, target]))
     missing = []
     for col in required:
         if col in df.columns:

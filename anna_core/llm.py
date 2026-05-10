@@ -35,6 +35,7 @@ class LLMClient:
         deepseek_model: str,
         codex_model: str | None = None,
         codex_limit: int | None = None,
+        codex_enabled: bool = False,
         claude_model: str | None = None,
         claude_limit: int | None = None,
         palette: TerminalPalette,
@@ -44,6 +45,7 @@ class LLMClient:
         self.deepseek_model = deepseek_model
         self.codex_model = codex_model or claude_model or "gpt-5.5"
         self.codex_limit = codex_limit if codex_limit is not None else (claude_limit if claude_limit is not None else 10)
+        self.codex_enabled = codex_enabled
         self.claude_model = claude_model or self.codex_model
         self.claude_limit = claude_limit if claude_limit is not None else self.codex_limit
         self.palette = palette
@@ -131,11 +133,17 @@ class LLMClient:
                 break
             try:
                 token = json.loads(text)["choices"][0]["delta"].get("content", "")
-                print(token, end="", flush=True)
+                try:
+                    print(token, end="", flush=True)
+                except OSError:
+                    pass
                 full.append(token)
             except (json.JSONDecodeError, KeyError):
                 pass
-        print()
+        try:
+            print()
+        except OSError:
+            pass
         return "".join(full)
 
     def _codex_launcher(self) -> str | None:
@@ -154,6 +162,9 @@ class LLMClient:
     def call_codex(self, system_prompt: str, user_message: str, label: str = "") -> str:
         """Try Codex CLI first, then fall back to DeepSeek when unavailable."""
         p = self.palette
+        if not self.codex_enabled:
+            print(f"\n{p.yellow}  [WARN] Codex disabled -> use DeepSeek instead{p.reset}")
+            return self.call_deepseek(system_prompt, user_message, label=f"{label} (via DeepSeek)")
         if self.state.codex_calls >= self.codex_limit:
             print(
                 f"\n{p.yellow}  [WARN] Codex limit reached {self.state.codex_calls}/{self.codex_limit} calls "

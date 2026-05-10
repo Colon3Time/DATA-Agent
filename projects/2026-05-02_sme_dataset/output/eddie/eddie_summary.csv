@@ -1,0 +1,16 @@
+column,dtype,missing_pct,n_unique
+PROVINCE,str,0.0,77
+REGION,str,0.0,7
+SECTOR,str,0.0,6
+TSIC-2_dg,int64,0.0,6
+TSIC-2dg_details,str,0.0,6
+TSIC-5dg,int64,0.0,12
+TSIC-5dg_details,str,0.0,18
+BUSINESS_SIZE,str,0.0,3
+NUMBER_of_MSME,int64,0.0,489
+DATA_SOURCE,str,0.0,1
+YEAR,int64,0.0,6
+is_return,int64,0.0,1
+is_cancellation,int64,0.0,1
+is_outlier,int64,0.0,1
+revenue,float64,0.0,1

@@ -1,0 +1,16 @@
+column,dtype,missing_pct,n_unique,sample_value,role_hint,coverage,share
+NUMBER_of_MSME,int64,0.0,489,908,feature,100.0,100.0
+PROVINCE,str,0.0,77,Bangkok,feature,100.0,100.0
+TSIC-5dg_details,str,0.0,18,Agriculture and food processing - micro establishments,feature,100.0,100.0
+TSIC-5dg,int64,0.0,12,1055,feature,100.0,100.0
+REGION,str,0.0,7,Bangkok Metropolitan,feature,100.0,100.0
+SECTOR,str,0.0,6,A,feature,100.0,100.0
+TSIC-2_dg,int64,0.0,6,10,feature,100.0,100.0
+TSIC-2dg_details,str,0.0,6,Agriculture and food processing,feature,100.0,100.0
+YEAR,int64,0.0,6,2018,time,100.0,100.0
+BUSINESS_SIZE,str,0.0,3,Micro,feature,100.0,100.0
+DATA_SOURCE,str,0.0,1,SYNTHETIC SAMPLE - generated from Scout metadata,feature,100.0,100.0
+is_return,int64,0.0,1,0,feature,100.0,100.0
+is_cancellation,int64,0.0,1,0,feature,100.0,100.0
+is_outlier,int64,0.0,1,0,feature,100.0,100.0
+revenue,float64,0.0,1,0.0,numeric-driver,100.0,100.0

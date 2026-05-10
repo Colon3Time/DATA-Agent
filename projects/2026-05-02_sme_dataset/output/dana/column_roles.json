@@ -1,0 +1,44 @@
+{
+  "target_column": null,
+  "roles": {
+    "PROVINCE": "categorical",
+    "REGION": "categorical",
+    "SECTOR": "categorical",
+    "TSIC-2_dg": "numeric",
+    "TSIC-2dg_details": "categorical",
+    "TSIC-5dg": "numeric",
+    "TSIC-5dg_details": "categorical",
+    "BUSINESS_SIZE": "categorical",
+    "NUMBER_of_MSME": "numeric",
+    "DATA_SOURCE": "categorical",
+    "YEAR": "date"
+  },
+  "role_summary": {
+    "id": [],
+    "date": [
+      "YEAR"
+    ],
+    "label": [],
+    "numeric": [
+      "TSIC-2_dg",
+      "TSIC-5dg",
+      "NUMBER_of_MSME"
+    ],
+    "categorical": [
+      "PROVINCE",
+      "REGION",
+      "SECTOR",
+      "TSIC-2dg_details",
+      "TSIC-5dg_details",
+      "BUSINESS_SIZE",
+      "DATA_SOURCE"
+    ]
+  },
+  "notes": {
+    "id": "Columns used as identifiers or keys; downstream should not treat them as numeric features.",
+    "date": "Datetime or date-like columns; keep for time-aware analysis and splitting.",
+    "label": "Supervised target column if detected.",
+    "numeric": "Safe candidate features for numeric analysis after cleaning.",
+    "categorical": "Non-numeric feature columns."
+  }
+}

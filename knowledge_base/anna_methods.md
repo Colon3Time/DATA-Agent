@@ -1,96 +1,9 @@
-## [PROVEN] World-Class Analytics Default
-
-Keywords: world-class, world class, production-ready, production readiness, executive-ready, business rigor, analytical rigor, PR-AUC, positive-class metrics, expected value, cost-benefit, threshold economics, calibration, Brier score, time-based split, out-of-time validation, OOT, leakage, monitoring, retraining, reproducibility.
-
-Every agent must treat world-class analytics as the default standard, even when the user does not explicitly say "world-class".
-
-Role responsibilities:
-- Scout: prove the dataset is credible, licensed, relevant, recent enough, documented, and fit for the target decision.
-- Dana: preserve raw meaning, document cleaning decisions, protect target integrity, and report data quality before/after.
-- Eddie: frame EDA around business question, KPI, decision owner, effect size, causality limits, and validation risk.
-- Finn: enforce feature lineage, prediction-time availability, leakage prevention, train-only transforms, and OOT support.
-- Mo: report imbalance-aware metrics, PR-AUC, positive-class metrics, threshold economics, calibration, OOT/time validation, and dependency benchmarks.
-- Max: validate patterns with support/confidence/lift/stability/sample size and caveat exploratory findings.
-- Iris: turn evidence into decision-ready business actions with KPI, owner, assumptions, risks, validation plan, and confidence.
-- Vera: make visuals traceable, non-misleading, accessible, sourced, caveated, and decision-oriented.
-- Quinn: gate the whole cycle for leakage, overfitting, drift, calibration, business satisfaction, and production readiness.
-- Rex: separate executive-ready prototype from production-ready status and never state ROI without assumptions.
-
-Required block names that should be preserved in reports when relevant:
-DATASET_RISK_REGISTER, DATA_QUALITY_AUDIT, BUSINESS_EDA_FRAME, FEATURE_GOVERNANCE, PRODUCTION_READINESS, PATTERN_VALIDITY, BUSINESS_DECISION_BRIEF, VISUAL_QC, WORLD_CLASS_QC.
-
-
-# Anna Codex Routing
-
-## [PROVEN] World-Class Analytics Default
-
-Keywords: world-class, world class, production-ready, production readiness, executive-ready, business rigor, analytical rigor, PR-AUC, positive-class metrics, expected value, cost-benefit, threshold economics, calibration, Brier score, time-based split, out-of-time validation, OOT, leakage, monitoring, retraining, reproducibility.
-
-Every agent must treat world-class analytics as the default standard, even when the user does not explicitly say "world-class".
-
-Role responsibilities:
-- Scout: prove the dataset is credible, licensed, relevant, recent enough, documented, and fit for the target decision.
-- Dana: preserve raw meaning, document cleaning decisions, protect target integrity, and report data quality before/after.
-- Eddie: frame EDA around business question, KPI, decision owner, effect size, causality limits, and validation risk.
-- Finn: enforce feature lineage, prediction-time availability, leakage prevention, train-only transforms, and OOT support.
-- Mo: report imbalance-aware metrics, PR-AUC, positive-class metrics, threshold economics, calibration, OOT/time validation, and dependency benchmarks.
-- Max: validate patterns with support/confidence/lift/stability/sample size and caveat exploratory findings.
-- Iris: turn evidence into decision-ready business actions with KPI, owner, assumptions, risks, validation plan, and confidence.
-- Vera: make visuals traceable, non-misleading, accessible, sourced, caveated, and decision-oriented.
-- Quinn: gate the whole cycle for leakage, overfitting, drift, calibration, business satisfaction, and production readiness.
-- Rex: separate executive-ready prototype from production-ready status and never state ROI without assumptions.
-
-Required block names that should be preserved in reports when relevant:
-DATASET_RISK_REGISTER, DATA_QUALITY_AUDIT, BUSINESS_EDA_FRAME, FEATURE_GOVERNANCE, PRODUCTION_READINESS, PATTERN_VALIDITY, BUSINESS_DECISION_BRIEF, VISUAL_QC, WORLD_CLASS_QC.
-
-
-# Anna Codex Routing
-
-## [PROVEN] World-Class Analytics Default
-
-Keywords: world-class, world class, production-ready, production readiness, executive-ready, business rigor, analytical rigor, PR-AUC, positive-class metrics, expected value, cost-benefit, threshold economics, calibration, Brier score, time-based split, out-of-time validation, OOT, leakage, monitoring, retraining, reproducibility.
-
-Every agent must treat world-class analytics as the default standard, even when the user does not explicitly say "world-class".
-
-Role responsibilities:
-- Scout: prove the dataset is credible, licensed, relevant, recent enough, documented, and fit for the target decision.
-- Dana: preserve raw meaning, document cleaning decisions, protect target integrity, and report data quality before/after.
-- Eddie: frame EDA around business question, KPI, decision owner, effect size, causality limits, and validation risk.
-- Finn: enforce feature lineage, prediction-time availability, leakage prevention, train-only transforms, and OOT support.
-- Mo: report imbalance-aware metrics, PR-AUC, positive-class metrics, threshold economics, calibration, OOT/time validation, and dependency benchmarks.
-- Max: validate patterns with support/confidence/lift/stability/sample size and caveat exploratory findings.
-- Iris: turn evidence into decision-ready business actions with KPI, owner, assumptions, risks, validation plan, and confidence.
-- Vera: make visuals traceable, non-misleading, accessible, sourced, caveated, and decision-oriented.
-- Quinn: gate the whole cycle for leakage, overfitting, drift, calibration, business satisfaction, and production readiness.
-- Rex: separate executive-ready prototype from production-ready status and never state ROI without assumptions.
-
-Required block names that should be preserved in reports when relevant:
-DATASET_RISK_REGISTER, DATA_QUALITY_AUDIT, BUSINESS_EDA_FRAME, FEATURE_GOVERNANCE, PRODUCTION_READINESS, PATTERN_VALIDITY, BUSINESS_DECISION_BRIEF, VISUAL_QC, WORLD_CLASS_QC.
-
-
-# Anna Codex Routing
-
-## [PROVEN] World-Class Analytics Default
-
-Keywords: world-class, world class, production-ready, production readiness, executive-ready, business rigor, analytical rigor, PR-AUC, positive-class metrics, expected value, cost-benefit, threshold economics, calibration, Brier score, time-based split, out-of-time validation, OOT, leakage, monitoring, retraining, reproducibility.
-
-Every agent must treat world-class analytics as the default standard, even when the user does not explicitly say "world-class".
-
-Role responsibilities:
-- Scout: prove the dataset is credible, licensed, relevant, recent enough, documented, and fit for the target decision.
-- Dana: preserve raw meaning, document cleaning decisions, protect target integrity, and report data quality before/after.
-- Eddie: frame EDA around business question, KPI, decision owner, effect size, causality limits, and validation risk.
-- Finn: enforce feature lineage, prediction-time availability, leakage prevention, train-only transforms, and OOT support.
-- Mo: report imbalance-aware metrics, PR-AUC, positive-class metrics, threshold economics, calibration, OOT/time validation, and dependency benchmarks.
-- Max: validate patterns with support/confidence/lift/stability/sample size and caveat exploratory findings.
-- Iris: turn evidence into decision-ready business actions with KPI, owner, assumptions, risks, validation plan, and confidence.
-- Vera: make visuals traceable, non-misleading, accessible, sourced, caveated, and decision-oriented.
-- Quinn: gate the whole cycle for leakage, overfitting, drift, calibration, business satisfaction, and production readiness.
-- Rex: separate executive-ready prototype from production-ready status and never state ROI without assumptions.
-
-Required block names that should be preserved in reports when relevant:
-DATASET_RISK_REGISTER, DATA_QUALITY_AUDIT, BUSINESS_EDA_FRAME, FEATURE_GOVERNANCE, PRODUCTION_READINESS, PATTERN_VALIDITY, BUSINESS_DECISION_BRIEF, VISUAL_QC, WORLD_CLASS_QC.
-
+## Decision Quality Gate (mandatory)
+ใช้กฎกลางจาก `knowledge_base/shared_methods.md` ก่อนทุก decision สำคัญ
+- ตรวจหลักฐานจากไฟล์จริงและ output ล่าสุดก่อนเลือกวิธี
+- เทียบอย่างน้อย 2 ทางเลือก หรืออธิบายว่าทำไมมีทางเดียว
+- บันทึก `DECISION_CHECK` พร้อม Evidence, Risk Check, Confidence และ Verdict
+- ถ้าหลักฐานไม่พอหรือ confidence ต่ำ ให้หยุดด้วย `STOP_AND_REPAIR`, `LOOP_BACK`, หรือ `ASK_USER`
 
 # Anna Codex Routing
 
@@ -104,7 +17,6 @@ DATASET_RISK_REGISTER, DATA_QUALITY_AUDIT, BUSINESS_EDA_FRAME, FEATURE_GOVERNANC
 - ถ้าจำเป็นต้องอ้างอิงผลลัพธ์จากเครื่องมือ ให้ใช้ output/log/current files เป็นแหล่งความจริง
 - ถ้า DeepSeek ล้มเหลวแต่ผู้ใช้สั่งให้ Codex แก้ ให้ continue ด้วย workspace edits และอย่าหยุดที่ error ของ LLM
 - ถ้าต้องการให้ข้อความจาก Codex แสดงเป็นกล่องชัด ๆ ให้ใช้ `<ASK_CODEX>ข้อความ</ASK_CODEX>`
-
 
 # Anna Methods & Knowledge Base
 
@@ -249,6 +161,7 @@ Mo Phase 2 Tune — ถ้า Loop Back To Finn = NO และ DL_ESCALATE = NO 
 
 ## [2026-04-27 05:15] 2026-04-27_breast_cancer
 Agents: dana
+
 # ✅ Dana ทำงานเสร็จสมบูรณ์  ## สรุปผล Cleaning (Breast Cancer Dataset)  | รายการ | ก่อน | หลัง | |--------|------|------| | Rows | 569 | 569 | | Columns | 31 | 32 (เพิ่ม `is_outlier`) | | Missing Values | None | None |  ### Outlier Detection - **Method**: Isolation Forest (contamination=0.05) + IQR (1.5x) - **Likely Error (แก้ไขแล้ว)**: **ไม่มี** — ข้อมูลสุขภาพนี้ไม่มีค่าเป็น 0 ที่ผิดปกติ - **Like
 
 ## [2026-04-27 05:17] 2026-04-27_breast_cancer
@@ -257,10 +170,12 @@ Agents: finn
 
 ## [2026-04-27 05:20] 2026-04-27_breast_cancer
 Agents: quinn
+
 # ✅ CRISP-DM Cycle เสร็จสมบูรณ์ — Breast Cancer Classification  ---  ## สรุปผลลัพธ์รอบนี้  ### Pipeline ที่ทำ ``` Scout → Dana → Finn → Mo (Phase 1) → Mo (Phase 2) → Quinn ✓ ```  ### Model สุดท้าย | รายการ | ค่า | |--------|-----| | **Algorithm** | LightGBM (Tuned) | | **Accuracy** | **97.37%** | | **F1-Score** | **96.74%** | | **AUC-ROC** | **99.42%** | | **Imbalance** | 37% malignant, SMOTE hand
 
 ## [2026-04-27 05:26] 2026-04-27_breast_cancer
 Agents: iris, vera, rex
+
 # ✅ CRISP-DM Cycle เสร็จสมบูรณ์ — Breast Cancer Classification  ---  ## สรุปผลลัพธ์ให้ผู้ใช้  ### 🎯 สิ่งที่ทีมทำครบแล้ว  ``` Scout → Dana → Finn → Mo (Phase 1) → Mo (Phase 2) → Quinn → Iris → Vera → Rex ✅ ```  **ทั้ง 9 ขั้นตอนของ CRISP-DM ครบสมบูรณ์**  ---  ### 📊 สรุปประสิทธิภาพ Model  | Metric | ค่า | ระดับ | |--------|-----|-------| | **Accuracy** | **97.37%** | 🟢 | | **F1-Score** | **96.74%** |
 
 ## [2026-04-27 05:49] unknown
@@ -281,6 +196,7 @@ Agents: dana
 
 ## [2026-04-27 15:14] 2026-04-27_Penguin Sizes Dataset
 Agents: eddie
+
 # Eddie ทำงานเสร็จแล้ว! 🎉  มาเช็คผลลัพธ์กันครับ  <READ_FILE path="D:\DATA-ScinceOS\projects\2026-04-27_Penguin Sizes Dataset\output\eddie\eddie_report.md"/>  พอดีไฟล์ report อาจจะยังเขียนไม่เสร็จสมบูรณ์ — ขอเช็ค output ที่ Eddie ผลิตมา:  <RUN_SHELL>dir "D:\DATA-ScinceOS\projects\2026-04-27_Penguin Sizes Dataset\output\eddie" /B</RUN_SHELL>  <READ_FILE path="D:\DATA-ScinceOS\projects\2026-04-27_Pen
 
 ## [2026-04-27 15:35] Test Dataset
@@ -297,42 +213,52 @@ Agents: scout
 
 ## [2026-04-27 16:23] Test Dataset
 Agents: eddie
+
 # ❌ Eddie ทำงานไม่สำเร็จ — Data มีปัญหาหนักมาก!  ## ปัญหาที่พบจาก Eddie Report  | รายการ | ผลลัพธ์ | ปัญหา | |--------|---------|-------| | **Mutual Information** | Feature ทุกตัว **MI ≈ 0.00** | ข้อมูล **ไม่มีสัญญาณสัมพันธ์กับ target** เลย | | **Clustering** | Silhouette score **-1.00** | แย่ที่สุดที่วัดได้ — จุดข้อมูลกระจัดกระจายแบบสุ่ม | | **Domain Impossible Values** | None detected | ไม่มีข้อ
 
 ## [2026-04-27 16:31] Test Dataset
 Agents: eddie
+
 # ✅ Eddie ทำงานเสร็จสมบูรณ์ — รอบที่ 2  ## สรุปผล Insight (ภาษาไทย)  ### 📊 ภาพรวม Dataset (รอบนี้) | รายการ | ค่า | |--------|-----| | **จำนวนข้อมูล** | 10,000 rows, 17 columns | | **Target** | `transport_trips` (จำนวนเที่ยวขนส่ง) | | **ประเภทปัญหา** | Classification | | **Silhouette Score** | -1.000 (no meaningful clusters) |  ---  ### 🔍 Feature สำคัญที่ค้นพบ (Top 5)  | อันดับ | Feature | MI Scor
 
 ## [2026-04-27 22:01] 2026-04-27_Penguin Sizes Dataset
 Agents: dana
+
 # ✅ Dana ทำงานเสร็จสมบูรณ์ — Penguin Sizes Dataset  ## สรุปผล Cleaning  | รายการ | ก่อน | หลัง | |--------|------|------| | Rows | 344 | 344 | | Columns | 6 | 8 (เพิ่ม `is_outlier` + `sex_imputed`) |  ### Missing Values | Column | % Missing | วิธีจัดการ | |--------|-----------|-----------| | `culmen_length_mm` | 2 rows (0.6%) | KNNImputer | | `culmen_depth_mm` | 2 rows (0.6%) | KNNImputer | | `fli
 
 ## [2026-04-27 22:19] 2026-04-27_Penguin Sizes Dataset
 Agents: finn
+
 # ✅ Finn ทำงานเสร็จสมบูรณ์!  มาดูรายงานของ Finn ก่อน dispatch Mo ครับ  <READ_FILE path="C:\Users\Amorntep\DATA-Agent\projects\2026-04-27_Penguin Sizes Dataset\output\finn\finn_report.md"/>  ---  ## สรุปผล Finn (ภาษาไทย)  | รายการ | รายละเอียด | |--------|-----------| | **Input** | dana_output.csv (344 rows, 8 cols) | | **Features ที่สร้าง** | Ratio features + Interaction + Polynomial + Encoding |
 
 ## [2026-04-27 22:36] 2026-04-27_Penguin Sizes Dataset
 Agents: quinn
+
 # ⚠️ Quinn พบปัญหา CRITICAL — Data Leakage ที่รุนแรง!  ## สรุปผล Quinn QC  | รายการ | ผลลัพธ์ | |--------|---------| | **F1=1.0 ทุก model** | ⚠️ สงสัย Data Leakage **CRITICAL** | | **Train/Test Split** | ❌ **ไม่พบ**ใน Mo report — Perfect score น่าสงสัย | | **Business Satisfaction** | ❌ **2/4 ผ่าน** — model performance + technical soundness ไม่ผ่าน | | **RESTART_CYCLE** | **YES** → ต้อง restart จาก
 
 ## [2026-04-27 22:48] 2026-04-27_Penguin Sizes Dataset
 Agents: dana, finn, mo
+
 # 🔍 เช็คผล Mo ก่อนครับ — มี Data Leakage หรือไม่?  <READ_FILE path="C:\Users\Amorntep\DATA-Agent\projects\2026-04-27_Penguin Sizes Dataset\output\mo\mo_report.md"/>  ---  ## ⚠️ พบปัญหา Data Leakage อีกครั้ง!  จาก Mo report ที่อ่านได้บางส่วนพบว่า Mo **ยังคงใช้ข้อมูลที่ Leak** — ดูจาก:  ``` Rows: 18  ← มีแค่ 18 rows (น่าจะเป็น outlier_flags.csv ที่มีแค่ 18 แถว!) ```  **นั่นหมายถึง:** Finn หรือ Mo ใช
 
 ## [2026-04-27 23:01] 2026-04-27_Penguin Sizes Dataset
 Agents: quinn
+
 # ⚠️ Quinn ยังพบปัญหา — RESTART CYCLE  ## สรุปผล Quinn QC (รอบ 3)  | รายการ | ผลลัพธ์ | |--------|---------| | **Technical QC** | ❌ **0/11 ผ่าน** | | **Business Satisfaction** | ❌ **0/4 ผ่าน** | | **RESTART_CYCLE** | **YES** |  ### ปัญหาหลักที่ Quinn พบ 1. **Data Leakage ยังไม่หาย** — Finn รอบ 3 ไม่มี mention ถึงการลบ species columns 2. **Row count ลดลง 344 → 18** — Mo ใช้ไฟล์ผิดอีกครั้ง (outlier_
 
 ## [2026-04-28 01:03] Olist
 Agents: scout
+
 # ✅ Scout ทำงานเสร็จสมบูรณ์! — Olist Dataset  ## 📊 สรุปผล Scout (ภาษาไทย)  Scout ได้ทำการโหลดและวิเคราะห์ข้อมูลจาก `olist.sqlite` เรียบร้อยแล้วครับ!  ### ภาพรวม Dataset  | รายการ | ค่า | |--------|-----| | **ไฟล์ที่ Scout ระบุ** | `leads_closed.csv` (ดึงจาก SQLite) | | **จำนวนตารางใน DB** | 10+ ตาราง (customers, orders, products, sellers, payments, reviews ฯลฯ) | | **ข้อมูลที่ Scout เลือก** | ไฟล์
 
 ## [2026-04-28 01:49] Olist
 Agents: scout
+
 # ✅ Scout ทำงานเสร็จสมบูรณ์!  มาตรวจสอบผลลัพธ์กันครับ  <READ_FILE path="C:\Users\Amorntep\DATA-Agent\projects\Olist\output\scout\dataset_profile.md"/>  ---  ## 📊 สรุปผล Scout (ภาษาไทย)  ### ภาพรวม Dataset  Scout ได้วิเคราะห์ไฟล์ทั้งหมด 13 ไฟล์ และสร้าง **joined dataset** สำเร็จเรียบร้อยแล้ว!  | รายการ | ค่า | |--------|-----| | **ไฟล์หลัก** | `olist_joined_dataset.csv` | | **จำนวน Rows** | 8,111 r
 
 ## [2026-04-28 02:18] Olist
 Agents: scout
+
 # ✅ Scout ทำงานเสร็จสมบูรณ์! — Olist Dataset  ## 📊 สรุปผล Scout  Scout ได้วิเคราะห์และสร้าง **joined dataset** จาก `olist.sqlite` เรียบร้อยแล้วครับ!  ### ภาพรวม Dataset | รายการ | ค่า | |--------|-----| | **ไฟล์หลัก** | `olist_joined_dataset.csv` | | **จำนวน Rows** | 8,111 rows | | **จำนวน Columns** | ? (รออ่าน DATASET_PROFILE) | | **Target ที่แนะนำ** | `review_score` |  มาอ่าน DATASET_PROFILE กัน
 
 ## [2026-04-28 11:29] Olist
@@ -341,38 +267,47 @@ Agents: scout
 
 ## [2026-04-28 11:54] 2026-04-28_pulsecart_customer_behavior
 Agents: scout
+
 # ✅ Scout ทำงานเสร็จสมบูรณ์! — PulseCart Dataset  ## 📊 สรุปผล Data Understanding  | รายการ | รายละเอียด | |--------|-----------| | **ธุรกิจ** | **PulseCart** — บริการสมัครสมาชิกส่งของชำ (Grocery Delivery Subscription) | | **ไฟล์ข้อมูล** | `input/pulsecart_raw.csv` + `data_dictionary.md` | | **จำนวนข้อมูล** | ต้องตรวจสอบอีกครั้งจาก Profiling |  ---  ### 🔍 ภาพรวม Columns ที่ Scout พบ (20+ columns)
 
 ## [2026-04-28 12:06] 2026-04-28_pulsecart_customer_behavior
 Agents: scout
+
 # ✅ Scout ทำงานเสร็จสมบูรณ์ — PulseCart Dataset  เยี่ยมครับ! Scout ได้โปรไฟล์ข้อมูลครบถ้วนแล้ว — มาอ่าน **DATASET_PROFILE** ก่อนส่งต่อ pipeline ครับ:  <READ_FILE path="C:\Users\Amorntep\DATA-Agent\projects\2026-04-28_pulsecart_customer_behavior\output\scout\dataset_profile.md"/>  ## 📊 สรุปผล Scout (ภาษาไทย)  ### ภาพรวม Dataset — PulseCart Grocery Delivery Subscription  | รายการ | ค่า | |--------|-
 
 ## [2026-04-28 12:40] 2026-04-28_pulsecart_customer_behavior
 Agents: scout
+
 # ✅ Scout ทำงานเสร็จ — Pipeline เริ่มแล้ว!  ## 📊 สรุปผล Scout — PulseCart Customer Dataset  | รายการ | ค่า | |--------|-----| | **Dataset** | PulseCart Raw Customer Data | | **จำนวนข้อมูล** | 2,237 rows, 21 columns | | **Duplicates** | 33 rows (1.5%) | | **ธุรกิจ** | E-commerce Platform |  ### 🔍 Key Columns ที่น่าสนใจ - **Target ที่เป็นไปได้:** มีหลายตัวที่ควรให้ Eddie วิเคราะห์ว่าเหมาะเป็น target
 
 ## [2026-04-28 12:41] 2026-04-28_pulsecart_customer_behavior
 Agents: dana
+
 # ✅ Dana ทำงานเสร็จสมบูรณ์ — PulseCart Dataset  ## 📊 สรุปผล Cleaning (ภาษาไทย)  | รายการ | ก่อน | หลัง | |--------|------|------| | **Rows** | 2,237 | 2,237 | | **Columns** | 21 | 25 (เพิ่ม `is_outlier`) | | **Duplicates** | 33 | ถูกลบแล้ว |  ### 🧹 การจัดการ Missing Values  | คอลัมน์ | % Missing | วิธีจัดการ | |---------|-----------|-----------| | `age` | 3.5% (79 rows) | ✅ KNN Imputer | | `avg_or
 
 ## [2026-04-28 12:44] 2026-04-28_pulsecart_customer_behavior
 Agents: finn, vera
+
 # ✅ Finn + Vera ทำงานเสร็จสมบูรณ์!  ## 📊 สรุปผล Finn — Feature Engineering  | รายการ | ค่า | |--------|-----| | **Original Features** | 20 | | **Final Features** | **77** | | **Best Selection Method** | Mutual Information (Score 1.0) | | **Target Encoding** | ✅ customer_id + signup_date | | **Interaction Features** | ✅ สร้างครอบคลุมทุกมิติ | | **StandardScaler** | ✅ ใช้แล้ว | | **SMOTE** | ✅ จัดกา
 
 ## [2026-04-28 12:47] 2026-04-28_pulsecart_customer_behavior
 Agents: mo
+
 # ✅ Mo Phase 1 เสร็จสมบูรณ์ — มาเช็คผลกัน!  ## 📊 สรุปผล Mo Phase 1 — Explore  ### 🏆 Algorithm Comparison (Test F1)  | Algorithm | CV Score | Test F1 | Test AUC | Test Recall | |-----------|----------|---------|----------|-------------| | **XGBoost** 🥇 | **94.75%** | **92.76%** | 89.23% | **58.62%** | | Random Forest | 94.58% | 92.56% | 89.24% | 50.0% | | LightGBM | 94.58% | 91.72% | 88.49% | 53.45
 
 ## [2026-04-28 22:47] 2026-04-28_uci_bank_marketing_blind
 Agents: dana
+
 # ✅ Dana ทำงานเสร็จสมบูรณ์ — UCI Bank Marketing  ## 📊 สรุปผลการทำความสะอาดข้อมูล  | รายการ | ก่อน | หลัง | |--------|------|------| | **จำนวนแถว** | 41,188 | 41,188 | | **จำนวนคอลัมน์** | 21 | 22 (เพิ่ม `is_outlier`) | | **Missing values** | ไม่มี | ไม่มี ✅ |  ### 🔍 การจัดการที่ทำ 1. **Missing values** — ยืนยันว่าไม่มีแล้ว ✅ 2. **แปลงชนิดข้อมูล** — แยกตัวเลข/หมวดหมู่เรียบร้อย ✅ 3. **ตรวจสอบ cardin
 
 ## [2026-04-28 23:15] 2026-04-28_uci_bank_marketing_blind
 Agents: eddie
+
 # ✅ Eddie ทำงานเสร็จสมบูรณ์ — UCI Bank Marketing  ## 📊 สรุปผล EDA (ภาษาไทย)  ### ภาพรวมข้อมูล | รายการ | ค่า | |--------|-----| | **จำนวนข้อมูล** | 41,188 แถว, 22 คอลัมน์ | | **Target** | `y` (Binary Classification) | | **Imbalance** | 7.88:1 | | **ปัญหาคุณภาพข้อมูล** | ไม่มี |  ### 🔍 Top 5 Features ที่มีผลกับ Target มากที่สุด (Mutual Information)  | อันดับ | Feature | MI Score | คำอธิบาย | |-----
 
 ## [2026-04-28 23:56] 2026-04-28_uci_bank_marketing_blind
 Agents: mo
+
 # ตรวจสอบ Mo report — วิเคราะห์ตาม CRISP-DM  ## ✍️ วิเคราะห์ Mo Report  | รายการ | ค่า | การตัดสินใจ | |--------|-----|-------------| | **Winner** | LightGBM (F1=0.918, AUC=0.9542) | ✅ ไม่ใช่ KNN แล้ว | | **แยก Phase** | ไม่บอกชัดเจนว่าเป็น Phase 1 หรือ 2 หรือ 3 | ⚠️ ไม่แน่ใจ | | **Loop Back To Finn** | ไม่มีข้อมูล | ถ้าไม่บอก → ถือว่า NO |  เนื่องจาก Mo report บอกแค่ว่า "Winner is LightGBM — F1=0
 
 ## [2026-04-29 13:54] 2026-04-28_uci_bank_marketing_blind
@@ -421,6 +356,7 @@ Agents: dana
 
 ## [2026-04-30 00:20] 2026-04-28_uci_bank_marketing_blind
 Agents: vera
+
 # ✅ CRISP-DM Cycle เสร็จสมบูรณ์! 🎉  สวัสดีค่ะ ดิฉัน Anna ค่ะ!  **Pipeline ครบทุกขั้นตอนแล้วนะคะ!** การดำเนินการทั้งหมดเป็นไปตามนี้:  ``` Scout → Dana → Eddie → Finn → Mo (Phase 1-3) → Quinn → Iris → Vera ✅ ```  ---  ## 📊 สรุปผลงานของ Vera  Vera สร้างกราฟทั้งหมด **9 ภาพ** ตามที่ Rex ระบุใน `meeting_presentation.md` ค่ะ:  | ภาพ | ชื่อไฟล์ | |-----|---------| | 🔝 Feature Importance | `charts/01_featu
 
 ## [2026-05-01 12:09] [DISCOVERY]

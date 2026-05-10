@@ -33,10 +33,19 @@ DEFAULT_EVAL_CASES: tuple[EvalCase, ...] = (
         name="pipeline_code",
         user_input="ช่วยแก้ script python เพื่อ clean csv และ train model",
         intent="pipeline",
-        expected_provider="codex",
-        expected_review_provider="codex",
+        expected_provider="deepseek",
+        expected_review_provider="deepseek",
         expected_risk="medium",
         response="<DISPATCH>{\"agent\":\"dana\",\"task\":\"clean data\"}</DISPATCH>",
+    ),
+    EvalCase(
+        name="explicit_codex_request",
+        user_input="ช่วยใช้ codex ตรวจ script นี้",
+        intent="pipeline",
+        expected_provider="deepseek",
+        expected_review_provider="codex",
+        expected_risk="low",
+        response="ช่วยตรวจ code ให้หน่อย",
     ),
     EvalCase(
         name="freshness_request",
@@ -51,8 +60,8 @@ DEFAULT_EVAL_CASES: tuple[EvalCase, ...] = (
         name="high_risk_reasoning",
         user_input="ช่วยประเมินความเสี่ยงทางกฎหมายของ pipeline นี้",
         intent="chat",
-        expected_provider="codex",
-        expected_review_provider="codex",
+        expected_provider="deepseek",
+        expected_review_provider="deepseek",
         expected_risk="high",
         response="ต้องตรวจสอบเพิ่ม",
     ),
@@ -135,4 +144,3 @@ def write_eval_report(path: str | Path, results: list[EvalResult]) -> Path:
 
 def run_and_write_default_eval(path: str | Path) -> Path:
     return write_eval_report(path, run_system_eval())
-

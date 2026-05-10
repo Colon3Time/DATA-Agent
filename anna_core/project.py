@@ -10,18 +10,24 @@ class ProjectDetector:
     def __init__(self, projects_dir: Path) -> None:
         self.projects_dir = projects_dir
 
+    # Only folders whose names start with a date-like prefix are real projects.
+    _PROJECT_NAME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}")
+
     def detect(self, text: str) -> Path | None:
         if not self.projects_dir.exists():
             return None
         candidates = sorted(
-            (p for p in self.projects_dir.iterdir() if p.is_dir()),
+            (
+                p for p in self.projects_dir.iterdir()
+                if p.is_dir() and self._PROJECT_NAME_RE.match(p.name)
+            ),
             key=lambda x: len(x.name),
             reverse=True,
         )
         for p in candidates:
             if p.name in text:
                 return p
-        match = re.search(r"projects[/\\]([\w\-][^\n\"'\\/:*?<>|]*)", text)
+        match = re.search(r"projects[/\\](\d{4}-\d{2}-\d{2}[\w\-][^\n\"'\\/:*?<>|]*)", text)
         if match:
             p = self.projects_dir / match.group(1).strip()
             if p.exists():

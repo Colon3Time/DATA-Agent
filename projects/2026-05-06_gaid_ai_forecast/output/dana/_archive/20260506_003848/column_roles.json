@@ -1,0 +1,44 @@
+{
+  "target_column": "Value",
+  "roles": {
+    "Year": "date",
+    "Country": "categorical",
+    "ISO3": "categorical",
+    "Metric": "categorical",
+    "Value": "label",
+    "Dataset": "categorical",
+    "Source": "categorical",
+    "Source_Category": "categorical",
+    "Source_File": "categorical",
+    "Source_Type": "categorical",
+    "Source_Year": "date"
+  },
+  "role_summary": {
+    "id": [],
+    "date": [
+      "Year",
+      "Source_Year"
+    ],
+    "label": [
+      "Value"
+    ],
+    "numeric": [],
+    "categorical": [
+      "Country",
+      "ISO3",
+      "Metric",
+      "Dataset",
+      "Source",
+      "Source_Category",
+      "Source_File",
+      "Source_Type"
+    ]
+  },
+  "notes": {
+    "id": "Columns used as identifiers or keys; downstream should not treat them as numeric features.",
+    "date": "Datetime or date-like columns; keep for time-aware analysis and splitting.",
+    "label": "Supervised target column if detected.",
+    "numeric": "Safe candidate features for numeric analysis after cleaning.",
+    "categorical": "Non-numeric feature columns."
+  }
+}

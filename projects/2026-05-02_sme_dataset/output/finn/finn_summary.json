@@ -1,0 +1,29 @@
+{
+  "rows": 8316,
+  "columns": [
+    "Customer ID",
+    "Customer_ID",
+    "recency_days",
+    "frequency",
+    "monetary",
+    "row_count",
+    "avg_revenue",
+    "return_rate",
+    "outlier_rate"
+  ],
+  "target_column": "unknown",
+  "problem_type": "dataset_discovery",
+  "role_keys": [
+    "BUSINESS_SIZE",
+    "DATA_SOURCE",
+    "NUMBER_of_MSME",
+    "PROVINCE",
+    "REGION",
+    "SECTOR",
+    "TSIC-2_dg",
+    "TSIC-2dg_details",
+    "TSIC-5dg",
+    "TSIC-5dg_details",
+    "YEAR"
+  ]
+}

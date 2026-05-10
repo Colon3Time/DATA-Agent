@@ -1,0 +1,7 @@
+check,status,detail
+leakage,pass,No obvious leakage tokens detected in fallback review
+overfitting,pass,Holdout evaluation present in Mo report
+drift,warn,OOT/time split not proven in fallback mode
+calibration,warn,Not applicable for regression fallback
+business_satisfaction,pass,Fallback output is usable for downstream summary
+winner,pass,"{'model': 'dummy_mean', 'rmse': 0.0, 'mae': 0.0, 'r2': 0.0}"

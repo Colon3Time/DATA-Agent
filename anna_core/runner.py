@@ -13,6 +13,13 @@ from pathlib import Path
 from .state import OrchestratorState
 
 
+def _safe_print(*args, **kwargs) -> None:
+    try:
+        print(*args, **kwargs)
+    except OSError:
+        pass
+
+
 @dataclass(frozen=True)
 class ScriptRunResult:
     stdout: str
@@ -112,16 +119,6 @@ def run_python_script(
         "--output-dir",
         str(output_dir),
     ]
-    try:
-        project_dir = output_dir.parent.parent
-        profile = project_dir / "output" / "scout" / "dataset_profile.md"
-        if profile.exists():
-            text = profile.read_text(encoding="utf-8", errors="ignore")
-            m = re.search(r"target_column\s*:\s*(\S+)", text)
-            if m and m.group(1).lower() != "unknown":
-                cmd.extend(["--target", m.group(1)])
-    except Exception:
-        pass
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
@@ -153,14 +150,14 @@ def run_python_script(
                 raise subprocess.TimeoutExpired(cmd, timeout_seconds)
             if elapsed == 0 or elapsed - last_printed >= 5:
                 last_printed = elapsed
-                print(
+                _safe_print(
                     f"\r  {agent_label} running... "
                     f"elapsed {_format_duration(elapsed)} | "
                     f"left {_format_duration(remaining)}",
                     end="",
                     flush=True,
                 )
-        print(
+        _safe_print(
             f"\r  {agent_label} finished in {_format_duration(int(time.monotonic() - started))}"
             + " " * 30
         )
@@ -177,7 +174,7 @@ def run_python_script(
             state._active_procs.discard(proc)
         timeout_msg = f"Script timed out after {timeout_seconds} seconds"
         stderr = ((result["stderr"] or "") + ("\n" if result["stderr"] else "") + timeout_msg)
-        print(f"\r  {output_dir.name.upper()} timed out after {_format_duration(timeout_seconds)}" + " " * 20)
+        _safe_print(f"\r  {output_dir.name.upper()} timed out after {_format_duration(timeout_seconds)}" + " " * 20)
         return ScriptRunResult(
             stdout=result["stdout"] or "",
             stderr=stderr,
@@ -200,7 +197,14 @@ def scout_output_is_placeholder(csv_path: Path) -> bool:
         import pandas as _pd
 
         df = _pd.read_csv(str(csv_path), nrows=20)
-        rows = sum(1 for _ in open(str(csv_path), encoding="utf-8")) - 1
+        with open(str(csv_path), encoding="utf-8") as fh:
+            rows = sum(1 for _ in fh) - 1
+        cols = {str(c).strip().lower() for c in df.columns}
+        if {"country", "year", "indicator", "value"}.issubset(cols) and rows >= 20:
+            return False
+        manifest_cols = {"dataset", "url", "path", "file", "source", "score", "reason"}
+        if rows >= 20 and df.shape[1] >= 4 and len(cols & manifest_cols) <= 1:
+            return False
         if rows < 1000:
             return True
         if df.shape[1] <= 5 and rows < 50000:

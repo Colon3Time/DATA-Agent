@@ -8,6 +8,23 @@ import pandas as pd
 
 
 def _read_profile(inp: Path) -> dict[str, str]:
+    # User-specified override wins over Scout's inferred target
+    override_path = next(
+        (p / "target_override.json" for p in [inp.parent, inp.parent.parent, inp.parent.parent.parent, inp.parent.parent.parent.parent]
+         if (p / "target_override.json").exists()),
+        inp.parent.parent.parent / "target_override.json",
+    )
+    if override_path.exists():
+        try:
+            import json as _j
+            data = _j.loads(override_path.read_text(encoding="utf-8"))
+            if data.get("target_column") and str(data["target_column"]).lower() not in {"unknown", ""}:
+                return {
+                    "target_column": str(data["target_column"]),
+                    "problem_type": str(data.get("problem_type", "regression")),
+                }
+        except Exception:
+            pass
     profile = inp.parent.parent / "scout" / "dataset_profile.md"
     if not profile.exists():
         return {"target_column": "unknown", "problem_type": "classification"}
@@ -39,8 +56,6 @@ def _ensure_revenue(df: pd.DataFrame) -> pd.DataFrame:
             qty = pd.to_numeric(df["Quantity"], errors="coerce").fillna(0)
             price = pd.to_numeric(df["Price"], errors="coerce").fillna(0)
             df["revenue"] = qty * price
-        else:
-            df["revenue"] = 0.0
     return df
 
 

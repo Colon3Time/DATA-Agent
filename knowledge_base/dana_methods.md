@@ -1,8 +1,16 @@
+## Decision Quality Gate (mandatory)
+ใช้กฎกลางจาก `knowledge_base/shared_methods.md` ก่อนทุก decision สำคัญ
+- ตรวจหลักฐานจากไฟล์จริงและ output ล่าสุดก่อนเลือกวิธี
+- เทียบอย่างน้อย 2 ทางเลือก หรืออธิบายว่าทำไมมีทางเดียว
+- บันทึก `DECISION_CHECK` พร้อม Evidence, Risk Check, Confidence และ Verdict
+- ถ้าหลักฐานไม่พอหรือ confidence ต่ำ ให้หยุดด้วย `STOP_AND_REPAIR`, `LOOP_BACK`, หรือ `ASK_USER`
+
 # Dana Methods — Knowledge Base
 
 ## Input Handling
 
 ```python
+
 # ห้ามมี glob fallback หรือ path เดาเอง — ถ้าไม่มี --input ให้ exit ทันที
 if not INPUT_PATH or not os.path.exists(INPUT_PATH):
     print(f'[ERROR] --input required: {INPUT_PATH}')
@@ -42,6 +50,7 @@ if not INPUT_PATH or not os.path.exists(INPUT_PATH):
 ทุก dataset ต้องกำหนด DOMAIN_MIN / DOMAIN_MAX ตาม domain ของข้อมูลนั้น ๆ (ตัวอย่างด้านล่างเป็น Diabetes dataset):
 
 ```python
+
 # *** ตัวอย่าง: Diabetes dataset — ต้องเปลี่ยนให้ตรงกับ dataset จริงของ project ***
 DOMAIN_MIN = {'Glucose':0,'BloodPressure':0,'SkinThickness':0,'Insulin':0,'BMI':0,'Pregnancies':0,'Age':0}
 DOMAIN_MAX = {'Glucose':300,'BloodPressure':200,'SkinThickness':80,'Insulin':500,'BMI':70,'DiabetesPedigreeFunction':2.5}
@@ -141,6 +150,7 @@ overall = 0.5 * completeness + 0.5 * validity   # After ต้องสูงก
 ## Common Bugs — ห้ามทำ
 
 ```python
+
 # ❌ glob fallback — ทำให้อ่านไฟล์ผิด
 csvs = glob.glob(os.path.join(dir, '*.csv'))
 INPUT_PATH = csvs[0]  # อาจได้ outlier_flags.csv แทน

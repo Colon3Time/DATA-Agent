@@ -53,11 +53,19 @@ def begin_project_run(project_dir: Path | None, reason: str = "") -> str:
 
 
 def output_run_marker(output_path: Path) -> Path:
+    if is_run_marker(output_path):
+        return output_path
     return output_path.with_name(output_path.name + ".run_id")
+
+
+def is_run_marker(path: Path) -> bool:
+    return path.name.endswith(".run_id")
 
 
 def mark_output_current(output_path: Path, project_dir: Path | None, run_id: str | None = None) -> None:
     if not project_dir:
+        return
+    if not output_path.exists() or not output_path.is_file() or is_run_marker(output_path):
         return
     run_id = run_id or current_run_id(project_dir)
     if not run_id:
@@ -119,5 +127,20 @@ def promote_upstream_outputs(project_dir: Path | None, consumer_agent: str, run_
         if not source_dir.exists():
             continue
         for path in source_dir.rglob("*"):
-            if path.is_file():
+            if path.is_file() and not is_run_marker(path):
                 mark_output_current(path, project_dir, run_id)
+
+
+def promote_pipeline_outputs(project_dir: Path | None, output_paths: list[str] | list[Path], run_id: str | None = None) -> None:
+    if not project_dir:
+        return
+    run_id = run_id or current_run_id(project_dir)
+    if not run_id:
+        return
+    for raw in output_paths:
+        try:
+            path = Path(raw)
+        except Exception:
+            continue
+        if path.exists() and path.is_file() and not is_run_marker(path):
+            mark_output_current(path, project_dir, run_id)

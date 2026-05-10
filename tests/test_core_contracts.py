@@ -3,21 +3,30 @@ import shutil
 import contextlib
 import io
 import unittest
+from unittest import mock
 from pathlib import Path
 
+import pandas as pd
+
 from anna_core.anna_contract import validate_dispatch_plan
+from anna_core.action_executor import ActionExecutor, ActionPalette
+from anna_core.actions import WorkspacePaths
 from anna_core.config import load_config
 from anna_core.dispatcher import DispatchParser
-from anna_core.agent_runtime import build_agent_path_message, should_regenerate_vera_script_for_meeting_report
+from anna_core.agent_runtime import build_agent_path_message, extract_python_blocks, should_regenerate_vera_script_for_meeting_report
 from anna_core.mo_phase import detect_mo_phase, mo_script_matches_phase, sync_mo_canonical_report
 from anna_core.pipeline_store import PipelineStore
-from anna_core.run_guard import begin_project_run, mark_output_current
-from anna_core.runner import is_shell_command_allowed
+from anna_core.run_guard import begin_project_run, mark_output_current, output_is_current, promote_pipeline_outputs
+from anna_core.runner import builtin_agent_script, is_shell_command_allowed, scout_output_is_placeholder
+from core.schema_contract import validate_handoff
+import orchestrator_v3 as orch
 from orchestrator_v3 import (
     STATE,
     _print_gate_fail_recovery,
+    ensure_vera_chart_artifact,
     _write_repair_note,
     handle_cli_command,
+    normalize_scout_output_for_handoff,
     resolve_agent_input,
     validate_agent_output,
 )
@@ -69,6 +78,31 @@ class DispatchParserTests(unittest.TestCase):
         text = '<DISPATCH>{"agent":"scout","task":"find marketing dataset\\nand save scout_output.csv"}</DISPATCH>'
         self.assertEqual(parser.parse_dispatches(text), [])
 
+    def test_rejects_multiline_dispatch_payload(self):
+        parser = DispatchParser(VALID_AGENTS)
+        text = '<DISPATCH>{\n"agent":"scout","task":"find marketing dataset and save profile"\n}</DISPATCH>'
+        self.assertEqual(parser.parse_dispatches(text), [])
+
+    def test_rejects_short_placeholder_task(self):
+        parser = DispatchParser(VALID_AGENTS)
+        text = '<DISPATCH>{"agent":"dana","task":"clean data"}</DISPATCH>'
+        self.assertEqual(parser.parse_dispatches(text), [])
+
+    def test_rejects_unsupported_dispatch_field(self):
+        parser = DispatchParser(VALID_AGENTS)
+        text = '<DISPATCH>{"agent":"scout","task":"find dataset and write profile","priority":"high"}</DISPATCH>'
+        self.assertEqual(parser.parse_dispatches(text), [])
+
+    def test_rejects_non_boolean_discover(self):
+        parser = DispatchParser(VALID_AGENTS)
+        text = '<DISPATCH>{"agent":"scout","task":"find dataset and write profile","discover":"true"}</DISPATCH>'
+        self.assertEqual(parser.parse_dispatches(text), [])
+
+    def test_rejects_vague_thai_task(self):
+        parser = DispatchParser(VALID_AGENTS)
+        text = '<DISPATCH>{"agent":"dana","task":"ทำต่อ"}</DISPATCH>'
+        self.assertEqual(parser.parse_dispatches(text), [])
+
     def test_extracts_ask_user(self):
         parser = DispatchParser(VALID_AGENTS)
         self.assertEqual(parser.parse_ask_user("<ASK_USER>confirm?</ASK_USER>"), "confirm?")
@@ -108,6 +142,22 @@ class AnnaPlanValidationTests(unittest.TestCase):
         )
         self.assertTrue(any("invalid agent" in issue for issue in issues))
 
+    def test_blocks_unsupported_dispatch_field_in_validator(self):
+        issues = validate_dispatch_plan(
+            [{"agent": "scout", "task": "find marketing dataset and save scout_output.csv", "priority": "high"}],
+            active_project=Path("projects/demo"),
+            read_pipeline=lambda _agent: "",
+        )
+        self.assertTrue(any("unsupported field" in issue for issue in issues))
+
+    def test_blocks_invalid_optional_field_types_in_validator(self):
+        issues = validate_dispatch_plan(
+            [{"agent": "scout", "task": "find marketing dataset and save scout_output.csv", "discover": "true"}],
+            active_project=Path("projects/demo"),
+            read_pipeline=lambda _agent: "",
+        )
+        self.assertTrue(any("discover" in issue and "boolean" in issue for issue in issues))
+
     def test_blocks_mo_before_finn(self):
         issues = validate_dispatch_plan(
             [{"agent": "mo", "task": "train model using cleaned dataset and compare baseline algorithms"}],
@@ -131,6 +181,19 @@ class AnnaPlanValidationTests(unittest.TestCase):
             read_pipeline=lambda _agent: "",
         )
         self.assertTrue(any("Eddie is dispatched before Dana" in issue for issue in issues))
+
+    def test_allows_eddie_with_explicit_input_path_without_dana(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            csv_path = Path(tmp) / "scout_output.csv"
+            csv_path.write_text("a,b\n1,2\n", encoding="utf-8")
+
+            issues = validate_dispatch_plan(
+                [{"agent": "eddie", "task": f"run EDA using {csv_path} and save eddie_output.csv"}],
+                active_project=Path("projects/demo"),
+                read_pipeline=lambda _agent: "",
+            )
+
+            self.assertFalse(any("Eddie is dispatched before Dana" in issue for issue in issues), issues)
 
     def test_blocks_finn_before_dana_and_eddie(self):
         issues = validate_dispatch_plan(
@@ -162,6 +225,27 @@ class AnnaPlanValidationTests(unittest.TestCase):
         )
         self.assertFalse(issues)
 
+    def test_guided_mode_blocks_multi_agent_plan(self):
+        issues = validate_dispatch_plan(
+            [
+                {"agent": "dana", "task": "clean scout_output.csv and save dana_output.csv"},
+                {"agent": "eddie", "task": "run EDA on dana_output.csv and save eddie_output.csv"},
+            ],
+            active_project=Path("projects/demo"),
+            read_pipeline=lambda _agent: "",
+            mode="guided",
+        )
+        self.assertTrue(any("Guided mode allows only one DISPATCH" in issue for issue in issues))
+
+    def test_guided_mode_allows_single_next_agent(self):
+        issues = validate_dispatch_plan(
+            [{"agent": "dana", "task": "clean scout_output.csv and save dana_output.csv"}],
+            active_project=Path("projects/demo"),
+            read_pipeline=lambda _agent: "",
+            mode="guided",
+        )
+        self.assertFalse(issues)
+
     def test_allows_iris_eda_between_eddie_and_finn(self):
         issues = validate_dispatch_plan(
             [
@@ -175,8 +259,431 @@ class AnnaPlanValidationTests(unittest.TestCase):
         )
         self.assertFalse(issues)
 
+    def test_dana_to_eddie_accepts_gaid_style_table(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project = Path(tmpdir)
+            output_dir = project / "output" / "dana"
+            output_dir.mkdir(parents=True, exist_ok=True)
+            df = pd.DataFrame(
+                {
+                    "Year": [1998 + (i % 3) for i in range(120)],
+                    "Country": ["Algeria"] * 120,
+                    "ISO3": ["DZA"] * 120,
+                    "Metric": ["Example"] * 120,
+                    "Value": [float(i % 7) for i in range(120)],
+                    "Dataset": ["GAID"] * 120,
+                    "Source": ["Source"] * 120,
+                    "Source_Category": ["Category"] * 120,
+                    "Source_File": ["file.xlsx"] * 120,
+                    "Source_Type": ["xlsx"] * 120,
+                    "Source_Year": [2021] * 120,
+                    "is_outlier": [0] * 119 + [1],
+                }
+            )
+            csv_path = output_dir / "dana_output.csv"
+            df.to_csv(csv_path, index=False)
+
+            ok, errors = validate_handoff("dana", "eddie", csv_path, project)
+
+            self.assertTrue(ok, errors)
+
+    def test_run_agent_falls_back_to_builtin_when_llm_unavailable(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project = Path(tmpdir) / "project"
+            dana_dir = project / "output" / "dana"
+            dana_dir.mkdir(parents=True, exist_ok=True)
+            eddie_dir = project / "output" / "eddie"
+            eddie_dir.mkdir(parents=True, exist_ok=True)
+
+            df = pd.DataFrame(
+                {
+                    "Year": [1998 + (i % 3) for i in range(120)],
+                    "Country": ["Algeria"] * 120,
+                    "ISO3": ["DZA"] * 120,
+                    "Metric": ["Example"] * 120,
+                    "Value": [float(i % 7) for i in range(120)],
+                    "Dataset": ["GAID"] * 120,
+                    "Source": ["Source"] * 120,
+                    "Source_Category": ["Category"] * 120,
+                    "Source_File": ["file.xlsx"] * 120,
+                    "Source_Type": ["xlsx"] * 120,
+                    "Source_Year": [2021] * 120,
+                    "is_outlier": [0] * 119 + [1],
+                }
+            )
+            (dana_dir / "dana_output.csv").write_text(df.to_csv(index=False), encoding="utf-8")
+
+            previous_project = orch.STATE.active_project
+            previous_counts = dict(orch.STATE.agent_iter_count)
+            try:
+                orch.STATE.active_project = project
+                begin_project_run(project, reason="unit-test")
+                mark_output_current(dana_dir / "dana_output.csv", project)
+
+                with mock.patch.object(orch, "call_agent_llm", return_value="[ERROR] DEEPSEEK_API_KEY not found in .env"):
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        out_path = orch.run_agent(
+                            "eddie",
+                            "EDA for GAID Master — Input: projects/test/output/dana/dana_output.csv",
+                            prev_agent="dana",
+                            project_dir=project,
+                        )
+
+                self.assertTrue((eddie_dir / "eddie_output.csv").exists())
+                self.assertEqual(Path(out_path).name, "eddie_output.csv")
+                columns = pd.read_csv(eddie_dir / "eddie_output.csv").columns
+                self.assertIn("Value", columns)
+                self.assertNotIn("revenue", columns)
+            finally:
+                orch.STATE.active_project = previous_project
+                orch.STATE.agent_iter_count.clear()
+                orch.STATE.agent_iter_count.update(previous_counts)
+
+
+class ActionExecutorRoutingTests(unittest.TestCase):
+    def _executor(self, tmp: Path, calls: list[tuple[str, str]]) -> ActionExecutor:
+        return ActionExecutor(
+            base_dir=tmp,
+            projects_dir=tmp / "projects",
+            workspace_paths=WorkspacePaths(tmp),
+            log=lambda *_args: None,
+            save_kb=lambda *_args: None,
+            ask_deepseek=lambda _system, prompt, _label: calls.append(("deepseek", prompt)) or "deepseek-answer",
+            ask_claude=lambda _system, prompt, _label: calls.append(("claude", prompt)) or "claude-answer",
+            set_active_project=lambda _project: None,
+            palette=ActionPalette("", "", "", "", "", "", "", ""),
+        )
+
+    def test_ask_codex_is_not_executed_as_claude_action(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            calls: list[tuple[str, str]] = []
+            executor = self._executor(Path(tmpdir), calls)
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                result = executor.execute("<ASK_CODEX>แก้ dispatch validation</ASK_CODEX>")
+
+            self.assertEqual(calls, [])
+            self.assertEqual(result, "")
+
+    def test_ask_claude_still_routes_to_claude(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            calls: list[tuple[str, str]] = []
+            executor = self._executor(Path(tmpdir), calls)
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                result = executor.execute("<ASK_CLAUDE>ช่วยคิดวิธีแก้</ASK_CLAUDE>")
+
+            self.assertEqual(calls, [("claude", "ช่วยคิดวิธีแก้")])
+            self.assertIn("[ASK_CLAUDE]", result)
+
+
+class AgentRuntimeTests(unittest.TestCase):
+    def test_extract_python_blocks_accepts_common_fence_variants(self):
+        text = "``` Python\r\nprint('a')\r\n```\n```py\nprint('b')\n```"
+        blocks = extract_python_blocks(text)
+        self.assertEqual(len(blocks), 2)
+        self.assertIn("print('a')", blocks[0])
+        self.assertIn("print('b')", blocks[1])
+
+    def test_generated_script_fallback_keeps_existing_report_when_no_code_blocks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp) / "output" / "scout"
+            output_dir.mkdir(parents=True)
+            report = output_dir / "scout_report.md"
+            report.write_text("report only\n", encoding="utf-8")
+
+            out = orch.run_generated_script_agent(
+                "scout",
+                "report only task",
+                "",
+                output_dir,
+                report,
+                [],
+                None,
+            )
+
+            self.assertTrue(report.exists())
+            self.assertEqual(Path(out), report)
+
+    def test_llm_response_with_script_timeout_argument_is_available(self):
+        response = "```python\nimport requests\nrequests.get('https://example.com', timeout=10)\n```"
+        self.assertFalse(orch.llm_response_is_unavailable(response))
+
+    def test_llm_error_response_is_unavailable(self):
+        self.assertTrue(orch.llm_response_is_unavailable("[ERROR] DeepSeek timeout"))
+
+    def test_scout_generated_script_handoff_prefers_scout_output_over_input(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            input_dir = project / "input"
+            output_dir = project / "output" / "scout"
+            input_dir.mkdir(parents=True)
+            output_dir.mkdir(parents=True)
+            (input_dir / "raw.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+            report = output_dir / "scout_report.md"
+            report.write_text("DATASET_RISK_REGISTER\n", encoding="utf-8")
+            code = """
+import argparse, os
+import pandas as pd
+parser = argparse.ArgumentParser()
+parser.add_argument('--input', default='')
+parser.add_argument('--output-dir', default='')
+args, _ = parser.parse_known_args()
+os.makedirs(args.output_dir, exist_ok=True)
+rows = []
+for i in range(120):
+    rows.append({
+        'Country': 'Thailand',
+        'Year': 2000 + i,
+        'Indicator': 'GDP',
+        'Value': i,
+    })
+df = pd.DataFrame(rows)
+output_csv = os.path.join(args.output_dir, 'scout_output.csv')
+df.to_csv(output_csv, index=False)
+profile = 'DATASET_PROFILE\\n===============\\nrows         : 120\\ncols         : 4\\ntarget_column: Value\\nproblem_type : regression\\nDATASET_RISK_REGISTER\\n'
+with open(os.path.join(args.output_dir, 'dataset_profile.md'), 'w', encoding='utf-8') as fh:
+    fh.write(profile)
+with open(os.path.join(args.output_dir, 'scout_report.md'), 'w', encoding='utf-8') as fh:
+    fh.write('DATASET_RISK_REGISTER\\n')
+print(f'[STATUS] Saved: {output_csv}')
+""" + ("\n# filler for script validator" * 60)
+
+            out = orch.run_generated_script_agent(
+                "scout",
+                "create scout output",
+                "",
+                output_dir,
+                report,
+                [code],
+                project,
+            )
+
+            self.assertEqual(Path(out), output_dir / "scout_output.csv")
+
+    def test_scout_output_normalization_converts_wide_economic_table(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            output_dir = project / "output" / "scout"
+            output_dir.mkdir(parents=True)
+            (output_dir / "scout_report.md").write_text("Scout report without risk\n", encoding="utf-8")
+            wide = pd.DataFrame({
+                "Country": ["Thailand"] * 15,
+                "Year": list(range(2010, 2025)),
+                "GDP": list(range(15)),
+                "Inflation": list(range(15)),
+            })
+            csv_path = output_dir / "scout_output.csv"
+            wide.to_csv(csv_path, index=False)
+
+            out = normalize_scout_output_for_handoff(project, output_dir)
+
+            normalized = pd.read_csv(out)
+            self.assertEqual(set(normalized.columns), {"Country", "Year", "Indicator", "Value"})
+            self.assertEqual(len(normalized), 30)
+            self.assertTrue((output_dir / "dataset_profile.md").exists())
+            report = (output_dir / "scout_report.md").read_text(encoding="utf-8")
+            self.assertIn("DATASET_RISK_REGISTER", report)
+
+    def test_scout_existing_script_path_normalizes_before_handoff(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            input_dir = project / "input"
+            output_dir = project / "output" / "scout"
+            input_dir.mkdir(parents=True)
+            output_dir.mkdir(parents=True)
+            source = input_dir / "wide.csv"
+            pd.DataFrame({
+                "Country": ["Thailand"] * 15,
+                "Year": list(range(2010, 2025)),
+                "GDP": list(range(15)),
+                "Inflation": list(range(15)),
+            }).to_csv(source, index=False)
+            script = output_dir / "scout_script.py"
+            code = """
+import argparse, os
+import pandas as pd
+parser = argparse.ArgumentParser()
+parser.add_argument('--input', default='')
+parser.add_argument('--output-dir', default='')
+args, _ = parser.parse_known_args()
+os.makedirs(args.output_dir, exist_ok=True)
+df = pd.read_csv(args.input)
+df.to_csv(os.path.join(args.output_dir, 'scout_output.csv'), index=False)
+open(os.path.join(args.output_dir, 'scout_report.md'), 'w', encoding='utf-8').write('DATASET_RISK_REGISTER\\n')
+""" + ("\n# filler for script validator" * 60)
+            script.write_text(code, encoding="utf-8")
+
+            out = orch.run_existing_script_agent("scout", "run existing scout", script, str(source), output_dir, project_dir=project)
+
+            normalized = pd.read_csv(out)
+            self.assertEqual(set(normalized.columns), {"Country", "Year", "Indicator", "Value"})
+            self.assertEqual(len(normalized), 30)
+
+    def test_run_script_does_not_overwrite_scout_output_with_input_csv(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            input_dir = project / "input"
+            output_dir = project / "output" / "scout"
+            input_dir.mkdir(parents=True)
+            output_dir.mkdir(parents=True)
+            source = input_dir / "wide.csv"
+            pd.DataFrame({
+                "Country": ["Thailand"] * 15,
+                "Year": list(range(2010, 2025)),
+                "GDP": list(range(15)),
+                "Inflation": list(range(15)),
+            }).to_csv(source, index=False)
+            script = output_dir / "scout_script.py"
+            code = """
+import argparse, os
+import pandas as pd
+parser = argparse.ArgumentParser()
+parser.add_argument('--input', default='')
+parser.add_argument('--output-dir', default='')
+args, _ = parser.parse_known_args()
+os.makedirs(args.output_dir, exist_ok=True)
+df = pd.read_csv(args.input)
+records = []
+for _, row in df.iterrows():
+    for indicator in ['GDP', 'Inflation']:
+        records.append({'Country': row['Country'], 'Year': row['Year'], 'Indicator': indicator, 'Value': row[indicator]})
+pd.DataFrame(records).to_csv(os.path.join(args.output_dir, 'scout_output.csv'), index=False)
+open(os.path.join(args.output_dir, 'scout_report.md'), 'w', encoding='utf-8').write('DATASET_RISK_REGISTER\\n')
+""" + ("\n# filler for script validator" * 60)
+            script.write_text(code, encoding="utf-8")
+
+            out, rc, stderr = orch.run_script(script, str(source), output_dir)
+
+            self.assertEqual(rc, 0, stderr)
+            normalized = pd.read_csv(out)
+            self.assertEqual(set(normalized.columns), {"Country", "Year", "Indicator", "Value"})
+            self.assertEqual(len(normalized), 30)
+
+    def test_scout_placeholder_heuristic_allows_small_real_long_dataset(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            csv_path = Path(tmp) / "scout_output.csv"
+            pd.DataFrame({
+                "Country": ["Thailand"] * 30,
+                "Year": list(range(1990, 2020)),
+                "Indicator": ["GDP"] * 30,
+                "Value": list(range(30)),
+            }).to_csv(csv_path, index=False)
+
+            self.assertFalse(scout_output_is_placeholder(csv_path))
+
+    def test_scout_report_only_handoff_fails_without_csv(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            scout_dir = project / "output" / "scout"
+            scout_dir.mkdir(parents=True)
+            report = scout_dir / "scout_report.md"
+            report.write_text("Scout report\n\nDATASET_RISK_REGISTER\n" + ("details\n" * 10), encoding="utf-8")
+
+            ok, msg = validate_agent_output("scout", str(report), project)
+
+            self.assertFalse(ok)
+            self.assertIn("report-only", msg)
+
+    def test_vera_fallback_chart_creates_png_from_numeric_input(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            input_csv = project / "output" / "finn" / "finn_output.csv"
+            vera_dir = project / "output" / "vera"
+            input_csv.parent.mkdir(parents=True)
+            vera_dir.mkdir(parents=True)
+            (vera_dir / "vera_report.md").write_text("VISUAL_QC\ncharts: none\n", encoding="utf-8")
+            pd.DataFrame({"feature": [1.0, 2.5, 3.0], "label": [0, 1, 1]}).to_csv(input_csv, index=False)
+
+            chart = ensure_vera_chart_artifact(vera_dir, str(input_csv))
+
+            self.assertTrue(Path(chart).exists())
+            self.assertEqual(Path(chart).suffix.lower(), ".png")
+
+    def test_generated_script_syntax_error_reaches_autofix_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp) / "output" / "scout"
+            output_dir.mkdir(parents=True)
+            script = output_dir / "bad_script.py"
+            script.write_text("def broken(:\n", encoding="utf-8")
+
+            out, rc, stderr = orch.run_script(script, "", output_dir)
+
+            self.assertEqual(rc, 127)
+            self.assertTrue(script.exists())
+            self.assertIn("unusable script", stderr)
+
+    def test_repair_note_uses_plan_as_fallback_task(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            project.mkdir()
+            note = _write_repair_note("scout", "gate", "bad scout output", project, "rerun SCOUT with real dataset")
+            text = note.read_text(encoding="utf-8")
+            self.assertIn("- task: rerun SCOUT with real dataset", text)
+
+
+class LLMClientTests(unittest.TestCase):
+    def test_deepseek_stream_ignores_stdout_oserror(self):
+        from anna_core.llm import LLMClient, TerminalPalette
+        from anna_core.state import OrchestratorState
+
+        class FakeResponse:
+            status_code = 200
+
+            def iter_lines(self):
+                yield b'data: {"choices":[{"delta":{"content":"hello"}}]}'
+                yield b"data: [DONE]"
+
+        def bad_print(*_args, **_kwargs):
+            raise OSError(22, "Invalid argument")
+
+        client = LLMClient(
+            state=OrchestratorState(),
+            deepseek_url="https://example.invalid",
+            deepseek_model="deepseek-chat",
+            palette=TerminalPalette("", "", "", "", "", "", ""),
+        )
+
+        with mock.patch.dict("os.environ", {"DEEPSEEK_API_KEY": "x"}):
+            with mock.patch("requests.post", return_value=FakeResponse()):
+                with mock.patch("builtins.print", side_effect=bad_print):
+                    self.assertEqual(client.call_deepseek("system", "user"), "hello")
+
 
 class PipelineStoreTests(unittest.TestCase):
+    def test_completed_agents_ignore_directory_handoff_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            project = base / "project"
+            finn_dir = project / "output" / "finn"
+            finn_dir.mkdir(parents=True)
+
+            store = PipelineStore(base / "pipeline")
+            store.project_dir = project
+            store.write("finn", str(finn_dir))
+
+            self.assertNotIn("finn", store.completed_agents())
+
+    def test_orchestrator_pipeline_read_ignores_directory_handoff_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            project = base / "project"
+            finn_dir = project / "output" / "finn"
+            finn_dir.mkdir(parents=True)
+
+            original_pipeline = orch.PIPELINE
+            original_project = orch.STATE.active_project
+            try:
+                orch.PIPELINE = PipelineStore(base / "pipeline")
+                orch.PIPELINE.project_dir = project
+                orch.STATE.active_project = project
+                orch.PIPELINE.write("finn", str(finn_dir))
+
+                self.assertEqual(orch.pipeline_read("finn"), "")
+            finally:
+                orch.PIPELINE = original_pipeline
+                orch.STATE.active_project = original_project
+
     def test_rebuild_ignores_report_only_data_handoff_agent(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
@@ -212,6 +719,22 @@ class PipelineStoreTests(unittest.TestCase):
 
 
 class RunGuardTests(unittest.TestCase):
+    def test_resolve_agent_input_prefers_explicit_task_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            project.mkdir(parents=True)
+            explicit = Path(tmp) / "scout_output.csv"
+            explicit.write_text("a,b\n1,2\n3,4\n", encoding="utf-8")
+
+            resolved = resolve_agent_input(
+                "eddie",
+                "",
+                project,
+                task=f"run EDA using {explicit} and write eddie_output.csv",
+            )
+
+            self.assertEqual(Path(resolved), explicit)
+
     def test_resolve_agent_input_rejects_stale_upstream_output(self):
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp) / "project"
@@ -226,6 +749,25 @@ class RunGuardTests(unittest.TestCase):
 
             with self.assertRaisesRegex(RuntimeError, "STALE output detected"):
                 resolve_agent_input("eddie", "dana", project, task="run EDA on dana_output.csv")
+
+    def test_promote_pipeline_outputs_marks_resumed_files_current(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            finn_dir = project / "output" / "finn"
+            finn_dir.mkdir(parents=True)
+            finn_csv = finn_dir / "finn_output.csv"
+            finn_csv.write_text("a,b\n1,2\n", encoding="utf-8")
+
+            begin_project_run(project, reason="first")
+            mark_output_current(finn_csv, project)
+            self.assertTrue(output_is_current(finn_csv, project))
+
+            begin_project_run(project, reason="resume")
+            self.assertFalse(output_is_current(finn_csv, project))
+
+            promote_pipeline_outputs(project, [finn_csv])
+
+            self.assertTrue(output_is_current(finn_csv, project))
 
 
 class IrisEDABridgeTests(unittest.TestCase):
@@ -888,7 +1430,11 @@ class RepairCommandTests(unittest.TestCase):
 
                 def fake_run_agent(agent_name, task, prev_agent="", project_dir=None, discover=False):
                     calls.append((agent_name, task, project_dir))
-                    return str(project / "output" / agent_name / f"{agent_name}_output.csv")
+                    out_dir = project / "output" / agent_name
+                    out_dir.mkdir(parents=True, exist_ok=True)
+                    out = out_dir / f"{agent_name}_output.csv"
+                    out.write_text("a,b\n1,2\n", encoding="utf-8")
+                    return str(out)
 
                 orch.run_agent = fake_run_agent
                 orch.validate_agent_output = lambda agent, out, proj: (True, "")
@@ -897,9 +1443,191 @@ class RepairCommandTests(unittest.TestCase):
                     result = handle_cli_command("/repair auto")
 
                 self.assertEqual(result, "handled")
-                self.assertEqual(calls[0][0], "dana")
-                self.assertIn("clean scout output", calls[0][1])
-                self.assertEqual(calls[0][2], project)
+                self.assertEqual([call[0] for call in calls], ["scout", "dana"])
+                self.assertIn("clean scout output", calls[1][1])
+                self.assertEqual(calls[1][2], project)
+            finally:
+                orch.run_agent = original_run_agent
+                orch.validate_agent_output = original_validate
+                STATE.active_project = original_project
+
+    def test_repair_auto_reruns_missing_upstream_before_downstream(self):
+        import orchestrator_v3 as orch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            project.mkdir(parents=True, exist_ok=True)
+            note = _write_repair_note(
+                "dana",
+                "missing-output",
+                f"DANA input missing: expected upstream output {project / 'output' / 'scout' / 'scout_output.csv'}",
+                project,
+                "rerun SCOUT before rerun DANA",
+                task="clean Scout output and write dana_output.csv",
+            )
+            with note.open("a", encoding="utf-8") as fh:
+                fh.write("\n- upstream_expected: output\\scout\\scout_output.csv\n")
+
+            original_project = STATE.active_project
+            original_run_agent = orch.run_agent
+            original_validate = orch.validate_agent_output
+            calls: list[tuple[str, str, Path | None]] = []
+            try:
+                STATE.active_project = project
+
+                def fake_run_agent(agent_name, task, prev_agent="", project_dir=None, discover=False):
+                    calls.append((agent_name, task, project_dir))
+                    out_dir = project / "output" / agent_name
+                    out_dir.mkdir(parents=True, exist_ok=True)
+                    out = out_dir / f"{agent_name}_output.csv"
+                    out.write_text("a,b\n1,2\n", encoding="utf-8")
+                    return str(out)
+
+                orch.run_agent = fake_run_agent
+                orch.validate_agent_output = lambda agent, out, proj: (True, "")
+
+                with contextlib.redirect_stdout(io.StringIO()):
+                    result = handle_cli_command("/repair auto")
+
+                self.assertEqual(result, "handled")
+                self.assertEqual([call[0] for call in calls], ["scout", "dana"])
+                self.assertIn("Repair upstream output for DANA", calls[0][1])
+                self.assertIn("clean Scout output", calls[1][1])
+            finally:
+                orch.run_agent = original_run_agent
+                orch.validate_agent_output = original_validate
+                STATE.active_project = original_project
+
+    def test_repair_auto_stops_when_upstream_does_not_create_required_file(self):
+        import orchestrator_v3 as orch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            project.mkdir(parents=True, exist_ok=True)
+            note = _write_repair_note(
+                "dana",
+                "missing-output",
+                f"DANA input missing: expected upstream output {project / 'output' / 'scout' / 'scout_output.csv'}",
+                project,
+                "rerun SCOUT before rerun DANA",
+                task="clean Scout output and write dana_output.csv",
+            )
+            with note.open("a", encoding="utf-8") as fh:
+                fh.write("\n- upstream_expected: output\\scout\\scout_output.csv\n")
+
+            original_project = STATE.active_project
+            original_run_agent = orch.run_agent
+            original_validate = orch.validate_agent_output
+            calls: list[str] = []
+            try:
+                STATE.active_project = project
+
+                def fake_run_agent(agent_name, task, prev_agent="", project_dir=None, discover=False):
+                    calls.append(agent_name)
+                    out_dir = project / "output" / agent_name
+                    out_dir.mkdir(parents=True, exist_ok=True)
+                    return str(out_dir)
+
+                orch.run_agent = fake_run_agent
+                orch.validate_agent_output = lambda agent, out, proj: (True, "")
+
+                with contextlib.redirect_stdout(io.StringIO()):
+                    result = handle_cli_command("/repair auto")
+
+                self.assertEqual(result, "handled")
+                self.assertEqual(calls, ["scout"])
+                text = (project / "logs" / "latest_repair.md").read_text(encoding="utf-8")
+                self.assertIn("- agent: scout", text)
+                self.assertIn("- task: Repair upstream output for DANA", text)
+                self.assertIn("did not create required file", text)
+            finally:
+                orch.run_agent = original_run_agent
+                orch.validate_agent_output = original_validate
+                STATE.active_project = original_project
+
+    def test_repair_auto_checks_required_file_for_primary_agent(self):
+        import orchestrator_v3 as orch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            project.mkdir(parents=True, exist_ok=True)
+            note = _write_repair_note(
+                "scout",
+                "missing-output",
+                "Scout did not create scout_output.csv",
+                project,
+                "rerun SCOUT and ensure required output exists",
+                task="write scout_output.csv",
+            )
+            with note.open("a", encoding="utf-8") as fh:
+                fh.write("\n- upstream_expected: output\\scout\\scout_output.csv\n")
+
+            original_project = STATE.active_project
+            original_run_agent = orch.run_agent
+            original_validate = orch.validate_agent_output
+            try:
+                STATE.active_project = project
+
+                def fake_run_agent(agent_name, task, prev_agent="", project_dir=None, discover=False):
+                    out_dir = project / "output" / agent_name
+                    out_dir.mkdir(parents=True, exist_ok=True)
+                    return str(out_dir)
+
+                orch.run_agent = fake_run_agent
+                orch.validate_agent_output = lambda agent, out, proj: (True, "")
+
+                with contextlib.redirect_stdout(io.StringIO()):
+                    result = handle_cli_command("/repair auto")
+
+                self.assertEqual(result, "handled")
+                text = (project / "logs" / "latest_repair.md").read_text(encoding="utf-8")
+                self.assertIn("- agent: scout", text)
+                self.assertIn("- task: write scout_output.csv", text)
+                self.assertIn("repair did not create required file", text)
+                task_line = next(line for line in text.splitlines() if line.startswith("- task:"))
+                self.assertNotIn("\n", task_line)
+            finally:
+                orch.run_agent = original_run_agent
+                orch.validate_agent_output = original_validate
+                STATE.active_project = original_project
+
+    def test_repair_auto_reads_required_file_from_problem_text(self):
+        import orchestrator_v3 as orch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            project.mkdir(parents=True, exist_ok=True)
+            required = project / "output" / "scout" / "scout_output.csv"
+            _write_repair_note(
+                "scout",
+                "missing-output",
+                f"repair did not create required file: {required}",
+                project,
+                "rerun SCOUT and ensure required output exists",
+                task="write scout_output.csv",
+            )
+
+            original_project = STATE.active_project
+            original_run_agent = orch.run_agent
+            original_validate = orch.validate_agent_output
+            try:
+                STATE.active_project = project
+
+                def fake_run_agent(agent_name, task, prev_agent="", project_dir=None, discover=False):
+                    out_dir = project / "output" / agent_name
+                    out_dir.mkdir(parents=True, exist_ok=True)
+                    return str(out_dir)
+
+                orch.run_agent = fake_run_agent
+                orch.validate_agent_output = lambda agent, out, proj: (True, "")
+
+                with contextlib.redirect_stdout(io.StringIO()):
+                    result = handle_cli_command("/repair auto")
+
+                self.assertEqual(result, "handled")
+                text = (project / "logs" / "latest_repair.md").read_text(encoding="utf-8")
+                self.assertIn("repair did not create required file", text)
+                self.assertFalse(required.exists())
             finally:
                 orch.run_agent = original_run_agent
                 orch.validate_agent_output = original_validate
@@ -948,15 +1676,178 @@ class RunnerPolicyTests(unittest.TestCase):
         self.assertEqual(reason, "")
 
 
+class BuiltinTemplateContractTests(unittest.TestCase):
+    def test_finn_builtin_keeps_generic_target_and_avoids_rfm_storyline(self):
+        import subprocess
+        import sys
+
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            eddie_dir = project / "output" / "eddie"
+            scout_dir = project / "output" / "scout"
+            finn_dir = project / "output" / "finn"
+            eddie_dir.mkdir(parents=True)
+            scout_dir.mkdir(parents=True)
+            finn_dir.mkdir(parents=True)
+            scout_dir.joinpath("dataset_profile.md").write_text(
+                "target_column: Source_Year\nproblem_type : classification\n",
+                encoding="utf-8",
+            )
+            pd.DataFrame(
+                {
+                    "Year": [2020, 2021, 2022, 2023] * 30,
+                    "Country": ["A", "B", "C", "D"] * 30,
+                    "Metric": ["m1", "m2"] * 60,
+                    "Value": [float(i) for i in range(120)],
+                    "Source_Year": [2021, 2024, 2024, 2026] * 30,
+                }
+            ).to_csv(eddie_dir / "eddie_output.csv", index=False)
+
+            script = finn_dir / "finn_script.py"
+            script.write_text(builtin_agent_script("finn"), encoding="utf-8")
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(script),
+                    "--input",
+                    str(eddie_dir / "eddie_output.csv"),
+                    "--output-dir",
+                    str(finn_dir),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            out = pd.read_csv(finn_dir / "finn_output.csv", nrows=5)
+            self.assertIn("Source_Year", out.columns)
+            self.assertNotIn("monetary", out.columns)
+            self.assertNotIn("recency_days", out.columns)
+            report = (finn_dir / "finn_report.md").read_text(encoding="utf-8")
+            self.assertIn("feature_mode: generic supervised feature table", report)
+
+    def test_mo_gate_rejects_target_mismatch_fallback_report(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            scout_dir = project / "output" / "scout"
+            mo_dir = project / "output" / "mo"
+            scout_dir.mkdir(parents=True)
+            mo_dir.mkdir(parents=True)
+            scout_dir.joinpath("dataset_profile.md").write_text(
+                "target_column: Source_Year\nproblem_type : classification\n",
+                encoding="utf-8",
+            )
+            (mo_dir / "mo_output.csv").write_text("prediction,actual\n1,1\n", encoding="utf-8")
+            (mo_dir / "model_comparison.csv").write_text("model,rmse,mae,r2\ndummy_mean,0,0,0\n", encoding="utf-8")
+            (mo_dir / "mo_report.md").write_text(
+                "MO_REPORT\nPRODUCTION_READINESS\ntarget_column: monetary\nwinner model: dummy_mean\nrmse: 0\n",
+                encoding="utf-8",
+            )
+
+            ok, reason = validate_agent_output("mo", str(mo_dir / "mo_output.csv"), project)
+
+            self.assertFalse(ok)
+            self.assertIn("target_column mismatch", reason)
+            self.assertIn("fallback/dummy", reason)
+
+    def test_run_marker_does_not_create_nested_marker_names(self):
+        from anna_core.run_guard import output_run_marker
+
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            out_dir = project / "output" / "dana"
+            out_dir.mkdir(parents=True)
+            csv_path = out_dir / "dana_output.csv"
+            csv_path.write_text("a,b\n1,2\n", encoding="utf-8")
+            begin_project_run(project, reason="unit-test")
+            mark_output_current(csv_path, project)
+            marker = output_run_marker(csv_path)
+            mark_output_current(marker, project)
+
+            self.assertTrue(marker.exists())
+            self.assertFalse((out_dir / "dana_output.csv.run_id.run_id").exists())
+
+
+class QuinnRestartDownstreamTests(unittest.TestCase):
+    def test_quinn_restart_does_not_block_failure_aware_downstream_agent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            q_dir = project / "output" / "quinn"
+            q_dir.mkdir(parents=True)
+            q_dir.joinpath("quinn_report.md").write_text(
+                "WORLD_CLASS_QC\nRESTART_CYCLE: YES\nRestart From: Finn\n",
+                encoding="utf-8",
+            )
+
+            self.assertTrue(orch.enforce_quinn_gate("rex", project))
+
+    def test_rex_can_pass_with_failure_aware_report_after_quinn_restart(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            q_dir = project / "output" / "quinn"
+            r_dir = project / "output" / "rex"
+            q_dir.mkdir(parents=True)
+            r_dir.mkdir(parents=True)
+            q_dir.joinpath("quinn_report.md").write_text(
+                "WORLD_CLASS_QC\nRESTART_CYCLE: YES\nVerdict: Unsatisfied\n",
+                encoding="utf-8",
+            )
+            r_dir.joinpath("final_report.md").write_text(
+                "Executive issue report\n"
+                "restart_cycle acknowledged; pipeline blocked; not production-ready\n"
+                "Business impact assumptions: cost and ROI are not claimed.\n"
+                "Production readiness: prototype only, monitoring and retrain required.\n"
+                "Validation limitations: time-based / OOT validation limitation remains.\n",
+                encoding="utf-8",
+            )
+
+            ok, reason = validate_agent_output("rex", str(r_dir / "final_report.md"), project)
+
+            self.assertTrue(ok, reason)
+
+    def test_rex_blocks_success_claim_after_quinn_restart(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            q_dir = project / "output" / "quinn"
+            r_dir = project / "output" / "rex"
+            q_dir.mkdir(parents=True)
+            r_dir.mkdir(parents=True)
+            q_dir.joinpath("quinn_report.md").write_text(
+                "WORLD_CLASS_QC\nRESTART_CYCLE: YES\nVerdict: Unsatisfied\n",
+                encoding="utf-8",
+            )
+            r_dir.joinpath("final_report.md").write_text(
+                "Cycle complete and production-ready.\n"
+                "Business impact assumptions: cost.\n"
+                "Production readiness: monitoring.\n"
+                "Validation limitations: time-based validation limitation.\n",
+                encoding="utf-8",
+            )
+
+            ok, reason = validate_agent_output("rex", str(r_dir / "final_report.md"), project)
+
+            self.assertFalse(ok)
+            self.assertIn("failure-aware", reason)
+
+
 class ConfigTests(unittest.TestCase):
+    def test_default_mode_is_guided(self):
+        cfg = load_config(
+            Path("tmp"),
+            ["orchestrator_v3.py", "--no-color", "--no-title"],
+        )
+        self.assertEqual(cfg.mode, "guided")
+        self.assertFalse(cfg.codex_enabled)
+
     def test_load_config_flags(self):
         with tempfile.TemporaryDirectory() as tmp:
             cfg = load_config(
                 Path(tmp),
-                ["orchestrator_v3.py", "--mode", "full", "--claude-limit", "3", "--auto", "--no-color", "--no-title"],
+                ["orchestrator_v3.py", "--mode", "full", "--claude-limit", "3", "--auto", "--enable-codex", "--no-color", "--no-title"],
             )
             self.assertEqual(cfg.mode, "full")
             self.assertEqual(cfg.claude_limit, 3)
+            self.assertTrue(cfg.codex_enabled)
             self.assertFalse(cfg.step_mode)
             self.assertTrue(cfg.no_color)
             self.assertFalse(cfg.terminal_title)

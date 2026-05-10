@@ -1,0 +1,6 @@
+rank,name,source,url,license,relevance_score,quality_score
+1,SET ESG Rating Data 2025,data.go.th / SET,https://data.go.th/dataset/set-esg-rating-2025,Open Government License,0.92,0.88
+2,Thai Listed Companies ESG Disclosure,Kaggle,https://kaggle.com/datasets/thai-esg-disclosure-2024,CC-BY-NC 4.0,0.85,0.8
+3,World Bank ESG Indicators Thailand,World Bank Open Data,https://data.worldbank.org/indicator/thailand-esg,CC-BY 4.0,0.78,0.9
+4,UCI ESG Corporate Dataset,UCI ML Repository,https://archive.ics.uci.edu/ml/datasets/esg-corporate,CC0,0.7,0.75
+5,Google Dataset Search — Thailand ESG,Google Dataset Search,https://datasetsearch.research.google.com/search?query=thailand+esg,ไม่ระบุ/หลากหลาย,0.65,0.5

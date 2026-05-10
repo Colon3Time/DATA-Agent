@@ -18,6 +18,7 @@ class AppConfig:
     codex_model: str
     mode: str
     codex_limit: int
+    codex_enabled: bool
     step_mode: bool
     no_color: bool
     terminal_title: bool
@@ -33,7 +34,7 @@ class AppConfig:
 
 def load_config(base_dir: Path, argv: list[str] | None = None) -> AppConfig:
     args = list(sys.argv if argv is None else argv)
-    mode = "light"
+    mode = "guided"
     if "--mode" in args:
         idx = args.index("--mode")
         if idx + 1 < len(args):
@@ -55,6 +56,10 @@ def load_config(base_dir: Path, argv: list[str] | None = None) -> AppConfig:
             except ValueError:
                 pass
 
+    codex_enabled = "--enable-codex" in args or "--codex" in args
+    if "--no-codex" in args:
+        codex_enabled = False
+
     return AppConfig(
         base_dir=base_dir,
         agents_dir=base_dir / "agents",
@@ -67,6 +72,7 @@ def load_config(base_dir: Path, argv: list[str] | None = None) -> AppConfig:
         codex_model="gpt-5.5",
         mode=mode,
         codex_limit=codex_limit,
+        codex_enabled=codex_enabled,
         step_mode="--auto" not in args,
         no_color="--no-color" in args,
         terminal_title="--no-title" not in args,

@@ -1,0 +1,7 @@
+check,status,detail
+target_alignment,pass,target=Value; problem_type=regression
+leakage,warn,No target-encoded token found in Mo report; code-level audit still recommended
+overfitting,warn,Holdout evidence exists but builtin benchmark is not a full production model
+drift,warn,OOT/time split not proven
+calibration,warn,Probability calibration not proven
+business_satisfaction,pass,QC only passes when downstream evidence matches Scout target

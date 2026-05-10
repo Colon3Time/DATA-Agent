@@ -1,0 +1,12 @@
+column,dtype,missing_pct,n_unique
+Year,int64,0.0,28
+Country,str,0.0,227
+ISO3,str,0.0,227
+Metric,str,0.0,24453
+Value,float64,0.06,182181
+Dataset,str,0.0,26
+Source,str,0.0,11
+Source_Category,str,0.0,21
+Source_File,str,0.0,161
+Source_Type,str,0.0,2
+Source_Year,int64,0.0,6

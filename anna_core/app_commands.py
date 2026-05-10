@@ -36,7 +36,7 @@ class AppCommands:
     run_agent: Callable[..., str]
     validate_agent_output: Callable[[str, str, Path | None], tuple[bool, str]]
     print_gate_recovery: Callable[[str, str, Path | None], None]
-    write_repair_note: Callable[[str, str, str, Path | None, str], Path | None]
+    write_repair_note: Callable[..., Path | None]
     delete_old_scripts: Callable[[Path], None]
     output_dir_for: Callable[[Path | None, str], Path]
     quinn_hard_gate: Callable[[Path], tuple[bool, str, str]]
@@ -44,7 +44,9 @@ class AppCommands:
     load_kb: Callable[[str], str]
     load_relevant_kb: Callable[[str, str, int], str]
     save_kb: Callable[[str, str, str], None]
+    call_deepseek: Callable[[str, str, str], str]
     call_claude: Callable[[str, str, str], str]
+    codex_enabled: bool
     anna_system: str
     get_last_pipeline_project: Callable[[], Path | None]
     set_last_pipeline_project: Callable[[Path | None], None]
@@ -116,6 +118,70 @@ class AppCommands:
         text = note.read_text(encoding="utf-8", errors="ignore")
         return note, text, self._parse_repair_note_fields(text)
 
+    def _infer_repair_upstream_agent(self, fields: dict[str, str], downstream_agent: str) -> str:
+        kind = fields.get("kind", "").strip().lower()
+        haystacks = [fields.get("upstream_expected", "")]
+        if kind in {"missing-output", "stale-output", "schema-mismatch"}:
+            haystacks.extend([
+                fields.get("problem", ""),
+                fields.get("input", ""),
+            ])
+        for text in haystacks:
+            match = re.search(r"output[\\/]+([a-z_]+)[\\/]+[a-z_]+_output\.csv", text, re.IGNORECASE)
+            if match:
+                upstream = match.group(1).lower()
+                if upstream != downstream_agent:
+                    return upstream
+
+        if kind not in {"missing-output", "stale-output", "schema-mismatch"}:
+            return ""
+
+        plan = fields.get("plan", "")
+        match = re.search(r"rerun\s+@?([a-z_]+)", plan, re.IGNORECASE)
+        if match:
+            upstream = match.group(1).lower()
+            if upstream != downstream_agent:
+                    return upstream
+        return ""
+
+    def _repair_expected_upstream_path(self, fields: dict[str, str], project: Path) -> Path | None:
+        expected = fields.get("upstream_expected", "").strip()
+        if not expected:
+            problem = fields.get("problem", "")
+            match = re.search(r"(?:required file|expected upstream output):\s*(.+?)(?:\.\s|$)", problem, re.IGNORECASE)
+            if match:
+                expected = match.group(1).strip()
+        if not expected:
+            return None
+        expected_path = Path(expected)
+        if expected_path.is_absolute():
+            return expected_path
+        return project / expected_path
+
+    def _repair_note_task(self, task: str) -> str:
+        return re.sub(r"\s+", " ", task).strip()
+
+    def _run_repair_agent_once(self, agent: str, task: str, project: Path) -> tuple[bool, str]:
+        p = self.palette
+        try:
+            out = self.run_agent(agent, task, project_dir=project)
+            ok, msg = self.validate_agent_output(agent, out, project)
+        except RuntimeError as exc:
+            msg = str(exc)
+            if agent in ("scout", "dana", "eddie", "finn", "mo"):
+                self.print_gate_recovery(agent, msg, project)
+            else:
+                print(f"{p.yellow}  {agent.upper()} repair stopped: {msg}{p.reset}")
+            return False, msg
+
+        if ok:
+            return True, ""
+        if agent in ("scout", "dana", "eddie", "finn", "mo"):
+            self.print_gate_recovery(agent, msg, project)
+        else:
+            print(f"{p.yellow}  ⚠ {agent.upper()} ยังไม่ผ่าน validation: {msg}{p.reset}")
+        return False, msg
+
     def _run_latest_repair_note(self) -> None:
         p = self.palette
         project = self.state.active_project
@@ -157,22 +223,57 @@ class AppCommands:
             rerun_task = f"{task}\n\nLatest repair note:\n{plan}"
 
         run_id = begin_project_run(project, reason=f"repair:{agent}")
+        upstream_agent = self._infer_repair_upstream_agent(fields, agent)
+        if upstream_agent:
+            upstream_task = (
+                f"Repair upstream output for {agent.upper()}. {plan or fields.get('problem', '')}\n\n"
+                f"Downstream task waiting for this output:\n{task}"
+            ).strip()
+            print(f"  upstream: rerun {upstream_agent.upper()} ก่อน {agent.upper()}")
+            upstream_ok, _ = self._run_repair_agent_once(upstream_agent, upstream_task, project)
+            if not upstream_ok:
+                print(f"{p.red}  auto repair stopped at upstream {upstream_agent.upper()}{p.reset}")
+                return
+            expected_upstream = self._repair_expected_upstream_path(fields, project)
+            if expected_upstream and not expected_upstream.exists():
+                msg = f"upstream repair did not create required file: {expected_upstream}"
+                print(f"{p.red}  {msg}{p.reset}")
+                self.write_repair_note(
+                    upstream_agent,
+                    "missing-output",
+                    msg,
+                    project,
+                    f"rerun {upstream_agent.upper()} and ensure required output exists",
+                    task=self._repair_note_task(upstream_task),
+                )
+                return
+
         promote_upstream_outputs(project, agent, run_id)
-        out = self.run_agent(agent, rerun_task, project_dir=project)
-        ok, msg = self.validate_agent_output(agent, out, project)
+        ok, _msg = self._run_repair_agent_once(agent, rerun_task, project)
+        expected_output = self._repair_expected_upstream_path(fields, project)
+        if ok and expected_output and not expected_output.exists():
+            msg = f"repair did not create required file: {expected_output}"
+            print(f"{p.red}  {msg}{p.reset}")
+            self.write_repair_note(
+                agent,
+                "missing-output",
+                msg,
+                project,
+                f"rerun {agent.upper()} and ensure required output exists",
+                task=self._repair_note_task(rerun_task),
+            )
+            return
         if ok:
             print(f"{p.green}  ✓ auto repair completed for {agent.upper()}{p.reset}")
             return
 
-        if agent in ("scout", "dana", "eddie", "finn", "mo"):
-            self.print_gate_recovery(agent, msg, project)
-        else:
-            print(f"{p.yellow}  ⚠ {agent.upper()} ยังไม่ผ่าน validation: {msg}{p.reset}")
-
     def anna_discover(self, user_input: str) -> None:
         anna_kb = self.load_relevant_kb("anna", user_input, top_n=6) if user_input else self.load_kb("anna")
         system = self.anna_system + (f"\n\n---\n## Anna KB\n{anna_kb[:500]}" if anna_kb else "")
-        result = self.call_claude(system, user_input, label="ANNA discover")
+        if not self.codex_enabled:
+            result = self.call_deepseek(system, user_input, label="ANNA discover")
+        else:
+            result = self.call_claude(system, user_input, label="ANNA discover")
         self.save_kb("anna", f"Task: {user_input}\nDiscovery:\n{result}")
 
     def read_cli_input(self) -> str | None:
@@ -347,7 +448,10 @@ class AppCommands:
                 print(f"\n{p.yellow}  RUN-ALL stopped by user{p.reset}")
                 return
             except Exception as e:
-                print(f"{p.red}  RUN-ALL failed at {agent.upper()}: {e}{p.reset}")
+                try:
+                    print(f"{p.red}  RUN-ALL failed at {agent.upper()}: {e}{p.reset}")
+                except OSError:
+                    pass
                 return
 
         print(f"\n{p.green}  RUN-ALL complete:{p.reset} {', '.join(completed)}")
@@ -507,7 +611,12 @@ class AppCommands:
                 break
             if not user_input:
                 continue
-            command_result = self.handle_cli_command(user_input)
+            try:
+                command_result = self.handle_cli_command(user_input)
+            except OSError:
+                if user_input.strip().lower() in ("exit", "quit", "/exit", "/quit"):
+                    break
+                continue
             if command_result == "exit":
                 break
             if command_result == "handled":

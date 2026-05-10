@@ -1,0 +1,9 @@
+column,dtype,missing_pct,n_unique
+Country,str,0.0,1
+Year,int64,0.0,15
+Indicator,str,0.0,7
+Value,float64,0.0,83
+is_return,int64,0.0,1
+is_cancellation,int64,0.0,1
+is_outlier,int64,0.0,1
+revenue,float64,0.0,1

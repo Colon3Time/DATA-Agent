@@ -1,0 +1,38 @@
+{
+  "rows": 770,
+  "columns": [
+    "Customer ID",
+    "Customer_ID",
+    "recency_days",
+    "frequency",
+    "monetary",
+    "row_count",
+    "avg_revenue",
+    "return_rate",
+    "outlier_rate"
+  ],
+  "target_column": "unknown",
+  "problem_type": "clustering",
+  "role_keys": [
+    "access_to_finance_obstacle",
+    "annual_sales_million_thb",
+    "capacity_utilization_pct",
+    "checking_savings_account",
+    "collateral_required",
+    "collateral_value_pct_loan",
+    "corruption_obstacle",
+    "country_code",
+    "country_name",
+    "court_system_obstacle",
+    "crime_theft_disorder_obstacle",
+    "customs_trade_regulations_obstacle",
+    "days_to_clear_exports_customs",
+    "days_to_get_construction_permit",
+    "days_to_get_electricity",
+    "direct_exports_pct_sales",
+    "electricity_obstacle",
+    "exporter_direct",
+    "female_full_time_workers_pct",
+    "female_ownership"
+  ]
+}

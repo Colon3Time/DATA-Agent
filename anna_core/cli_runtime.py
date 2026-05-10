@@ -33,6 +33,7 @@ class CliRenderer:
         deepseek_model: str,
         claude_model: str,
         claude_limit: int,
+        codex_enabled: bool,
         mode: str,
         palette: CliPalette,
     ) -> None:
@@ -42,6 +43,7 @@ class CliRenderer:
         self.deepseek_model = deepseek_model
         self.claude_model = claude_model
         self.claude_limit = claude_limit
+        self.codex_enabled = codex_enabled
         self.mode = mode
         self.p = palette
 
@@ -71,7 +73,11 @@ class CliRenderer:
         ds_ok = bool(os.environ.get("DEEPSEEK_API_KEY"))
         appdata = os.environ.get("APPDATA", "")
         codex_path = Path(appdata) / "npm" / "codex.cmd" if appdata else None
-        codex_ok = shutil.which("codex.cmd") is not None or shutil.which("codex") is not None or bool(codex_path and codex_path.exists())
+        codex_ok = self.codex_enabled and (
+            shutil.which("codex.cmd") is not None
+            or shutil.which("codex") is not None
+            or bool(codex_path and codex_path.exists())
+        )
         lines = [
             "DataScienceOS - Anna (CEO)",
             f"DeepSeek: {self.deepseek_model} | Codex CLI: {self.claude_model}",
@@ -85,7 +91,7 @@ class CliRenderer:
         print("+" + "-" * width + "+")
         print()
         ds_str = "OK" if ds_ok else "MISSING KEY"
-        codex_str = "OK" if codex_ok else "MISSING"
+        codex_str = "DISABLED" if not self.codex_enabled else ("OK" if codex_ok else "MISSING")
         print(
             f"  {p.blue}{p.bold}DeepSeek:{p.reset} {ds_str}    "
             f"{p.magenta}{p.bold}Codex CLI:{p.reset} {codex_str}  "

@@ -1,0 +1,22 @@
+{
+  "rows": 105,
+  "columns": [
+    "num__Year",
+    "num__is_return",
+    "num__is_cancellation",
+    "num__is_outlier",
+    "num__revenue",
+    "cat__Country_Thailand",
+    "cat__Indicator_Export_Growth_pct",
+    "cat__Indicator_Foreign_Reserve_USD_billion",
+    "cat__Indicator_GDP_Growth_pct",
+    "cat__Indicator_GDP_USD_billion",
+    "cat__Indicator_Inflation_pct",
+    "cat__Indicator_Population_million",
+    "cat__Indicator_Unemployment_pct",
+    "Value"
+  ],
+  "target_column": "Value",
+  "problem_type": "regression",
+  "feature_mode": "generic_supervised"
+}

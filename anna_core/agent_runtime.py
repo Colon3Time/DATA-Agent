@@ -267,7 +267,7 @@ def extract_input_archives(input_dir: Path) -> None:
 
 
 def extract_python_blocks(text: str) -> list[str]:
-    return re.findall(r"```python\n(.*?)```", text, re.DOTALL)
+    return re.findall(r"```\s*(?:python|py)\s*\r?\n(.*?)```", text, re.DOTALL | re.IGNORECASE)
 
 
 def build_agent_path_message(

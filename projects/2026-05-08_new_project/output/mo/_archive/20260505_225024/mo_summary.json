@@ -1,0 +1,19 @@
+{
+  "target_column": "Value",
+  "problem_type": "regression",
+  "winner": {
+    "model": "numpy_ridge_alpha_1",
+    "rmse": 0.1758145868510822,
+    "mae": 0.1386075409892482,
+    "r2": 0.9927664060078729,
+    "rmse_log_scale": 0.1758145868510822,
+    "mae_log_scale": 0.1386075409892482,
+    "r2_log_scale": 0.9927664060078729,
+    "rmse_inverse_value": 24.874606094597386,
+    "mae_inverse_value": 11.457820534931361,
+    "r2_inverse_value": 0.9733470650961684,
+    "rmse_original_scale": 24.874606094597386,
+    "mae_original_scale": 11.457820534931361,
+    "r2_original_scale": 0.9733470650961684
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "target_column": "Value",
+  "roles": {
+    "Country": "categorical",
+    "Year": "date",
+    "Indicator": "categorical",
+    "Value": "label"
+  },
+  "role_summary": {
+    "id": [],
+    "date": [
+      "Year"
+    ],
+    "label": [
+      "Value"
+    ],
+    "numeric": [],
+    "categorical": [
+      "Country",
+      "Indicator"
+    ]
+  },
+  "notes": {
+    "id": "Columns used as identifiers or keys; downstream should not treat them as numeric features.",
+    "date": "Datetime or date-like columns; keep for time-aware analysis and splitting.",
+    "label": "Supervised target column if detected.",
+    "numeric": "Safe candidate features for numeric analysis after cleaning.",
+    "categorical": "Non-numeric feature columns."
+  }
+}

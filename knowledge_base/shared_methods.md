@@ -64,6 +64,45 @@ X_result = scaler.inverse_transform(X_imputed)
 - ตรวจ distribution ก่อนและหลัง impute/transform
 - report ผลการ validate ใน output report เสมอ
 
+## Decision Quality Gate — บังคับก่อนตัดสินใจทุกครั้ง
+
+Agent ยังตัดสินใจผิดได้ง่าย ถ้าข้ามการพิสูจน์หลักฐาน ดังนั้นก่อนเลือกวิธี, ลบข้อมูล, เติมค่า, สร้าง feature, เลือก model, เลือก chart, สรุป insight, pass/fail QC, หรือเขียน recommendation ต้องผ่าน gate นี้ก่อนเสมอ
+
+### กฎ 5 ข้อก่อนตัดสินใจ
+1. **ระบุโจทย์ให้ชัด** — decision นี้ตอบ business/research question อะไร และ downstream agent จะใช้ผลนี้อย่างไร
+2. **ตรวจหลักฐานจากไฟล์จริง** — ใช้ข้อมูลจริง, report ล่าสุด, log ล่าสุด, schema, row count, metric หรือ artifact ที่มีอยู่ ห้ามเดาจากชื่อไฟล์หรือความจำ
+3. **เทียบอย่างน้อย 2 ทางเลือก** — ระบุทางเลือกหลัก, ทางเลือกสำรอง, ข้อดี/ข้อเสีย และเหตุผลที่ไม่เลือกอีกทาง ถ้ามีทางเดียวต้องอธิบายว่าทำไมไม่มีทางเลือกอื่นที่เหมาะ
+4. **ประเมินความเสี่ยงก่อนลงมือ** — leakage, overfitting, missingness, imbalance, wrong target, wrong file, stale output, path ผิด, dependency หาย, cost/business impact, และผลกระทบต่อ agent ถัดไป
+5. **สรุป verdict แบบตรวจสอบได้** — เขียน decision พร้อม evidence, assumption, confidence และสิ่งที่จะทำถ้า evidence ไม่พอ
+
+### Stop Rules — ห้ามเดา ห้ามเดินต่อ
+ถ้าเข้าเงื่อนไขใดข้อหนึ่ง ต้องหยุดและเขียน repair/ask แทนการเลือกเอง:
+- ไม่พบไฟล์ input/output ที่ต้องใช้ หรือไฟล์ล่าสุดขัดแย้งกับ task ปัจจุบัน
+- target column, problem type, time/order column, unit, grain, หรือ business objective ยังไม่ชัด
+- metric ดีผิดปกติ เช่น 0.999-1.000 โดยยังไม่ได้พิสูจน์ leakage
+- row count, schema, class ratio, date range, หรือ data source ไม่ได้มาจากไฟล์จริง
+- dependency หรือ model/library ที่ต้องใช้ไม่มี และไม่มี fallback ที่พิสูจน์แล้วว่าเทียบเท่า
+- ผลลัพธ์ของ agent ก่อนหน้าไม่ตรง contract หรือมีเฉพาะ report แต่ไม่มี artifact จริง
+
+### Required Decision Block
+ทุก report ต้องมี block นี้สำหรับ decision สำคัญ:
+```text
+DECISION_CHECK
+Decision: [เลือก/ไม่เลือก/หยุดอะไร]
+Question: [decision นี้ตอบคำถามอะไร]
+Evidence: [ไฟล์/ตัวเลข/report/log ที่ใช้]
+Alternatives: [อย่างน้อย 2 ทางเลือก หรือเหตุผลที่มีได้ทางเดียว]
+Risk Check: [leakage/overfit/wrong file/stale output/business risk]
+Assumptions: [สิ่งที่ยังสมมติ]
+Confidence: [High/Medium/Low + เหตุผล]
+Verdict: [PROCEED / LOOP_BACK / STOP_AND_REPAIR / ASK_USER]
+```
+
+### Confidence Rules
+- **High** = มีไฟล์จริง + metric/หลักฐานครบ + ทางเลือกถูกเทียบ + risk ผ่าน
+- **Medium** = หลักฐานพอทำ prototype แต่ยังมี limitation ต้องรายงานชัด
+- **Low** = หลักฐานไม่พอ, ไฟล์ไม่ครบ, objective ไม่ชัด, หรือ risk ยังไม่ผ่าน → ห้าม proceed
+
 ## กฎเหล็ก — ทุก Report ต้องอธิบายเหตุผล (Human-Readable Reasoning)
 
 **หลักการ:** คนอ่าน report ไม่ใช่คอมพิวเตอร์ — ทุก decision ต้องอธิบายว่า "ทำไม" ไม่ใช่แค่ "อะไร"

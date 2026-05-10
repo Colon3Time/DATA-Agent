@@ -1,87 +1,9 @@
-## [PROVEN] World-Class Analytics Default
-
-Keywords: world-class, world class, production-ready, production readiness, executive-ready, business rigor, analytical rigor, PR-AUC, positive-class metrics, expected value, cost-benefit, threshold economics, calibration, Brier score, time-based split, out-of-time validation, OOT, leakage, monitoring, retraining, reproducibility.
-
-Every agent must treat world-class analytics as the default standard, even when the user does not explicitly say "world-class".
-
-Role responsibilities:
-- Scout: prove the dataset is credible, licensed, relevant, recent enough, documented, and fit for the target decision.
-- Dana: preserve raw meaning, document cleaning decisions, protect target integrity, and report data quality before/after.
-- Eddie: frame EDA around business question, KPI, decision owner, effect size, causality limits, and validation risk.
-- Finn: enforce feature lineage, prediction-time availability, leakage prevention, train-only transforms, and OOT support.
-- Mo: report imbalance-aware metrics, PR-AUC, positive-class metrics, threshold economics, calibration, OOT/time validation, and dependency benchmarks.
-- Max: validate patterns with support/confidence/lift/stability/sample size and caveat exploratory findings.
-- Iris: turn evidence into decision-ready business actions with KPI, owner, assumptions, risks, validation plan, and confidence.
-- Vera: make visuals traceable, non-misleading, accessible, sourced, caveated, and decision-oriented.
-- Quinn: gate the whole cycle for leakage, overfitting, drift, calibration, business satisfaction, and production readiness.
-- Rex: separate executive-ready prototype from production-ready status and never state ROI without assumptions.
-
-Required block names that should be preserved in reports when relevant:
-DATASET_RISK_REGISTER, DATA_QUALITY_AUDIT, BUSINESS_EDA_FRAME, FEATURE_GOVERNANCE, PRODUCTION_READINESS, PATTERN_VALIDITY, BUSINESS_DECISION_BRIEF, VISUAL_QC, WORLD_CLASS_QC.
-
-## [PROVEN] World-Class Analytics Default
-
-Keywords: world-class, world class, production-ready, production readiness, executive-ready, business rigor, analytical rigor, PR-AUC, positive-class metrics, expected value, cost-benefit, threshold economics, calibration, Brier score, time-based split, out-of-time validation, OOT, leakage, monitoring, retraining, reproducibility.
-
-Every agent must treat world-class analytics as the default standard, even when the user does not explicitly say "world-class".
-
-Role responsibilities:
-- Scout: prove the dataset is credible, licensed, relevant, recent enough, documented, and fit for the target decision.
-- Dana: preserve raw meaning, document cleaning decisions, protect target integrity, and report data quality before/after.
-- Eddie: frame EDA around business question, KPI, decision owner, effect size, causality limits, and validation risk.
-- Finn: enforce feature lineage, prediction-time availability, leakage prevention, train-only transforms, and OOT support.
-- Mo: report imbalance-aware metrics, PR-AUC, positive-class metrics, threshold economics, calibration, OOT/time validation, and dependency benchmarks.
-- Max: validate patterns with support/confidence/lift/stability/sample size and caveat exploratory findings.
-- Iris: turn evidence into decision-ready business actions with KPI, owner, assumptions, risks, validation plan, and confidence.
-- Vera: make visuals traceable, non-misleading, accessible, sourced, caveated, and decision-oriented.
-- Quinn: gate the whole cycle for leakage, overfitting, drift, calibration, business satisfaction, and production readiness.
-- Rex: separate executive-ready prototype from production-ready status and never state ROI without assumptions.
-
-Required block names that should be preserved in reports when relevant:
-DATASET_RISK_REGISTER, DATA_QUALITY_AUDIT, BUSINESS_EDA_FRAME, FEATURE_GOVERNANCE, PRODUCTION_READINESS, PATTERN_VALIDITY, BUSINESS_DECISION_BRIEF, VISUAL_QC, WORLD_CLASS_QC.
-
-## [PROVEN] World-Class Analytics Default
-
-Keywords: world-class, world class, production-ready, production readiness, executive-ready, business rigor, analytical rigor, PR-AUC, positive-class metrics, expected value, cost-benefit, threshold economics, calibration, Brier score, time-based split, out-of-time validation, OOT, leakage, monitoring, retraining, reproducibility.
-
-Every agent must treat world-class analytics as the default standard, even when the user does not explicitly say "world-class".
-
-Role responsibilities:
-- Scout: prove the dataset is credible, licensed, relevant, recent enough, documented, and fit for the target decision.
-- Dana: preserve raw meaning, document cleaning decisions, protect target integrity, and report data quality before/after.
-- Eddie: frame EDA around business question, KPI, decision owner, effect size, causality limits, and validation risk.
-- Finn: enforce feature lineage, prediction-time availability, leakage prevention, train-only transforms, and OOT support.
-- Mo: report imbalance-aware metrics, PR-AUC, positive-class metrics, threshold economics, calibration, OOT/time validation, and dependency benchmarks.
-- Max: validate patterns with support/confidence/lift/stability/sample size and caveat exploratory findings.
-- Iris: turn evidence into decision-ready business actions with KPI, owner, assumptions, risks, validation plan, and confidence.
-- Vera: make visuals traceable, non-misleading, accessible, sourced, caveated, and decision-oriented.
-- Quinn: gate the whole cycle for leakage, overfitting, drift, calibration, business satisfaction, and production readiness.
-- Rex: separate executive-ready prototype from production-ready status and never state ROI without assumptions.
-
-Required block names that should be preserved in reports when relevant:
-DATASET_RISK_REGISTER, DATA_QUALITY_AUDIT, BUSINESS_EDA_FRAME, FEATURE_GOVERNANCE, PRODUCTION_READINESS, PATTERN_VALIDITY, BUSINESS_DECISION_BRIEF, VISUAL_QC, WORLD_CLASS_QC.
-
-## [PROVEN] World-Class Analytics Default
-
-Keywords: world-class, world class, production-ready, production readiness, executive-ready, business rigor, analytical rigor, PR-AUC, positive-class metrics, expected value, cost-benefit, threshold economics, calibration, Brier score, time-based split, out-of-time validation, OOT, leakage, monitoring, retraining, reproducibility.
-
-Every agent must treat world-class analytics as the default standard, even when the user does not explicitly say "world-class".
-
-Role responsibilities:
-- Scout: prove the dataset is credible, licensed, relevant, recent enough, documented, and fit for the target decision.
-- Dana: preserve raw meaning, document cleaning decisions, protect target integrity, and report data quality before/after.
-- Eddie: frame EDA around business question, KPI, decision owner, effect size, causality limits, and validation risk.
-- Finn: enforce feature lineage, prediction-time availability, leakage prevention, train-only transforms, and OOT support.
-- Mo: report imbalance-aware metrics, PR-AUC, positive-class metrics, threshold economics, calibration, OOT/time validation, and dependency benchmarks.
-- Max: validate patterns with support/confidence/lift/stability/sample size and caveat exploratory findings.
-- Iris: turn evidence into decision-ready business actions with KPI, owner, assumptions, risks, validation plan, and confidence.
-- Vera: make visuals traceable, non-misleading, accessible, sourced, caveated, and decision-oriented.
-- Quinn: gate the whole cycle for leakage, overfitting, drift, calibration, business satisfaction, and production readiness.
-- Rex: separate executive-ready prototype from production-ready status and never state ROI without assumptions.
-
-Required block names that should be preserved in reports when relevant:
-DATASET_RISK_REGISTER, DATA_QUALITY_AUDIT, BUSINESS_EDA_FRAME, FEATURE_GOVERNANCE, PRODUCTION_READINESS, PATTERN_VALIDITY, BUSINESS_DECISION_BRIEF, VISUAL_QC, WORLD_CLASS_QC.
-
+## Decision Quality Gate (mandatory)
+ใช้กฎกลางจาก `knowledge_base/shared_methods.md` ก่อนทุก decision สำคัญ
+- ตรวจหลักฐานจากไฟล์จริงและ output ล่าสุดก่อนเลือกวิธี
+- เทียบอย่างน้อย 2 ทางเลือก หรืออธิบายว่าทำไมมีทางเดียว
+- บันทึก `DECISION_CHECK` พร้อม Evidence, Risk Check, Confidence และ Verdict
+- ถ้าหลักฐานไม่พอหรือ confidence ต่ำ ให้หยุดด้วย `STOP_AND_REPAIR`, `LOOP_BACK`, หรือ `ASK_USER`
 
 # Max Methods & Knowledge Base
 
@@ -132,6 +54,7 @@ k = 5
 nbrs = NearestNeighbors(n_neighbors=k).fit(X_scaled)
 distances, _ = nbrs.kneighbors(X_scaled)
 distances = np.sort(distances[:, k-1])
+
 # plot distances → หา elbow
 
 db = DBSCAN(eps=0.5, min_samples=5)
@@ -151,6 +74,7 @@ from scipy.cluster.hierarchy import dendrogram, linkage
 
 # Dendrogram เพื่อเลือก k
 Z = linkage(X_scaled, method='ward')
+
 # plot dendrogram → หา cutoff height → ได้ k
 
 agg = AgglomerativeClustering(n_clusters=3, linkage='ward')
@@ -203,8 +127,11 @@ rules = association_rules(frequent_itemsets, metric='lift', min_threshold=1.2)
 rules = rules.sort_values('lift', ascending=False)
 
 # Key metrics:
+
 # Support = P(A ∩ B) — ความถี่ที่ item ปรากฏร่วมกัน
+
 # Confidence = P(B|A) — ถ้าซื้อ A จะซื้อ B กี่ %
+
 # Lift > 1 = ความสัมพันธ์จริง (ไม่ใช่แค่บังเอิญ)
 ```
 
@@ -227,6 +154,7 @@ from sklearn.manifold import TSNE
 
 tsne = TSNE(n_components=2, perplexity=30, random_state=42)
 X_2d = tsne.fit_transform(X_scaled)
+
 # ใช้ visualize เท่านั้น — ห้าม feed X_2d เข้า model จริง
 ```
 

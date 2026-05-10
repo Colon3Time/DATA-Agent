@@ -32,7 +32,8 @@ class PipelineStore:
         for pf in self.pipeline_dir.glob("*_path.txt"):
             agent = pf.stem.replace("_path", "")
             val = pf.read_text(encoding="utf-8").strip()
-            if Path(val).exists() and output_is_current(Path(val), self.project_dir):
+            path = Path(val)
+            if path.exists() and path.is_file() and output_is_current(path, self.project_dir):
                 done.append(agent)
         return done
 

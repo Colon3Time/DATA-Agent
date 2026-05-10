@@ -8,22 +8,29 @@ import numpy as np
 import pandas as pd
 
 
-def _read_role_blob(inp: Path) -> dict[str, object]:
-    roles_path = inp.parent.parent / "dana" / "column_roles.json"
-    if not roles_path.exists():
-        return {}
-    try:
-        return json.loads(roles_path.read_text(encoding="utf-8", errors="ignore"))
-    except Exception:
-        return {}
-
-
 def _read_profile(inp: Path) -> dict[str, str]:
+    # User-specified override wins over Scout's inferred target
+    override_path = next(
+        (p / "target_override.json" for p in [inp.parent, inp.parent.parent, inp.parent.parent.parent, inp.parent.parent.parent.parent]
+         if (p / "target_override.json").exists()),
+        inp.parent.parent.parent / "target_override.json",
+    )
+    if override_path.exists():
+        try:
+            import json as _j
+            data = _j.loads(override_path.read_text(encoding="utf-8"))
+            if data.get("target_column") and str(data["target_column"]).lower() not in {"unknown", ""}:
+                return {
+                    "target_column": str(data["target_column"]),
+                    "problem_type": str(data.get("problem_type", "regression")),
+                }
+        except Exception:
+            pass
     profile = inp.parent.parent / "scout" / "dataset_profile.md"
+    out = {"target_column": "unknown", "problem_type": "classification"}
     if not profile.exists():
-        return {"target_column": "unknown", "problem_type": "classification"}
+        return out
     text = profile.read_text(encoding="utf-8", errors="ignore")
-    out: dict[str, str] = {}
     for key in ("target_column", "problem_type"):
         for line in text.splitlines():
             if line.lower().startswith(key):
@@ -31,173 +38,102 @@ def _read_profile(inp: Path) -> dict[str, str]:
                 if len(parts) == 2:
                     out[key] = parts[1].strip()
                     break
-    out.setdefault("target_column", "unknown")
-    out.setdefault("problem_type", "classification")
     return out
 
 
-def _pick_customer_col(df: pd.DataFrame) -> str | None:
-    for name in ("Customer_ID", "Customer ID", "customer_id", "CustomerID", "firm_id", "survey_id", "entity_id", "respondent_id"):
-        if name in df.columns:
-            return name
-    return None
+def _retail_rfm_possible(df: pd.DataFrame) -> bool:
+    cols = {str(c).lower().replace(" ", "_") for c in df.columns}
+    return bool(
+        {"quantity", "price"} <= cols
+        and any(c in cols for c in {"customer_id", "customerid", "customer_id"})
+        and any(c in cols for c in {"invoicedate", "invoice_date", "date", "order_date"})
+    )
 
 
-def _pick_invoice_col(df: pd.DataFrame) -> str | None:
-    for name in ("Invoice", "InvoiceNo", "invoice", "order_id", "OrderID", "survey_id"):
-        if name in df.columns:
-            return name
-    return None
+def _safe_name(name: object) -> str:
+    return str(name).strip().replace(" ", "_")
 
 
-def _pick_value_col(df: pd.DataFrame, exclude: set[str]) -> str | None:
-    candidates = [
-        "revenue",
-        "annual_sales_million_thb",
-        "annual_sales",
-        "sales",
-        "turnover",
-        "value",
-        "amount",
-        "profit",
-        "employment",
-        "employees",
-        "firm_size",
-        "capacity_utilization_pct",
-    ]
-    for name in candidates:
-        if name in df.columns and pd.api.types.is_numeric_dtype(df[name]) and name not in exclude:
-            return name
-    numeric = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c]) and c not in exclude]
-    return numeric[0] if numeric else None
-
-
-def _ensure_datetime(df: pd.DataFrame) -> pd.DataFrame:
-    for name in ("InvoiceDate", "Invoice_Date", "date", "Date", "order_date"):
-        if name in df.columns:
-            df[name] = pd.to_datetime(df[name], errors="coerce")
-            return df
-    return df
-
-
-def _build_rfm(df: pd.DataFrame) -> pd.DataFrame:
-    cust_col = _pick_customer_col(df)
-    if cust_col is None:
-        cust_col = "row_id"
-        df = df.copy()
-        df[cust_col] = [f"row_{i}" for i in range(len(df))]
-    inv_col = _pick_invoice_col(df)
+def _build_generic_features(df: pd.DataFrame, profile: dict[str, str]) -> tuple[pd.DataFrame, list[str], list[str]]:
+    target = profile.get("target_column", "unknown")
+    if target not in df.columns and profile.get("problem_type", "").lower() in {"classification", "regression"}:
+        raise SystemExit(f"Scout target '{target}' is missing from Finn input")
 
     work = df.copy()
-    work[cust_col] = work[cust_col].astype("string").str.strip()
-    work = work[work[cust_col].notna()].copy()
-    work = _ensure_datetime(work)
+    id_like = []
+    for col in work.columns:
+        lc = str(col).lower()
+        nunique = work[col].nunique(dropna=True)
+        unique_ratio = nunique / max(len(work), 1)
+        if col != target and (lc.endswith("_id") or lc in {"id", "uuid"} or unique_ratio > 0.98):
+            id_like.append(col)
 
-    if "revenue" not in work.columns:
-        qty = pd.to_numeric(work["Quantity"], errors="coerce").fillna(0) if "Quantity" in work.columns else None
-        price = pd.to_numeric(work["Price"], errors="coerce").fillna(0) if "Price" in work.columns else None
-        if qty is not None and price is not None:
-            work["revenue"] = qty * price
+    feature_source = work.drop(columns=id_like, errors="ignore")
+    y = feature_source[target] if target in feature_source.columns else None
+    X = feature_source.drop(columns=[target], errors="ignore")
+
+    numeric_cols = X.select_dtypes(include=[np.number]).columns.tolist()
+    cat_cols = [c for c in X.columns if c not in numeric_cols]
+    pieces: list[pd.DataFrame] = []
+    if numeric_cols:
+        num = X[numeric_cols].apply(pd.to_numeric, errors="coerce")
+        num = num.replace([np.inf, -np.inf], np.nan)
+        num = num.fillna(num.median(numeric_only=True)).fillna(0)
+        pieces.append(num.add_prefix("num__"))
+    for col in cat_cols:
+        series = X[col].astype("string").fillna("__missing__")
+        if series.nunique(dropna=True) <= 30:
+            dummies = pd.get_dummies(series, prefix=f"cat__{_safe_name(col)}", dummy_na=False, dtype="int8")
+            pieces.append(dummies)
         else:
-            value_col = _pick_value_col(work, exclude={cust_col})
-            if value_col is not None:
-                work["revenue"] = pd.to_numeric(work[value_col], errors="coerce").fillna(0)
-            else:
-                work["revenue"] = 0.0
-    else:
-        work["revenue"] = pd.to_numeric(work["revenue"], errors="coerce").fillna(0)
+            freq = series.map(series.value_counts(normalize=True)).astype(float)
+            pieces.append(pd.DataFrame({f"freq__{_safe_name(col)}": freq}))
 
-    time_col = None
-    for candidate in ("InvoiceDate", "Invoice_Date", "date", "Date", "order_date"):
-        if candidate in work.columns:
-            time_col = candidate
-            break
-    if time_col:
-        work[time_col] = pd.to_datetime(work[time_col], errors="coerce")
-        anchor = work[time_col].max()
-        recency_source = work.groupby(cust_col)[time_col].max()
-        recency_days = (anchor - recency_source).dt.days.fillna(0)
-    elif "survey_year" in work.columns:
-        year = pd.to_numeric(work["survey_year"], errors="coerce")
-        anchor = year.max()
-        recency_source = work.groupby(cust_col)["survey_year"].max()
-        recency_days = ((anchor - recency_source).fillna(0) * 365).astype(float)
-    else:
-        recency_days = pd.Series(0, index=work.groupby(cust_col).size().index)
-
-    if inv_col:
-        frequency = work.groupby(cust_col)[inv_col].nunique(dropna=True)
-    else:
-        frequency = work.groupby(cust_col).size()
-
-    monetary = work.groupby(cust_col)["revenue"].sum()
-    total_rows = work.groupby(cust_col).size()
-    avg_revenue = work.groupby(cust_col)["revenue"].mean()
-
-    rfm = pd.DataFrame(
-        {
-            "Customer ID": monetary.index.astype(str),
-            "Customer_ID": monetary.index.astype(str),
-            "recency_days": recency_days.reindex(monetary.index).fillna(recency_days.median() if len(recency_days) else 0).astype(float),
-            "frequency": frequency.reindex(monetary.index).fillna(0).astype(float),
-            "monetary": monetary.reindex(monetary.index).fillna(0).astype(float),
-            "row_count": total_rows.reindex(monetary.index).fillna(0).astype(float),
-            "avg_revenue": avg_revenue.reindex(monetary.index).fillna(0).astype(float),
-        }
-    )
-    if "Country" in work.columns:
-        country = work.groupby(cust_col)["Country"].agg(lambda s: s.mode().iloc[0] if not s.mode().empty else s.iloc[0] if len(s) else "")
-        rfm["country"] = country.reindex(monetary.index).fillna("")
-    if "is_return" in work.columns:
-        rfm["return_rate"] = work.groupby(cust_col)["is_return"].mean().reindex(monetary.index).fillna(0).astype(float)
-    if "is_outlier" in work.columns:
-        rfm["outlier_rate"] = work.groupby(cust_col)["is_outlier"].mean().reindex(monetary.index).fillna(0).astype(float)
-
-    rfm = rfm.sort_values(["monetary", "frequency", "recency_days"], ascending=[False, False, True]).reset_index(drop=True)
-    return rfm
+    features = pd.concat(pieces, axis=1) if pieces else pd.DataFrame(index=work.index)
+    if y is not None:
+        features[target] = y.to_numpy()
+    return features.reset_index(drop=True), id_like, list(features.columns)
 
 
-def _write_manifest(out_dir: Path, profile: dict[str, str], rfm: pd.DataFrame) -> None:
+def _write_manifest(out_dir: Path, profile: dict[str, str], feature_columns: list[str], excluded: list[str]) -> None:
+    target = profile.get("target_column", "unknown")
     manifest = {
         "targets": {
-            profile.get("target_column", "unknown"): {
-                "exclude_features": ["Customer ID", "Customer_ID"],
-                "feature_columns": [c for c in rfm.columns if c not in {"Customer ID", "Customer_ID"}],
+            target: {
+                "exclude_features": sorted(set([target, *excluded])),
+                "feature_columns": [c for c in feature_columns if c != target],
                 "problem_type": profile.get("problem_type", "classification"),
             }
         },
-        "notes": "Builtin Finn manifest for Mo handoff.",
+        "notes": "Builtin Finn generic feature table. RFM is used only for explicit retail transaction schemas.",
     }
-    (out_dir / "finn_feature_manifest.json").write_text(
-        json.dumps(manifest, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
+    (out_dir / "finn_feature_manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-def _write_report(out_dir: Path, inp_name: str, profile: dict[str, str], rfm: pd.DataFrame) -> None:
-    report = out_dir / "finn_report.md"
-    report.write_text(
-        "\n".join(
-            [
-                "FINN_REPORT",
-                "===========",
-                "",
-                "FEATURE_GOVERNANCE",
-                "=================",
-                f"feature_lineage: derived from {inp_name}",
-                "prediction_time_availability: customer-level RFM features only",
-                "leakage_controls: drop raw ids/date/label-like fields before modeling",
-                "train_only_transforms: aggregation only; no target-aware transforms",
-                "temporal/OOT support columns: recency_days is computed relative to latest observed date",
-                "actionability: hand off customer-level features to Mo",
-                "warnings: confirm target ownership from Scout and use column_roles.json when available",
-                f"target column : {profile.get('target_column', 'unknown')}",
-                f"selected features : {', '.join([c for c in rfm.columns if c not in {'Customer ID', 'Customer_ID'}][:10])}",
-                f"engineered_columns: {len(rfm.columns)}",
-            ]
-        ),
-        encoding="utf-8",
+def _write_report(out_dir: Path, inp_name: str, profile: dict[str, str], feature_columns: list[str], excluded: list[str]) -> None:
+    target = profile.get("target_column", "unknown")
+    selected = [c for c in feature_columns if c != target][:30]
+    report = "\n".join(
+        [
+            "FINN_REPORT",
+            "===========",
+            "",
+            "FEATURE_GOVERNANCE",
+            "==================",
+            f"feature_lineage: derived from {inp_name}",
+            "feature_mode: generic supervised feature table",
+            "prediction_time_availability: row-level columns only; target is retained only for Mo training",
+            "leakage_controls: high-cardinality id-like columns excluded; target excluded from feature list",
+            "train_only_transforms: encoding/imputation recipe is deterministic and does not use target statistics",
+            f"target column : {target}",
+            f"problem_type : {profile.get('problem_type', 'classification')}",
+            f"excluded columns : {', '.join(excluded) if excluded else 'none'}",
+            f"selected features : {', '.join(selected) if selected else 'none'}",
+            f"engineered_columns: {len(feature_columns)}",
+            "handoff_status: ready for Mo",
+        ]
     )
+    (out_dir / "finn_report.md").write_text(report, encoding="utf-8")
 
 
 def main() -> None:
@@ -211,28 +147,32 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=True)
 
     df = pd.read_csv(inp)
-    role_blob = _read_role_blob(inp)
     profile = _read_profile(inp)
-    rfm = _build_rfm(df)
+    if _retail_rfm_possible(df) and profile.get("target_column", "").lower() in {"unknown", "", "monetary"}:
+        raise SystemExit("Retail segmentation/RFM fallback requires explicit Scout target/problem ownership")
 
+    features, excluded, feature_columns = _build_generic_features(df, profile)
     out_csv = out / "finn_output.csv"
-    rfm.to_csv(out_csv, index=False)
-    (out / "engineered_data.csv").write_text(rfm.to_csv(index=False), encoding="utf-8")
-    _write_manifest(out, profile, rfm)
-    _write_report(out, inp.name, profile, rfm)
-
-    # Lightweight summary for debugging and downstream traceability.
-    summary = {
-        "rows": len(rfm),
-        "columns": list(rfm.columns),
-        "target_column": profile.get("target_column", "unknown"),
-        "problem_type": profile.get("problem_type", "classification"),
-        "role_keys": sorted(role_blob.get("roles", {}).keys())[:20] if isinstance(role_blob.get("roles", {}), dict) else [],
-    }
-    (out / "finn_summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
+    features.to_csv(out_csv, index=False)
+    features.to_csv(out / "engineered_data.csv", index=False)
+    _write_manifest(out, profile, feature_columns, excluded)
+    _write_report(out, inp.name, profile, feature_columns, excluded)
+    (out / "finn_summary.json").write_text(
+        json.dumps(
+            {
+                "rows": len(features),
+                "columns": list(features.columns),
+                "target_column": profile.get("target_column", "unknown"),
+                "problem_type": profile.get("problem_type", "classification"),
+                "feature_mode": "generic_supervised",
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
 
     print(f"[STATUS] CSV saved: {out_csv}")
-    print(f"[STATUS] Manifest saved: {out / 'finn_feature_manifest.json'}")
     print(f"[STATUS] Report saved: {out / 'finn_report.md'}")
 
 

@@ -90,7 +90,21 @@ def main():
         if df[col].dtype == "object":
             df[col] = df[col].replace({"": pd.NA, "nan": pd.NA, "None": pd.NA})
 
-    target = _detect_target(df)
+    # User override takes precedence over keyword detection
+    # Use out.parent.parent (= project root) — reliable regardless of input location
+    _override_path = out.parent.parent / "target_override.json"
+    target = None
+    if _override_path.exists():
+        try:
+            import json as _j
+            _ov = _j.loads(_override_path.read_text(encoding="utf-8"))
+            _t = str(_ov.get("target_column", "")).strip()
+            if _t and _t.lower() not in {"unknown", ""} and _t in df.columns:
+                target = _t
+        except Exception:
+            pass
+    if target is None:
+        target = _detect_target(df)
     role_map = _build_role_map(df, target)
     role_summary = _role_summary(role_map)
     numeric_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c]) or c.lower() in {"quantity", "price", "unitprice", "freight_value", "payment_value"}]
@@ -125,8 +139,6 @@ def main():
 
     if "Quantity" in df.columns:
         df["is_return"] = (df["Quantity"] < 0).fillna(False).astype(int)
-    else:
-        df["is_return"] = 0
 
     if "Invoice" in df.columns:
         cancel_col = df["Invoice"].astype("string").str.upper().str.startswith("C")
@@ -134,8 +146,6 @@ def main():
     elif "InvoiceNo" in df.columns:
         cancel_col = df["InvoiceNo"].astype("string").str.upper().str.startswith("C")
         df["is_cancellation"] = cancel_col.fillna(False).astype(int)
-    else:
-        df["is_cancellation"] = 0
 
     num_for_outlier = [c for c in ["Quantity", "UnitPrice", "Price", "FreightValue", "payment_value"] if c in df.columns]
     if num_for_outlier:
@@ -167,7 +177,8 @@ def main():
     df.to_csv(out_csv, index=False)
     flags = out / "outlier_flags.csv"
     flag_rows = []
-    for idx, row in df[df["is_outlier"] == 1].head(10000).iterrows():
+    _outlier_rows = df[df["is_outlier"] == 1].head(10000) if "is_outlier" in df.columns else df.head(0)
+    for idx, row in _outlier_rows.iterrows():
         flag_rows.append([int(idx), "composite", "", "Likely Real", "robust z-score > 6", "flagged"])
     with flags.open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
@@ -200,7 +211,7 @@ def main():
         f"missing_before: {missing_before:,}\n"
         f"missing_after: {missing_after:,}\n"
         f"rows_removed_duplicates: {raw_shape[0] - cleaned_shape[0]:,}\n"
-        f"is_outlier_count: {int(df['is_outlier'].sum()):,}\n"
+        f"is_outlier_count: {int(df['is_outlier'].sum()) if 'is_outlier' in df.columns else 0:,}\n"
         f"role_counts: id={len(role_summary.get('id', []))}, date={len(role_summary.get('date', []))}, label={len(role_summary.get('label', []))}, numeric={len(role_summary.get('numeric', []))}, categorical={len(role_summary.get('categorical', []))}\n"
         f"label_column: {target or 'unknown'}\n"
         f"id_columns: {', '.join(role_summary.get('id', [])[:12]) or 'none'}\n"
@@ -210,16 +221,16 @@ def main():
         "train_only_safeguards: none applied at cleaning stage\n"
         "bias_impact: duplicate rows removed only; no target-aware transforms applied\n"
         "feature_usage_guard: id-like columns should be excluded from numeric model features; label should be excluded from feature calculations when supervision is present\n"
-        "downstream_warnings: cancellations/returns are preserved and flagged; confirm target leakage before modeling\n"
+        "downstream_warnings: preserve flags; confirm target leakage before modeling\n"
         "DATASET_RISK_REGISTER\n"
         "Source credibility: Medium\n"
         "License/usage: unknown from input file\n"
-        "Business fit: High for retail behavior analysis\n"
+        "Business fit: depends on domain — validate with downstream agents\n"
         f"Target suitability: {target or 'ambiguous'}\n"
-        "Recency/deployment fit: depends on source workbook\n"
+        "Recency/deployment fit: depends on source data\n"
         "Leakage risks: target and date-derived fields must be reviewed downstream\n"
-        "Bias/coverage risks: anonymous customers / cancellation rows / missing descriptions\n"
-        "Data dictionary: partial from workbook headers\n"
+        "Bias/coverage risks: check for duplicates, missing values, and outliers\n"
+        "Data dictionary: derived from input file headers\n"
         "Verdict: Use with caveats\n",
         encoding="utf-8"
     )

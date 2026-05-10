@@ -1,0 +1,5 @@
+{
+  "target_column": "Value",
+  "problem_type": "regression",
+  "business_goal": "forecast AI adoption and usage metrics for 2026-2035 based on historical trends 1998-2025"
+}
